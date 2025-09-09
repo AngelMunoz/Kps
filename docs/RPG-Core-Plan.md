@@ -20,7 +20,7 @@ Good luck to us — and let’s move methodically.
    - Define core primitives:
      - EntityId, Time (ticks), RNG seed/source
      - Factions/Teams (Player, Enemy, Neutral)
-     - Tags (Humanoid, Beast, Undead, Mage, Warrior, etc.)
+     - Tags (Biological, Artificial, Undead): Describes the fundamental nature of an entity, which is distinct from its skill-based `Family`. For example, a creature can be `Biological` (living), `Artificial` (a construct), or `Undead`. This allows for nuanced mechanics, such as an `Undead` creature that belongs to the `Strength` family (a skeleton warrior) or the `Magic` family (a lich).
      - Professions/Classes:
        - Family: Strength, Magic, Charm, Sensory
        - Stage: First, Second, Third
