@@ -4,18 +4,19 @@ open FSharp.Data.Adaptive
 open Pomo.Core.Domain
 open Pomo.Core.Domain.Primitives
 open Pomo.Core.Domain.Components
+open Pomo.Core.Rules
 
 type GameState = {
-  entities: amap<EntityId, All>
-  gameEvents: alist<GameEvent>
+  entities: cmap<EntityId, All>
+  gameEvents: clist<GameEvent>
   gameTime: cval<int64>
   rng: cval<System.Random>
 }
 
 module GameState =
   let create() = {
-    entities = AMap.ofList []
-    gameEvents = AList.ofList []
+    entities = cmap()
+    gameEvents = clist []
     gameTime = cval 0L
     rng = cval(System.Random 42)
   }
