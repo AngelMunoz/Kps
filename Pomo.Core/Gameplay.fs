@@ -7,6 +7,7 @@ open Pomo.Core.Domain.Components
 
 type GameState = {
   entities: amap<EntityId, All>
+  gameEvents: alist<GameEvent>
   gameTime: cval<int64>
   rng: cval<System.Random>
 }
@@ -14,17 +15,14 @@ type GameState = {
 module GameState =
   let create() = {
     entities = AMap.ofList []
+    gameEvents = AList.ofList []
     gameTime = cval 0L
     rng = cval(System.Random 42)
   }
 
-  let aAlive(state: GameState) : aset<EntityId> =
-    state.entities
-    |> AMap.filter(fun _ c -> c.Resources.Status = Attributes.Status.Alive)
-    |> AMap.toASet
-    |> ASet.map(fun (id, _) -> id)
-
-  let aDerived(state: GameState) : amap<EntityId, Attributes.DerivedStats> =
+  let getDerivedStats
+    (state: GameState)
+    : amap<EntityId, Attributes.DerivedStats> =
     state.entities
     |> AMap.map(fun id c ->
       // This is the base calculation for derived stats.
@@ -47,3 +45,9 @@ module GameState =
         CritChance = float c.BaseStats.Luck / 100.0 // placeholder
         Resistances = Map.empty // placeholder
       })
+
+  let aAlive(state: GameState) : aset<EntityId> =
+    state.entities
+    |> AMap.filter(fun _ c -> c.Resources.Status = Attributes.Status.Alive)
+    |> AMap.toASet
+    |> ASet.map(fun (id, _) -> id)

@@ -7,6 +7,8 @@
   <ItemGroup>
     <Compile Include="Domain.fs" />
     <Compile Include="Components.fs" />
+    <Compile Include="Rules.fs" />
+    <Compile Include="Resolution.fs" />
     <Compile Include="Gameplay.fs" />
     <Compile Include="Localization/LocalizationManager.fs" />
     <Compile Include="PomoGame.fs" />
