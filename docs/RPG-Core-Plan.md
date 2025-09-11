@@ -12,6 +12,10 @@ Good luck to us — and let’s move methodically.
 - Reactive state graph: use FDA to derive views and system inputs from authoritative state.
 - Extensibility: design for adding stats, effects, skills, and content over time.
 - Performant Reactive Core: Use incremental adaptive collections (`amap`, `aset`, `alist`) for dynamic state to enable efficient, fine-grained updates instead of replacing large collections. For static or slowly changing data, BCL collections are suitable.
+- When multiple adaptive values are required but feel scattered, SRTPs are an option to consider.
+- Adaptive values must be adaptive until they must be evaluated, meaning that every computation or adaptive value must be done in the "adaptive realm" until the final result is needed.
+  - If multiple values are required, consider using `adaptive { ... }` computation expressions to group them together.
+  - Adaptive Collections that must be kept after an adaptive computation should prefer `<Module>.<method>A` to avoid unnecesary converstions to resolved adaptive values. Example: `AList.mapA` instead of `AList.map <opperation> |> AList.toAList`.
 
 ## Phase 0 — Foundations
 
@@ -70,16 +74,24 @@ Deliverable: types with minimal constructors; no gameplay loop yet.
    - Compose derived stats from base + equipment + effects.
 
 3. Reactive State (FDA)
+
    - The authoritative state is the minimal, essential data from which all other game information is derived. It is held in a central record for clarity.
+
      ```fsharp
      type GameState = {
-         entities : amap<EntityId, Components>
+         entities: cmap<EntityId, All> // All components per entity.
+         gameEvents: clist<GameEvent>  // Events emitted by resolutions.
          gameTime : cval<int64> // Master clock for cooldowns, effects, etc.
          rng : cval<System.Random>      // For deterministic, reproducible simulations.
      }
      ```
+
+     - While the properties of this object are changeable, the record itself is immutable and likely it will be created once at initialization and then mutated in place via FDA transactions.
+     - Changeable values will be exposed as adaptive collections or values (`amap`, `alist`, `aval`) for computations and consumers, mutations have to be done via FDA transactions within well established places and clear boundaries.
+
    - **Why this state?**
-     - `entities`: The master collection of all game objects. Using an `amap` allows for efficient, incremental updates.
+     - `entities`: The master collection of all game objects. Using an `cmap` allows for efficient, incremental updates.
+     - While entities is a `cmap`, the game components will have to access it as an `amap` for reactive computations. This can be achieved by exposing a derived `amap` view of the `cmap` when needed.
      - `gameTime`: Essential for managing all time-based logic in a real-time game.
      - `rng`: Crucial for determinism. Storing the RNG state ensures that simulations are reproducible, which is vital for debugging and replays.
    - **Derived Data:** All other information is computed from this authoritative state. We can use a companion module to house helper functions for these computations.
