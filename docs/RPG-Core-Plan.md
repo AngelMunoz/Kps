@@ -18,21 +18,27 @@ Good luck to us — and let’s move methodically.
 1. Domain Skeleton
 
    - Define core primitives:
-     - EntityId, Time (ticks), RNG seed/source
-     - Factions/Teams (Player, Enemy, Neutral)
-     - Tags (Biological, Artificial, Undead): Describes the fundamental nature of an entity, which is distinct from its skill-based `Family`. For example, a creature can be `Biological` (living), `Artificial` (a construct), or `Undead`. This allows for nuanced mechanics, such as an `Undead` creature that belongs to the `Strength` family (a skeleton warrior) or the `Magic` family (a lich).
-     - Professions/Classes:
-       - Family: Strength, Magic, Charm, Sensory
-       - Stage: First, Second, Third
-       - Profession: A combination of Family and Stage, representing class evolution.
-   - Elemental & Damage Types (Modifiers):
+     - `EntityId`
+     - `Ticks` (a type alias for `int64<ticks>`)
+     - RNG seed/source
+   - Factions (`Faction` type):
+     - Player, Enemy, Neutral
+   - Tags (`Tag` type):
+     - Biological, Artificial, Undead
+   - Professions/Classes:
+     - `Family`: Strength, Magic, Charm, Sensory
+     - `Stage`: First, Second, Third
+     - `Profession`: A record combining `Family` and `Stage`.
+   - Elemental Types (`Element` type):
      - Fire, Earth, Water, Air, Light, Dark, Neutral.
    - Stats model:
-     - Base attributes: Strength, Agility, Intellect, Vitality, Willpower, Luck
-     - Derived stats: MaxHP, MaxMP, AttackPower, SpellPower, Armor, Evasion, CritChance, Resistances
-   - Resources:
-     - HP, MP, Stamina; status flags (Alive/Dead/Disabled)
-   - Inventory and Equipment slots (Head, Chest, Legs, Hands, Weapon1, Weapon2, Accessory)
+     - `BaseAttributes` record: Strength, Agility, Intellect, Vitality, Willpower, Luck
+     - `DerivedStats` record: MaxHP, MaxMP, AttackPower, SpellPower, Armor, Evasion, CritChance, Resistances (`Map<Element, float>`)
+   - Resources (`Resources` record):
+     - HP, MP, Stamina
+     - `Status` flag: Alive, Dead, Disabled
+   - Inventory and Equipment slots (`Slot` type):
+     - Head, Chest, Legs, Hands, Weapon1, Weapon2, Accessory
 
 2. Rules and Units
 
