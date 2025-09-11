@@ -81,7 +81,7 @@ Deliverable: types with minimal constructors; no gameplay loop yet.
      type GameState = {
          entities: cmap<EntityId, All> // All components per entity.
          gameEvents: clist<GameEvent>  // Events emitted by resolutions.
-         gameTime : cval<int64> // Master clock for cooldowns, effects, etc.
+         gameTime : cval<int64<ticks>> // Master clock for cooldowns, effects, etc.
          rng : cval<System.Random>      // For deterministic, reproducible simulations.
      }
      ```
@@ -255,20 +255,22 @@ type EntityId = EntityId of int
 
 module GameState =
     let create () =
-        { entities = amap []
-          gameEvents = alist []
-          gameTime = cval 0L
+        { entities = cmap []
+          gameEvents = clist []
+          gameTime = cval 0L<ticks>
           rng = cval (System.Random 42) }
 
     let aAlive (state: GameState) : aset<EntityId> =
-      state.entities.Values
-      |> ASet.filter (fun c -> c.resources.hp > 0)
-      |> ASet.map (fun c -> (* somehow get id *) failwith "todo") // Note: This part of API might need keys
+      state.entities
+      |> AMap.filter(fun _ c -> c.Resources.Status = Attributes.Status.Alive)
+      |> AMap.toASet
+      |> ASet.map(fun (id, _) -> id)
 
     let aDerived (state: GameState) : amap<EntityId, Derived> =
-      state.entities |> AMap.map (fun _ c ->
-          let attack = c.stats.str * 2
-          let spell = c.stats.intt * 2
+      state.entities |> AMap.map (fun id c ->
+          // ... stat calculation logic
+          let attack = c.BaseStats.Strength * 2
+          let spell = c.BaseStats.Intellect * 2
           // ... etc
           { attack = attack; spell = spell; armor = 0; resist = 0; crit = 0.0; evasion = 0.0 })
 
@@ -290,9 +292,9 @@ let apply (state: GameState) (cmd:Command) =
 
 ## Minimal Milestones Checklist
 
-- Phase 0: Types and RNG ✓ (scaffold)
-- Phase 1: Entity store + FDA projections
-- Phase 2: Commands + resolution + events (MeleeAttack + simple spell)
+- Phase 0: Types and RNG ✓
+- Phase 1: Entity store + FDA projections ✓
+- Phase 2: Commands + resolution + events (MeleeAttack + simple spell) ✓
 
 ## How to Integrate Into PomoGame (later)
 
