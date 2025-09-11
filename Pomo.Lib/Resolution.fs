@@ -4,8 +4,10 @@ open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Primitives
 open Pomo.Lib.Domain.Components
+open Pomo.Lib.Domain.GameEvent
 open Pomo.Lib.Content
 open Pomo.Lib.Gameplay
+open Pomo.Lib.Rules.Combat
 
 module Resolution =
 
@@ -13,6 +15,7 @@ module Resolution =
     entities: amap<EntityId, All>
     derivedStats: amap<EntityId, Attributes.DerivedStats>
     gameTime: cval<int64<ticks>>
+    rng: cval<System.Random>
   }
 
   type ResolverActors = { actor: EntityId; target: EntityId }
@@ -90,14 +93,20 @@ module Resolution =
         let! actorStats = derivedStats |> AMap.find actorId
         let! targetStats = derivedStats |> AMap.find targetId
         let! gameTime = gameTime
+        let! rng = rparams.rng
 
         // 1. Resolve: Calculate damage based on attacker's power and target's armor.
-        let damage = max 0 (actorStats.AttackPower - targetStats.Armor)
+        let damageResult =
+          Combat.calculatePhysicalDamage actorStats targetStats rng
 
-        let damageEvent = DamageApplied { target = targetId; amount = damage }
+        let damageEvent =
+          DamageApplied {
+            target = targetId
+            amount = damageResult.Amount
+          }
 
         // 2. Apply Changes: Update the target's health.
-        let newHp = max 0 (targetComponents.Resources.HP - damage)
+        let newHp = max 0 (targetComponents.Resources.HP - damageResult.Amount)
 
         let newResources = {
           targetComponents.Resources with
@@ -216,8 +225,17 @@ module Resolution =
       | Some(actorComponents, targetComponents, costOpt, abilityDef) ->
         // 1. Validate Cost: Check if the actor has enough of the required resource.
         let! actorStats = derivedStats |> AMap.find actorId
+        let! targetStats = derivedStats |> AMap.find targetId
         let! gameTime = gameTime
-        let spellDamage = actorStats.SpellPower // placeholder, ignore spellId for now
+        let! rng = rparams.rng
+
+        // TODO: The element should come from the ability definition
+        let damageResult =
+          Combat.calculateMagicalDamage
+            Attributes.Element.Neutral
+            actorStats.SpellPower
+            targetStats
+            rng
 
         // 2. Apply Cost to Actor
         let (costEvents, actorComponents) =
@@ -239,7 +257,10 @@ module Resolution =
                 amount,
                 {
                   actorComponents with
-                      Resources.MP = amount
+                      Resources = {
+                        actorComponents.Resources with
+                            MP = amount
+                      }
                 }
               | Abilities.ResourceType.Stamina ->
                 let amount = actorComponents.Resources.Stamina - cost.Amount
@@ -247,7 +268,10 @@ module Resolution =
                 amount,
                 {
                   actorComponents with
-                      Resources.Stamina = amount
+                      Resources = {
+                        actorComponents.Resources with
+                            Stamina = amount
+                      }
                 }
 
             let ev =
@@ -270,12 +294,13 @@ module Resolution =
         }
 
         // 3. Resolve Damage on Target
-        let targetHpAfter = max 0 (targetComponents.Resources.HP - spellDamage)
+        let targetHpAfter =
+          max 0 (targetComponents.Resources.HP - damageResult.Amount)
 
         let damageEvent =
           DamageApplied {
             target = targetId
-            amount = spellDamage
+            amount = damageResult.Amount
           }
 
         let targetNewResources = {
@@ -304,32 +329,69 @@ module Resolution =
               Resources = finalTargetResources
         }
 
-        // 5. Collate all changes and events
+        // 5. Apply Effects
+        let effectEvents, newEffects =
+          abilityDef.Effects
+          |> List.map(fun effectId ->
+            let effectDef = Pomo.Lib.Content.EffectStore.definitions.[effectId]
+
+            let duration =
+              match effectDef.Duration with
+              | Effects.Duration.Timed d -> d
+              | _ -> 0L<ticks>
+
+            let activeEffect: Effects.ActiveEffect = {
+              EffectId = effectId
+              SourceId = actorId
+              RemainingTicks = gameTime + duration
+              Stacks = 1
+            }
+
+            let event =
+              EffectApplied {
+                target = targetId
+                effectId = effectId
+                source = actorId
+              }
+
+            (event, activeEffect))
+          |> List.unzip
+
+        let finalTarget = {
+          updatedTarget with
+              Effects =
+                updatedTarget.Effects |> AList.append(AList.ofList newEffects)
+        }
+
+
+        // 6. Collate all changes and events
         let changes =
-          Map.ofList [ actorId, updatedActor; targetId, updatedTarget ]
+          Map.ofList [ actorId, updatedActor; targetId, finalTarget ]
 
-        let events =
-          [| damageEvent |]
-          |> Array.append costEvents
-          |> Array.append(
-            match deathEvent with
-            | Some e -> [| e |]
-            | _ -> Array.empty
-          )
+        let allEvents = [|
+          damageEvent
+          yield! costEvents
+          yield! effectEvents
+          match deathEvent with
+          | Some e -> e
+          | _ -> ()
+        |]
 
-        return events, changes
+        return allEvents, changes
     }
 
   let private step
     (currentEntities: amap<EntityId, All>)
     (derivedStats: amap<EntityId, Attributes.DerivedStats>)
     (gameTime: cval<int64<ticks>>)
+    (rng: cval<System.Random>)
     (command: Command)
     : aval<GameEvent[] * Map<EntityId, All>> =
     let resolverParams = {
       entities = currentEntities
       derivedStats = derivedStats
       gameTime = gameTime
+      rng = rng
     }
 
     match command with
@@ -354,10 +416,11 @@ module Resolution =
     let derivedStats = GameState.getDerivedStats state
 
     let events, changes =
-      step state.entities derivedStats state.gameTime cmd |> AVal.force
+      step state.entities derivedStats state.gameTime state.rng cmd
+      |> AVal.force
 
     transact(fun _ ->
       state.gameEvents.AddRange events
 
       for change in changes do
-        state.entities[change.Key] <- change.Value)
+        state.entities.[change.Key] <- change.Value)

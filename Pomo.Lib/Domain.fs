@@ -85,8 +85,66 @@ module Inventory =
     | Weapon2
     | Accessory
 
+module Effects =
+  open Primitives
+
+  type EffectId = EffectId of int
+
+  type EffectKind =
+    | Buff
+    | Debuff
+    | DamageOverTime
+    | HealOverTime
+    | Stun
+    | Silence
+    | Taunt
+    | Shield
+
+  type StackingRule =
+    | NoStack
+    | RefreshDuration
+    | AddStack of int // max stacks
+
+  type Duration =
+    | Instant
+    | Timed of Ticks
+
+  type Stat =
+    | Strength
+    | Agility
+    | Intellect
+    | Vitality
+    | Willpower
+    | Luck
+    | MaxHP
+    | MaxMP
+    | AttackPower
+    | SpellPower
+    | Armor
+
+  type StatModifier =
+    | Additive of Stat * int
+    | Multiplicative of Stat * float
+
+  type EffectDefinition = {
+    Id: EffectId
+    Name: string
+    Kind: EffectKind
+    Stacking: StackingRule
+    Duration: Duration
+    Modifiers: StatModifier list
+  }
+
+  type ActiveEffect = {
+    EffectId: EffectId // Corresponds to a definition
+    SourceId: EntityId
+    RemainingTicks: Ticks
+    Stacks: int
+  }
+
 module Abilities =
   open Primitives
+  open Effects
 
   type ResourceType =
     | HP
@@ -102,4 +160,43 @@ module Abilities =
     Name: string
     Cooldown: Ticks
     Cost: ResourceCost option
+    Effects: Effects.EffectId list
   }
+
+module GameEvent =
+  type DamageAppliedEvent = {
+    target: Primitives.EntityId
+    amount: int
+  }
+
+  type HealedEvent = {
+    target: Primitives.EntityId
+    amount: int
+  }
+
+  type ResourceChangedEvent = {
+    target: Primitives.EntityId
+    resource: string
+    newValue: int
+  }
+
+  type EffectAppliedEvent = {
+    target: Primitives.EntityId
+    effectId: Effects.EffectId
+    source: Primitives.EntityId
+  }
+
+  type EffectExpiredEvent = {
+    target: Primitives.EntityId
+    effectId: Effects.EffectId
+  }
+
+  type EntityDiedEvent = { entityId: Primitives.EntityId }
+
+  type GameEvent =
+    | DamageApplied of DamageAppliedEvent
+    | Healed of HealedEvent
+    | ResourceChanged of ResourceChangedEvent
+    | EffectApplied of EffectAppliedEvent
+    | EffectExpired of EffectExpiredEvent
+    | EntityDied of EntityDiedEvent

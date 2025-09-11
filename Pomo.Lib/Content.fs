@@ -2,6 +2,7 @@ namespace Pomo.Lib.Content
 
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Abilities
+open Pomo.Lib.Domain.Effects
 
 module AbilityStore =
 
@@ -17,6 +18,7 @@ module AbilityStore =
             Amount = 10
           }
         Cooldown = 2000L<ticks> // 2 seconds
+        Effects = []
       }
       AbilityId 2,
       {
@@ -24,5 +26,6 @@ module AbilityStore =
         Name = "Fireball"
         Cost = Some { Type = ResourceType.MP; Amount = 20 }
         Cooldown = 5000L<ticks> // 5 seconds
+        Effects = [ EffectId 2 ]
       }
     ]

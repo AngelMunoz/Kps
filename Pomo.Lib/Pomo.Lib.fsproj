@@ -9,7 +9,9 @@
     <Compile Include="Domain.fs" />
     <Compile Include="Components.fs" />
     <Compile Include="Rules.fs" />
+    <Compile Include="Combat.fs" />
     <Compile Include="Content.fs" />
+    <Compile Include="Content\Effects.fs" />
     <Compile Include="Gameplay.fs" />
     <Compile Include="Resolution.fs" />
   </ItemGroup>

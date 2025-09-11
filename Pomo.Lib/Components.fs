@@ -5,7 +5,7 @@ open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Primitives
 open Pomo.Lib.Domain.Abilities
 
-type ActiveEffect = { EffectId: int; Duration: Ticks } // Placeholder
+open Pomo.Lib.Domain.Effects
 
 type All = {
   Identity: Classification.Profession
