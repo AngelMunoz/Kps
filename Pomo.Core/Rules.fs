@@ -1,19 +1,25 @@
 namespace Pomo.Core.Rules
 
+open Pomo.Core.Domain
 open Pomo.Core.Domain.Primitives
 
 /// Represents the actions that can be initiated by entities in the game.
-type MeleeAttackAction = { actor: EntityId; target: EntityId }
+type MeleeAttackAction = {
+  actor: EntityId
+  target: EntityId
+  abilityId: Abilities.AbilityId
+}
 
 type CastSpellAction = {
   actor: EntityId
   target: EntityId
-  spellId: int
+  abilityId: Abilities.AbilityId
 }
 
 type Command =
   | MeleeAttack of MeleeAttackAction
-  | CastSpell of CastSpellAction // simple spell placeholder for Phase 2 vertical slice
+  | CastSpell of CastSpellAction
+
 // | UseItem of { actor: EntityId; itemId: int; target: EntityId }
 // | Defend of { actor: EntityId }
 // | Wait of { actor: EntityId }

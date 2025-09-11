@@ -9,7 +9,7 @@ open Pomo.Core.Rules
 type GameState = {
   entities: cmap<EntityId, All>
   gameEvents: clist<GameEvent>
-  gameTime: cval<int64>
+  gameTime: cval<int64<ticks>>
   rng: cval<System.Random>
 }
 
@@ -17,7 +17,7 @@ module GameState =
   let create() = {
     entities = cmap()
     gameEvents = clist []
-    gameTime = cval 0L
+    gameTime = cval 0L<ticks>
     rng = cval(System.Random 42)
   }
 
@@ -52,3 +52,21 @@ module GameState =
     |> AMap.filter(fun _ c -> c.Resources.Status = Attributes.Status.Alive)
     |> AMap.toASet
     |> ASet.map(fun (id, _) -> id)
+
+  let aReadyAbilities
+    (state: GameState)
+    : aset<(EntityId * Abilities.AbilityId)> =
+    let allCoolDowns =
+      state.entities
+      |> AMap.toASet
+      |> ASet.collect(fun (id, c) ->
+        c.AbilityCooldowns
+        |> AMap.map(fun abilityId readyTick -> (id, abilityId, readyTick))
+        |> AMap.toASet)
+
+    allCoolDowns
+    |> ASet.filterA(fun (_, (_, _, readyTick)) -> adaptive {
+      let! gameTime = state.gameTime
+      return readyTick <= gameTime
+    })
+    |> ASet.map(fun (_, (id, abilityId, _)) -> (id, abilityId))

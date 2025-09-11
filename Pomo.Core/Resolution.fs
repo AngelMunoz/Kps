@@ -4,6 +4,7 @@ open FSharp.Data.Adaptive
 open Pomo.Core.Domain
 open Pomo.Core.Domain.Primitives
 open Pomo.Core.Domain.Components
+open Pomo.Core.Content
 open Pomo.Core.Gameplay
 
 module Resolution =
@@ -11,189 +12,332 @@ module Resolution =
   type ResolverParams = {
     entities: amap<EntityId, All>
     derivedStats: amap<EntityId, Attributes.DerivedStats>
+    gameTime: cval<int64<ticks>>
   }
 
   type ResolverActors = { actor: EntityId; target: EntityId }
 
+
   type ResolverFn =
     ResolverParams * ResolverActors -> aval<GameEvent[] * Map<EntityId, All>>
 
-  /// Resolves a MeleeAttack command, calculating damage and generating events.
-  let private resolveMeleeAttack: ResolverFn =
-    fun
-        ({
-           entities = entities
-           derivedStats = derivedStats
-         },
-         { actor = actorId; target = targetId }) -> adaptive {
-      // Note: This is a simplified implementation for Phase 2.
-      // It does not yet account for costs, cooldowns, or complex validation.
-      let! isActorAndTargetPresent =
-        entities |> AMap.exists(fun id _ -> id = actorId || id = targetId)
+  /// A validation function that checks for the presence of actor and target, and the actor's status.
+  let private validateAction
+    (rparams: ResolverParams)
+    (ractors: ResolverActors)
+    (abilityId: Abilities.AbilityId)
+    =
+    adaptive {
+      let! actor = rparams.entities |> AMap.tryFind ractors.actor
+      let! target = rparams.entities |> AMap.tryFind ractors.target
+      let! gameTime = rparams.gameTime
 
-      if not isActorAndTargetPresent then
-        return Array.empty, Map.empty
-      else
-        let! actorComponents = entities |> AMap.tryFind actorId
-        let! targetComponents = entities |> AMap.tryFind targetId
+      match actor, target with
+      | Some actor, Some target when
+        actor.Resources.Status = Attributes.Status.Alive
+        ->
+        // Cooldown Check
+        let! cooldowns = actor.AbilityCooldowns |> AMap.tryFind abilityId
 
-        match actorComponents, targetComponents with
-        | (None, Some _)
-        | (Some _, None)
-        | (None, None) -> return Array.empty, Map.empty
-        | Some actorComponents, Some targetComponents ->
-          let! actorStats = derivedStats |> AMap.find actorId
-          let! targetStats = derivedStats |> AMap.find targetId
+        let isOnCooldown =
+          match cooldowns with
+          | Some readyTime -> gameTime < readyTime
+          | None -> false
 
-          // 1. Validate: Check if the attacker is alive.
-          if actorComponents.Resources.Status <> Attributes.Status.Alive then
-            return Array.empty, Map.empty // Attacker is not alive, so no action occurs.
+        if isOnCooldown then
+          return None
+        else
+          // Cost Check
+          let abilityDef = AbilityStore.definitions[abilityId]
+
+          let hasEnoughResource, cost =
+            match abilityDef.Cost with
+            | Some c ->
+              let hasEnough =
+                match c.Type with
+                | Abilities.ResourceType.HP -> actor.Resources.HP >= c.Amount
+                | Abilities.ResourceType.MP -> actor.Resources.MP >= c.Amount
+                | Abilities.ResourceType.Stamina ->
+                  actor.Resources.Stamina >= c.Amount
+
+              hasEnough, Some c
+            | None -> true, None
+
+          if hasEnoughResource then
+            return Some(actor, target, cost, abilityDef)
           else
-            // 2. Resolve: Calculate damage based on attacker's power and target's armor.
-            let damage = max 0 (actorStats.AttackPower - targetStats.Armor)
-
-            let damageEvent =
-              DamageApplied { target = targetId; amount = damage }
-
-            // 3. Apply Changes: Update the target's health.
-            let newHp = max 0 (targetComponents.Resources.HP - damage)
-
-            let newResources = {
-              targetComponents.Resources with
-                  HP = newHp
-            }
-
-            // 4. Check for Death
-            let deathEvent, finalResources =
-              if
-                newHp <= 0
-                && targetComponents.Resources.Status = Attributes.Status.Alive
-              then
-                let event = EntityDied { entityId = targetId }
-
-                let resources = {
-                  newResources with
-                      Status = Attributes.Status.Dead
-                }
-
-                Some event, resources
-              else
-                None, newResources
-
-            let updatedTarget = {
-              targetComponents with
-                  Resources = finalResources
-            }
-
-            let changes = Map.ofList [ targetId, updatedTarget ]
-
-            let events =
-              [| damageEvent |]
-              |> Array.append(
-                match deathEvent with
-                | Some e -> [| e |]
-                | _ -> [||]
-              )
-
-            return events, changes
+            return None
+      | _ -> return None
     }
 
-  let private resolveCastSpell(spellId) : ResolverFn =
-    fun
-        ({
-           entities = entities
-           derivedStats = derivedStats
-         },
-         { actor = actorId; target = targetId }) ->
+  /// Resolves a MeleeAttack command, calculating damage and generating events.
+  let private resolveMeleeAttack(abilityId: Abilities.AbilityId) : ResolverFn =
+    fun (rparams, ractors) -> adaptive {
+      let {
+            entities = entities
+            derivedStats = derivedStats
+            gameTime = gameTime
+          } =
+        rparams
 
-      adaptive {
-        // Very simple placeholder spell: does spellPower as pure damage ignoring armor.
-        // Note: This is a highly simplified implementation for Phase 2.
-        // It does not yet account for spell costs, cooldowns, spell effects, or complex validation.
-        let! isActorAndTargetPresent =
-          entities |> AMap.exists(fun id _ -> id = actorId || id = targetId)
+      let { actor = actorId; target = targetId } = ractors
 
-        if not isActorAndTargetPresent then
-          return Array.empty, Map.empty
-        else
+      let! validationResult = validateAction rparams ractors abilityId
 
-          let! actorComponents = entities |> AMap.tryFind actorId
-          let! targetComponents = entities |> AMap.tryFind targetId
+      match validationResult with
+      | None -> return Array.empty, Map.empty
+      | Some(actorComponents, targetComponents, costOpt, abilityDef) ->
+        let! actorStats = derivedStats |> AMap.find actorId
+        let! targetStats = derivedStats |> AMap.find targetId
+        let! gameTime = gameTime
 
-          match actorComponents, targetComponents with
-          | (None, Some _)
-          | (Some _, None)
-          | (None, None) -> return Array.empty, Map.empty
-          | Some actorComponents, Some targetComponents ->
+        // 1. Resolve: Calculate damage based on attacker's power and target's armor.
+        let damage = max 0 (actorStats.AttackPower - targetStats.Armor)
 
-            if actorComponents.Resources.Status <> Attributes.Status.Alive then
-              return Array.empty, Map.empty
-            else
-              let! actorStats = derivedStats |> AMap.find actorId
-              let spellDamage = actorStats.SpellPower // placeholder, ignore spellId for now
+        let damageEvent = DamageApplied { target = targetId; amount = damage }
 
-              let targetHpAfter =
-                max 0 (targetComponents.Resources.HP - spellDamage)
+        // 2. Apply Changes: Update the target's health.
+        let newHp = max 0 (targetComponents.Resources.HP - damage)
 
-              let damageEvent =
-                DamageApplied {
-                  target = targetId
-                  amount = spellDamage
+        let newResources = {
+          targetComponents.Resources with
+              HP = newHp
+        }
+
+        // 3. Check for Death
+        let deathEvent, finalResources =
+          if
+            newHp <= 0
+            && targetComponents.Resources.Status = Attributes.Status.Alive
+          then
+            let event = EntityDied { entityId = targetId }
+
+            let resources = {
+              newResources with
+                  Status = Attributes.Status.Dead
+            }
+
+            Some event, resources
+          else
+            None, newResources
+
+        let updatedTarget = {
+          targetComponents with
+              Resources = finalResources
+        }
+
+        let costEvents, actorComponents =
+          match costOpt with
+          | Some cost ->
+            let amount, all =
+              match cost.Type with
+              | Abilities.ResourceType.HP ->
+                let amount = actorComponents.Resources.HP - cost.Amount
+
+                amount,
+                {
+                  actorComponents with
+                      Resources.HP = amount
+                }
+              | Abilities.ResourceType.MP ->
+                let amount = actorComponents.Resources.MP - cost.Amount
+
+                amount,
+                {
+                  actorComponents with
+                      Resources.MP = amount
+                }
+              | Abilities.ResourceType.Stamina ->
+                let amount = actorComponents.Resources.Stamina - cost.Amount
+
+                amount,
+                {
+                  actorComponents with
+                      Resources.Stamina = amount
                 }
 
-              let newResources = {
-                targetComponents.Resources with
-                    HP = targetHpAfter
+
+
+            let ev =
+              ResourceChanged {
+                target = actorId
+                resource = sprintf "%A" cost.Type
+                newValue = amount
               }
 
-              let deathEvent, finalResources =
-                if
-                  targetHpAfter <= 0
-                  && targetComponents.Resources.Status = Attributes.Status.Alive
-                then
-                  let event = EntityDied { entityId = targetId }
+            [| ev |], all
+          | None -> Array.empty, actorComponents
 
-                  Some event,
-                  {
-                    newResources with
-                        Status = Attributes.Status.Dead
-                  }
-                else
-                  None, newResources
+        let updatedActor = {
+          actorComponents with
+              AbilityCooldowns =
+                actorComponents.AbilityCooldowns
+                |> AMap.map(fun k v ->
+                  if k = abilityId then gameTime + abilityDef.Cooldown else v)
+        }
 
-              let updatedTarget = {
-                targetComponents with
-                    Resources = finalResources
+        let changes =
+          Map.ofList [ actorId, updatedActor; targetId, updatedTarget ]
+
+        let events = [|
+          damageEvent
+          for ev in costEvents do
+            ev
+          match deathEvent with
+          | Some e -> e
+          | _ -> ()
+        |]
+
+        return events, changes
+    }
+
+  let private resolveCastSpell(abilityId: Abilities.AbilityId) : ResolverFn =
+    fun (rparams, ractors) -> adaptive {
+      let {
+            entities = entities
+            derivedStats = derivedStats
+            gameTime = gameTime
+          } =
+        rparams
+
+      let { actor = actorId; target = targetId } = ractors
+      // This implementation now includes a flexible resource cost.
+      // It does not yet account for cooldowns or complex spell effects.
+      let! validationResult = validateAction rparams ractors abilityId
+
+      match validationResult with
+      | None -> return Array.empty, Map.empty
+      | Some(actorComponents, targetComponents, costOpt, abilityDef) ->
+        // 1. Validate Cost: Check if the actor has enough of the required resource.
+        let! actorStats = derivedStats |> AMap.find actorId
+        let! gameTime = gameTime
+        let spellDamage = actorStats.SpellPower // placeholder, ignore spellId for now
+
+        // 2. Apply Cost to Actor
+        let (costEvents, actorComponents) =
+          match costOpt with
+          | Some cost ->
+            let amount, all =
+              match cost.Type with
+              | Abilities.ResourceType.HP ->
+                let amount = actorComponents.Resources.HP - cost.Amount
+
+                amount,
+                {
+                  actorComponents with
+                      Resources.HP = amount
+                }
+              | Abilities.ResourceType.MP ->
+                let amount = actorComponents.Resources.MP - cost.Amount
+
+                amount,
+                {
+                  actorComponents with
+                      Resources.MP = amount
+                }
+              | Abilities.ResourceType.Stamina ->
+                let amount = actorComponents.Resources.Stamina - cost.Amount
+
+                amount,
+                {
+                  actorComponents with
+                      Resources.Stamina = amount
+                }
+
+            let ev =
+              ResourceChanged {
+                target = actorId
+                resource = sprintf "%A" cost.Type
+                newValue = amount
               }
 
-              let changes = Map.ofList [ targetId, updatedTarget ]
+            [| ev |], all
+          | None -> Array.empty, actorComponents
 
-              let events = [|
-                damageEvent
-                match deathEvent with
-                | Some e -> e
-                | None -> ()
-              |]
 
-              return events, changes
-      }
+        let updatedActor = {
+          actorComponents with
+              AbilityCooldowns =
+                actorComponents.AbilityCooldowns
+                |> AMap.map(fun k v ->
+                  if k = abilityId then gameTime + abilityDef.Cooldown else v)
+        }
+
+        // 3. Resolve Damage on Target
+        let targetHpAfter = max 0 (targetComponents.Resources.HP - spellDamage)
+
+        let damageEvent =
+          DamageApplied {
+            target = targetId
+            amount = spellDamage
+          }
+
+        let targetNewResources = {
+          targetComponents.Resources with
+              HP = targetHpAfter
+        }
+
+        // 4. Check for Target Death
+        let deathEvent, finalTargetResources =
+          if
+            targetHpAfter <= 0
+            && targetComponents.Resources.Status = Attributes.Status.Alive
+          then
+            let event = EntityDied { entityId = targetId }
+
+            Some event,
+            {
+              targetNewResources with
+                  Status = Attributes.Status.Dead
+            }
+          else
+            None, targetNewResources
+
+        let updatedTarget = {
+          targetComponents with
+              Resources = finalTargetResources
+        }
+
+        // 5. Collate all changes and events
+        let changes =
+          Map.ofList [ actorId, updatedActor; targetId, updatedTarget ]
+
+        let events =
+          [| damageEvent |]
+          |> Array.append costEvents
+          |> Array.append(
+            match deathEvent with
+            | Some e -> [| e |]
+            | _ -> Array.empty
+          )
+
+        return events, changes
+    }
 
   let private step
     (currentEntities: amap<EntityId, All>)
     (derivedStats: amap<EntityId, Attributes.DerivedStats>)
+    (gameTime: cval<int64<ticks>>)
     (command: Command)
     : aval<GameEvent[] * Map<EntityId, All>> =
     let resolverParams = {
       entities = currentEntities
       derivedStats = derivedStats
+      gameTime = gameTime
     }
 
     match command with
-    | MeleeAttack { actor = actor; target = target } ->
-      resolveMeleeAttack(resolverParams, { actor = actor; target = target })
+    | MeleeAttack action ->
+      resolveMeleeAttack
+        action.abilityId
+        (resolverParams,
+         {
+           actor = action.actor
+           target = action.target
+         })
     | CastSpell action ->
       resolveCastSpell
-        action.spellId
+        action.abilityId
         (resolverParams,
          {
            actor = action.actor
@@ -202,7 +346,9 @@ module Resolution =
 
   let apply (state: GameState) (cmd: Command) =
     let derivedStats = GameState.getDerivedStats state
-    let events, changes = step state.entities derivedStats cmd |> AVal.force
+
+    let events, changes =
+      step state.entities derivedStats state.gameTime cmd |> AVal.force
 
     transact(fun _ ->
       state.gameEvents.AddRange events

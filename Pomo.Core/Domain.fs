@@ -84,3 +84,22 @@ module Inventory =
     | Weapon1
     | Weapon2
     | Accessory
+
+module Abilities =
+  open Primitives
+
+  type ResourceType =
+    | HP
+    | MP
+    | Stamina
+
+  type ResourceCost = { Type: ResourceType; Amount: int }
+
+  type AbilityId = AbilityId of int
+
+  type AbilityDefinition = {
+    Id: AbilityId
+    Name: string
+    Cooldown: Ticks
+    Cost: ResourceCost option
+  }
