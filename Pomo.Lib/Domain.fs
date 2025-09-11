@@ -1,4 +1,4 @@
-namespace Pomo.Core.Domain
+namespace Pomo.Lib.Domain
 
 [<Measure>]
 type ticks

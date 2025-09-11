@@ -1,8 +1,7 @@
-namespace Pomo.Core.Content
+namespace Pomo.Lib.Content
 
-open Pomo.Core.Domain
-open Pomo.Core.Domain.Primitives
-open Pomo.Core.Domain.Abilities
+open Pomo.Lib.Domain
+open Pomo.Lib.Domain.Abilities
 
 module AbilityStore =
 

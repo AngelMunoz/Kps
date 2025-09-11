@@ -1,10 +1,11 @@
-namespace Pomo.Core.Gameplay
+namespace Pomo.Lib.Gameplay
 
 open FSharp.Data.Adaptive
-open Pomo.Core.Domain
-open Pomo.Core.Domain.Primitives
-open Pomo.Core.Domain.Components
-open Pomo.Core.Rules
+open Pomo.Lib.Domain
+open Pomo.Lib.Domain.Primitives
+open Pomo.Lib.Domain.Components
+open Pomo.Lib.Domain.Attributes
+open Pomo.Lib.Rules
 
 type GameState = {
   entities: cmap<EntityId, All>

@@ -1,11 +1,9 @@
-namespace Pomo.Core.Domain.Components
+namespace Pomo.Lib.Domain.Components
 
 open FSharp.Data.Adaptive
-open Pomo.Core.Domain
-open Pomo.Core.Domain.Classification
-open Pomo.Core.Domain.Attributes
-open Pomo.Core.Domain.Primitives
-open Pomo.Core.Domain.Abilities
+open Pomo.Lib.Domain
+open Pomo.Lib.Domain.Primitives
+open Pomo.Lib.Domain.Abilities
 
 type ActiveEffect = { EffectId: int; Duration: Ticks } // Placeholder
 

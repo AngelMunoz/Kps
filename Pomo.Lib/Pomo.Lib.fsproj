@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Domain.fs" />
+    <Compile Include="Components.fs" />
+    <Compile Include="Rules.fs" />
+    <Compile Include="Content.fs" />
+    <Compile Include="Gameplay.fs" />
+    <Compile Include="Resolution.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FSharp.Data.Adaptive" Version="1.2.25" />
+  </ItemGroup>
+
+</Project>

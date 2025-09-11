@@ -1,7 +1,7 @@
-namespace Pomo.Core.Rules
+namespace Pomo.Lib.Rules
 
-open Pomo.Core.Domain
-open Pomo.Core.Domain.Primitives
+open Pomo.Lib.Domain
+open Pomo.Lib.Domain.Primitives
 
 /// Represents the actions that can be initiated by entities in the game.
 type MeleeAttackAction = {

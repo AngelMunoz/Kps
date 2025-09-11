@@ -5,18 +5,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Domain.fs" />
-    <Compile Include="Components.fs" />
-    <Compile Include="Rules.fs" />
-    <Compile Include="Content.fs" />
-    <Compile Include="Gameplay.fs" />
-    <Compile Include="Resolution.fs" />
     <Compile Include="Localization/LocalizationManager.fs" />
     <Compile Include="PomoGame.fs" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FSharp.Data.Adaptive" Version="1.2.25" />
+    <ProjectReference Include="..\Pomo.Lib\Pomo.Lib.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*">
       <PrivateAssets>All</PrivateAssets>
     </PackageReference>

@@ -13,6 +13,7 @@
       <Deploy />
     </Project>
   </Folder>
-  <Project Path="Pomo.Core.Tests/Pomo.Core.Tests.fsproj" />
   <Project Path="Pomo.Core/Pomo.Core.fsproj" />
+  <Project Path="Pomo.Lib.Tests/Pomo.Lib.Tests.fsproj" />
+  <Project Path="Pomo.Lib/Pomo.Lib.fsproj" />
 </Solution>

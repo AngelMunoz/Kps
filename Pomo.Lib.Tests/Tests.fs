@@ -1,4 +1,4 @@
-﻿namespace Pomo.Core.Tests
+﻿namespace Pomo.Lib.Tests
 
 open System
 open Xunit
@@ -6,13 +6,13 @@ open FsCheck
 open FsCheck.FSharp
 open FsCheck.Xunit
 open FSharp.Data.Adaptive
-open Pomo.Core.Domain
-open Pomo.Core.Domain.Primitives
-open Pomo.Core.Domain.Attributes
-open Pomo.Core.Domain.Components
-open Pomo.Core.Gameplay
-open Pomo.Core.Rules
-open Pomo.Core.Content
+open Pomo.Lib.Domain
+open Pomo.Lib.Domain.Primitives
+open Pomo.Lib.Domain.Attributes
+open Pomo.Lib.Domain.Components
+open Pomo.Lib.Gameplay
+open Pomo.Lib.Rules
+open Pomo.Lib.Content
 
 // --------------------------------------------------
 // Generators

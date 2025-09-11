@@ -1,11 +1,11 @@
-namespace Pomo.Core.Rules
+namespace Pomo.Lib.Rules
 
 open FSharp.Data.Adaptive
-open Pomo.Core.Domain
-open Pomo.Core.Domain.Primitives
-open Pomo.Core.Domain.Components
-open Pomo.Core.Content
-open Pomo.Core.Gameplay
+open Pomo.Lib.Domain
+open Pomo.Lib.Domain.Primitives
+open Pomo.Lib.Domain.Components
+open Pomo.Lib.Content
+open Pomo.Lib.Gameplay
 
 module Resolution =
 
@@ -145,7 +145,10 @@ module Resolution =
                 amount,
                 {
                   actorComponents with
-                      Resources.MP = amount
+                      Resources = {
+                        actorComponents.Resources with
+                            MP = amount
+                      }
                 }
               | Abilities.ResourceType.Stamina ->
                 let amount = actorComponents.Resources.Stamina - cost.Amount
@@ -153,7 +156,10 @@ module Resolution =
                 amount,
                 {
                   actorComponents with
-                      Resources.Stamina = amount
+                      Resources = {
+                        actorComponents.Resources with
+                            Stamina = amount
+                      }
                 }
 
 
