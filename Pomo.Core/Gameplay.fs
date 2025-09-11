@@ -21,6 +21,9 @@ module GameState =
     rng = cval(System.Random 42)
   }
 
+  let tick (state: GameState) (time: int64<ticks>) =
+    transact(fun _ -> state.gameTime.Value <- state.gameTime.Value + time)
+
   let getDerivedStats
     (state: GameState)
     : amap<EntityId, Attributes.DerivedStats> =

@@ -155,16 +155,16 @@ type ``Action Resolution``() =
     let expectedDamage = max 0 (derivedA.AttackPower - derivedB.Armor)
     let targetAfter = state.entities.[targetId]
     Assert.Equal(80 - expectedDamage, targetAfter.Resources.HP)
-    let events = state.gameEvents |> AList.force
 
-    Assert.Contains(
-      events,
-      Predicate(fun ev ->
+    let damageEventExists =
+      state.gameEvents
+      |> AList.exists(fun ev ->
         match ev with
         | DamageApplied e when e.target = targetId && e.amount = expectedDamage ->
           true
         | _ -> false)
-    )
+
+    Assert.True(AVal.force damageEventExists)
 
   [<Fact>]
   member _.``Spell casting applies damage, costs MP, and can kill target``() =
@@ -204,29 +204,31 @@ type ``Action Resolution``() =
         abilityId = spell
       })
 
-    let events = state.gameEvents |> AList.force
+    let events = state.gameEvents
     let derivedCaster = TestHelpers.derivedOf state casterId
     let expectedDamage = derivedCaster.SpellPower
 
-    Assert.Contains(
-      events,
-      Predicate(fun ev ->
+    let damageAppliedCorrectly =
+      events
+      |> AList.exists(fun ev ->
         match ev with
         | DamageApplied e when e.target = victimId && e.amount = expectedDamage ->
           true
         | _ -> false)
-    )
 
-    Assert.Contains(
-      events,
-      Predicate(fun ev ->
+    Assert.True(AVal.force damageAppliedCorrectly)
+
+    let mpChanged =
+      events
+      |> AList.exists(fun ev ->
         match ev with
         | ResourceChanged rc when
           rc.target = casterId && rc.resource.Contains("MP")
           ->
           true
         | _ -> false)
-    )
+
+    Assert.True(AVal.force mpChanged)
 
     let victimAfter = state.entities.[victimId]
 
@@ -234,13 +236,14 @@ type ``Action Resolution``() =
       Assert.Equal(0, victimAfter.Resources.HP)
       Assert.Equal(Status.Dead, victimAfter.Resources.Status)
 
-      Assert.Contains(
-        events,
-        Predicate(fun ev ->
+      let victimDied =
+        events
+        |> AList.exists(fun ev ->
           match ev with
           | EntityDied d when d.entityId = victimId -> true
           | _ -> false)
-      )
+
+      Assert.True(AVal.force victimDied)
 
   [<Fact>]
   member _.``Melee ability stamina cost reduces stamina and emits ResourceChanged``
@@ -267,18 +270,127 @@ type ``Action Resolution``() =
 
     let attackerAfter = state.entities.[attackerId]
     Assert.Equal(before - cost, attackerAfter.Resources.Stamina)
-    let events = state.gameEvents |> AList.force
 
-    Assert.Contains(
-      events,
-      Predicate(fun ev ->
+    let staminaChanged =
+      state.gameEvents
+      |> AList.exists(fun ev ->
         match ev with
         | ResourceChanged rc when
           rc.target = attackerId && rc.resource.Contains("Stamina")
           ->
           true
         | _ -> false)
-    )
 
-  [<Fact(Skip = "Cooldown update currently maps existing entries only; enable after implementation change")>]
-  member _.``Cooldown prevents immediate reuse (pending)``() = Assert.True(true)
+    Assert.True(AVal.force staminaChanged)
+
+  [<Fact>]
+  member _.``Cooldown prevents immediate reuse``() =
+    let state = GameState.create()
+    let attackerId = EntityId 1
+    let targetId = EntityId 2
+    let melee = Abilities.AbilityId 1
+    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 100 [ melee ]
+    let target = TestHelpers.makeEntity targetId baseB 80 30 50 []
+    TestHelpers.addEntity state attackerId attacker
+    TestHelpers.addEntity state targetId target
+
+    // First attack, should succeed and apply cooldown
+    Resolution.apply
+      state
+      (MeleeAttack {
+        actor = attackerId
+        target = targetId
+        abilityId = melee
+      })
+
+    let eventsAfterFirst = state.gameEvents |> AList.force
+    Assert.Equal(2, eventsAfterFirst.Count) // DamageApplied + ResourceChanged
+
+    // Second attack, should be ignored due to cooldown
+    Resolution.apply
+      state
+      (MeleeAttack {
+        actor = attackerId
+        target = targetId
+        abilityId = melee
+      })
+
+    let eventsAfterSecond = state.gameEvents |> AList.force
+    Assert.Equal(2, eventsAfterSecond.Count) // No new events
+
+    // No new DamageApplied event should be added
+    let damageEvents =
+      state.gameEvents
+      |> AList.choose (function
+        | DamageApplied e -> Some e
+        | _ -> None)
+
+    Assert.Single(AList.force damageEvents) |> ignore
+
+  [<Fact>]
+  member _.``Action puts ability on cooldown``() =
+    let state = GameState.create()
+    let attackerId = EntityId 1
+    let targetId = EntityId 2
+    let melee = Abilities.AbilityId 1
+    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 100 [ melee ]
+    let target = TestHelpers.makeEntity targetId baseB 80 30 50 []
+    TestHelpers.addEntity state attackerId attacker
+    TestHelpers.addEntity state targetId target
+
+    Resolution.apply
+      state
+      (MeleeAttack {
+        actor = attackerId
+        target = targetId
+        abilityId = melee
+      })
+
+    let attackerAfter = state.entities.[attackerId]
+    let cooldowns = AMap.force attackerAfter.AbilityCooldowns
+    let cooldown = cooldowns[melee]
+    let expectedCooldown = AbilityStore.definitions[melee].Cooldown
+    Assert.True(cooldown > 0L<ticks>)
+    Assert.Equal(expectedCooldown, cooldown)
+
+  [<Fact>]
+  member _.``Ability is usable again after cooldown expires``() =
+    let state = GameState.create()
+    let attackerId = EntityId 1
+    let targetId = EntityId 2
+    let melee = Abilities.AbilityId 1
+    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 100 [ melee ]
+    let target = TestHelpers.makeEntity targetId baseB 80 30 50 []
+    TestHelpers.addEntity state attackerId attacker
+    TestHelpers.addEntity state targetId target
+
+    // First attack
+    Resolution.apply
+      state
+      (MeleeAttack {
+        actor = attackerId
+        target = targetId
+        abilityId = melee
+      })
+
+    let cooldown = AbilityStore.definitions[melee].Cooldown
+    // Advance time past the cooldown
+    GameState.tick state (cooldown + 1L<ticks>)
+
+    // Second attack, should succeed now
+    Resolution.apply
+      state
+      (MeleeAttack {
+        actor = attackerId
+        target = targetId
+        abilityId = melee
+      })
+
+    let damageEvents =
+      state.gameEvents
+      |> AList.choose (function
+        | DamageApplied e -> Some e
+        | _ -> None)
+      |> AList.force
+
+    Assert.Equal(2, damageEvents.Count)
