@@ -16,8 +16,8 @@ Legend:
 | T1  | Shield absorption (damage first reduces shield stacks; emits correct events incl. depletion/expiration) | [x]    | Test added in Phase3Tests.fs |
 | T2  | Stun prevents all actions (no damage, no resource change, no cooldown applied)                          | [x]    |                              |
 | T3  | Silence blocks spell but allows melee                                                                   | [x]    |                              |
-| T4  | Taunt redirection forces target to taunter                                                              | [~]    |                              |
-| T5  | Effect stacking: NoStack ignores second application                                                     |        |                              |
+| T4  | Taunt redirection forces target to taunter                                                              | [x]    |                              |
+| T5  | Effect stacking: NoStack ignores second application                                                     | [x]    |                              |
 | T6  | Effect stacking: RefreshDuration resets timer, stack count unchanged                                    |        |                              |
 | T7  | Effect stacking: AddStack increments up to cap then stops                                               |        |                              |
 | T8  | DoT ticking applies periodic damage and expires after loops                                             |        |                              |

@@ -62,4 +62,13 @@ module EffectStore =
          Stacking = StackingRule.RefreshDuration
          Modifiers = []
        })
+      (EffectId 104,
+       {
+         Id = EffectId 104
+         Name = "No-Stack Debuff"
+         Kind = EffectKind.Debuff
+         Duration = Timed(10000L<ticks>)
+         Stacking = StackingRule.NoStack
+         Modifiers = []
+       })
     ]

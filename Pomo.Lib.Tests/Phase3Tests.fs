@@ -384,3 +384,55 @@ type ``Phase3 - Taunt``() =
     match damageEvent with
     | Some de -> Assert.Equal(taunterId, de.target)
     | None -> Assert.True(false, "A damage event should have been emitted")
+
+// T5 Effect stacking: NoStack ------------------------------------------------
+
+type ``Phase3 - Effect Stacking``() =
+  [<Fact>]
+  member _.``T5 NoStack ignores second application``() =
+    // Arrange
+    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let casterId = EntityId 1
+    let targetId = EntityId 2
+    let spellId = Abilities.AbilityId 3 // A spell that applies a NoStack effect
+    let noStackEffectId = EffectId 104 // Assuming this is a NoStack effect
+
+    let caster = makeEntity casterId baseStats 100 100 100 [ spellId ] []
+    let target = makeEntity targetId baseStats 100 100 100 [] []
+    addEntity state casterId caster
+    addEntity state targetId target
+
+    let applySpell() =
+      Resolution.apply
+        state
+        (CastSpell {
+          actor = casterId
+          target = targetId
+          abilityId = spellId
+        })
+
+    // Act
+    applySpell() // First application
+    let effectsAfterFirst = state.entities.[targetId].Effects |> AList.force
+
+    let firstEffect =
+      effectsAfterFirst |> Seq.find(fun e -> e.EffectId = noStackEffectId)
+
+    Gameplay.GameState.tick state 1000L<ticks> // Advance time slightly
+
+    applySpell() // Second application
+    let effectsAfterSecond = state.entities.[targetId].Effects |> AList.force
+
+    // Assert
+    Assert.Equal(1, effectsAfterFirst.Count)
+    Assert.Equal(1, effectsAfterSecond.Count)
+
+    let secondEffect =
+      effectsAfterSecond |> Seq.find(fun e -> e.EffectId = noStackEffectId)
+
+    let remaining = firstEffect.RemainingTicks - 1000L<ticks>
+    let secondRemaining = secondEffect.RemainingTicks
+
+    Assert.Equal(remaining, secondRemaining)
+
+    Assert.Equal(1, secondEffect.Stacks)

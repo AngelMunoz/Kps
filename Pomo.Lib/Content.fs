@@ -28,4 +28,12 @@ module AbilityStore =
         Cooldown = 5000L<ticks> // 5 seconds
         Effects = [ EffectId 2 ]
       }
+      AbilityId 3,
+      {
+        Id = AbilityId 3
+        Name = "No-Stack Spell"
+        Cost = Some { Type = ResourceType.MP; Amount = 10 }
+        Cooldown = 1000L<ticks>
+        Effects = [ EffectId 104 ]
+      }
     ]

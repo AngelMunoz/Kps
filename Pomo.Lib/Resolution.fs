@@ -281,37 +281,47 @@ module Resolution =
       (actorId: EntityId)
       (targetId: EntityId)
       (gameTime: int64<ticks>)
+      (targetComponents: All)
       =
       abilityDef.Effects
-      |> List.map(fun effectId ->
+      |> List.choose(fun effectId ->
         let effectDef = EffectStore.definitions.[effectId]
 
-        let duration =
-          match effectDef.Duration with
-          | Effects.Duration.Timed d -> d
-          | _ -> 0L<ticks>
+        let alreadyExists =
+          (targetComponents.Effects |> AList.force)
+          |> Seq.exists(fun e -> e.EffectId = effectId)
 
-        let interval =
-          match effectDef.Duration with
-          | Effects.Duration.Loop(i, _) -> i
-          | _ -> 0L<ticks>
+        if
+          effectDef.Stacking = Effects.StackingRule.NoStack && alreadyExists
+        then
+          None
+        else
+          let duration =
+            match effectDef.Duration with
+            | Effects.Duration.Timed d -> d
+            | _ -> 0L<ticks>
 
-        let activeEffect: Effects.ActiveEffect = {
-          EffectId = effectId
-          SourceId = actorId
-          RemainingTicks = gameTime + duration
-          NextTickIn = interval
-          Stacks = 1
-        }
+          let interval =
+            match effectDef.Duration with
+            | Effects.Duration.Loop(i, _) -> i
+            | _ -> 0L<ticks>
 
-        let event =
-          EffectApplied {
-            target = targetId
-            effectId = effectId
-            source = actorId
+          let activeEffect: Effects.ActiveEffect = {
+            EffectId = effectId
+            SourceId = actorId
+            RemainingTicks = gameTime + duration
+            NextTickIn = interval
+            Stacks = 1
           }
 
-        event, activeEffect)
+          let event =
+            EffectApplied {
+              target = targetId
+              effectId = effectId
+              source = actorId
+            }
+
+          Some(event, activeEffect))
       |> List.unzip
 
   /// A validation function that checks for the presence of actor and target, and the actor's status.
@@ -468,7 +478,12 @@ module Resolution =
         }
 
         let effectEvents, effectsToApply =
-          CastSpell.applyEffects abilityDef actorId targetId gameTime
+          CastSpell.applyEffects
+            abilityDef
+            actorId
+            targetId
+            gameTime
+            targetComponents
 
         let finalTarget = {
           updatedTarget with
