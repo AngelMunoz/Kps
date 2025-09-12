@@ -13,10 +13,10 @@ module Combat =
   let calculatePhysicalDamage
     (attackerStats: DerivedStats)
     (defenderStats: DerivedStats)
-    (rng: System.Random)
+    (rng: unit -> float)
     =
     // 1. Check for evasion
-    let evasionRoll = rng.NextDouble()
+    let evasionRoll = rng()
 
     if evasionRoll < defenderStats.Evasion then
       {
@@ -29,12 +29,12 @@ module Combat =
       let baseDamage = max 0 (attackerStats.AttackPower - defenderStats.Armor)
 
       // 3. Check for critical hit
-      let critRoll = rng.NextDouble()
+      let critRoll = rng()
       let isCritical = critRoll < attackerStats.CritChance
       let damageMultiplier = if isCritical then 2.0 else 1.0
 
       // 4. Add variance
-      let variance = 1.0 + (rng.NextDouble() * 0.2 - 0.1) // +/- 10% variance
+      let variance = 1.0 + (rng() * 0.2 - 0.1) // +/- 10% variance
       let finalDamage = float baseDamage * damageMultiplier * variance
 
       {
@@ -47,7 +47,7 @@ module Combat =
     (spellElement: Element)
     (spellPower: int)
     (defenderStats: DerivedStats)
-    (rng: System.Random)
+    (rng: unit -> float)
     =
     // 1. Get resistance for the element
     let resistance =
@@ -61,7 +61,7 @@ module Combat =
     let baseDamage = float spellPower * damageReduction
 
     // 4. Add variance
-    let variance = 1.0 + (rng.NextDouble() * 0.2 - 0.1) // +/- 10% variance
+    let variance = 1.0 + (rng() * 0.2 - 0.1) // +/- 10% variance
     let finalDamage = baseDamage * variance
 
     {
