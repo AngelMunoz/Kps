@@ -153,6 +153,7 @@ type ``Action Resolution``() =
     let derivedA = TestHelpers.derivedOf state attackerId
     let derivedB = TestHelpers.derivedOf state targetId
     let expectedDamage = max 0 (derivedA.AttackPower - derivedB.Armor)
+
     let targetAfter = state.entities.[targetId]
     Assert.Equal(80 - expectedDamage, targetAfter.Resources.HP)
 
