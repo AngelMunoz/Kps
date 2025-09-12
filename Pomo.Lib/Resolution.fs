@@ -157,11 +157,12 @@ module Resolution =
         let resources = {
           targetComponents.Resources with
               Status = Attributes.Status.Dead
+              HP = newHp
         }
 
         Some event, resources
       else
-        None, targetComponents.Resources
+        None, { targetComponents.Resources with HP = newHp }
 
     let applyResourceCost
       (costOpt: option<Abilities.ResourceCost>)
