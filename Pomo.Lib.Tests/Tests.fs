@@ -160,7 +160,9 @@ type ``Action Resolution``() =
       state.gameEvents
       |> AList.exists(fun ev ->
         match ev with
-        | DamageApplied e when e.target = targetId && e.amount = expectedDamage ->
+        | GameEvent.DamageApplied e when
+          e.target = targetId && e.amount = expectedDamage
+          ->
           true
         | _ -> false)
 
@@ -212,7 +214,9 @@ type ``Action Resolution``() =
       events
       |> AList.exists(fun ev ->
         match ev with
-        | DamageApplied e when e.target = victimId && e.amount = expectedDamage ->
+        | GameEvent.DamageApplied e when
+          e.target = victimId && e.amount = expectedDamage
+          ->
           true
         | _ -> false)
 
@@ -222,7 +226,7 @@ type ``Action Resolution``() =
       events
       |> AList.exists(fun ev ->
         match ev with
-        | ResourceChanged rc when
+        | GameEvent.ResourceChanged rc when
           rc.target = casterId && rc.resource.Contains("MP")
           ->
           true
@@ -240,7 +244,7 @@ type ``Action Resolution``() =
         events
         |> AList.exists(fun ev ->
           match ev with
-          | EntityDied d when d.entityId = victimId -> true
+          | GameEvent.EntityDied d when d.entityId = victimId -> true
           | _ -> false)
 
       Assert.True(AVal.force victimDied)
@@ -275,7 +279,7 @@ type ``Action Resolution``() =
       state.gameEvents
       |> AList.exists(fun ev ->
         match ev with
-        | ResourceChanged rc when
+        | GameEvent.ResourceChanged rc when
           rc.target = attackerId && rc.resource.Contains("Stamina")
           ->
           true
@@ -322,7 +326,7 @@ type ``Action Resolution``() =
     let damageEvents =
       state.gameEvents
       |> AList.choose (function
-        | DamageApplied e -> Some e
+        | GameEvent.DamageApplied e -> Some e
         | _ -> None)
 
     Assert.Single(AList.force damageEvents) |> ignore
@@ -389,7 +393,7 @@ type ``Action Resolution``() =
     let damageEvents =
       state.gameEvents
       |> AList.choose (function
-        | DamageApplied e -> Some e
+        | GameEvent.DamageApplied e -> Some e
         | _ -> None)
       |> AList.force
 
