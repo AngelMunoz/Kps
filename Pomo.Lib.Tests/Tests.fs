@@ -133,7 +133,7 @@ type ``Action Resolution``() =
 
   [<Fact>]
   member _.``Melee attack applies expected damage and emits DamageApplied``() =
-    let state = GameState.create()
+    let state = GameState.create'(fun () -> 0.5)
     let attackerId = EntityId 1
     let targetId = EntityId 2
     let melee = Abilities.AbilityId 1
@@ -150,27 +150,23 @@ type ``Action Resolution``() =
         abilityId = melee
       })
 
-    let derivedA = TestHelpers.derivedOf state attackerId
-    let derivedB = TestHelpers.derivedOf state targetId
-    let expectedDamage = max 0 (derivedA.AttackPower - derivedB.Armor)
     let targetAfter = state.entities.[targetId]
-    Assert.Equal(80 - expectedDamage, targetAfter.Resources.HP)
+    Assert.Equal(63, targetAfter.Resources.HP)
 
     let damageEventExists =
       state.gameEvents
-      |> AList.exists(fun ev ->
+      |> AList.choose(fun ev ->
         match ev with
-        | GameEvent.DamageApplied e when
-          e.target = targetId && e.amount = expectedDamage
-          ->
-          true
-        | _ -> false)
+        | GameEvent.DamageApplied e when e.target = targetId -> Some e
+        | _ -> None)
+      |> AList.tryFirst
 
-    Assert.True(AVal.force damageEventExists)
+    let damageEventExists = damageEventExists |> AVal.force |> Option.get
+    Assert.Equal(17, damageEventExists.amount)
 
   [<Fact>]
   member _.``Spell casting applies damage, costs MP, and can kill target``() =
-    let state = GameState.create()
+    let state = GameState.create'(fun () -> 0.5)
     let casterId = EntityId 10
     let victimId = EntityId 11
     let spell = Abilities.AbilityId 2
@@ -207,20 +203,19 @@ type ``Action Resolution``() =
       })
 
     let events = state.gameEvents
-    let derivedCaster = TestHelpers.derivedOf state casterId
-    let expectedDamage = derivedCaster.SpellPower
 
     let damageAppliedCorrectly =
       events
-      |> AList.exists(fun ev ->
+      |> AList.choose(fun ev ->
         match ev with
-        | GameEvent.DamageApplied e when
-          e.target = victimId && e.amount = expectedDamage
-          ->
-          true
-        | _ -> false)
+        | GameEvent.DamageApplied e when e.target = victimId -> Some e
+        | _ -> None)
+      |> AList.tryFirst
 
-    Assert.True(AVal.force damageAppliedCorrectly)
+    let damageAppliedCorrectly =
+      damageAppliedCorrectly |> AVal.force |> Option.get
+
+    Assert.Equal(40, damageAppliedCorrectly.amount)
 
     let mpChanged =
       events
@@ -236,18 +231,17 @@ type ``Action Resolution``() =
 
     let victimAfter = state.entities.[victimId]
 
-    if expectedDamage >= 30 then
-      Assert.Equal(0, victimAfter.Resources.HP)
-      Assert.Equal(Status.Dead, victimAfter.Resources.Status)
+    Assert.Equal(0, victimAfter.Resources.HP)
+    Assert.Equal(Status.Dead, victimAfter.Resources.Status)
 
-      let victimDied =
-        events
-        |> AList.exists(fun ev ->
-          match ev with
-          | GameEvent.EntityDied d when d.entityId = victimId -> true
-          | _ -> false)
+    let victimDied =
+      events
+      |> AList.exists(fun ev ->
+        match ev with
+        | GameEvent.EntityDied d when d.entityId = victimId -> true
+        | _ -> false)
 
-      Assert.True(AVal.force victimDied)
+    Assert.True(AVal.force victimDied)
 
   [<Fact>]
   member _.``Melee ability stamina cost reduces stamina and emits ResourceChanged``

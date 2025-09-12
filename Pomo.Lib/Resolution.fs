@@ -15,7 +15,7 @@ module Resolution =
     entities: amap<EntityId, All>
     derivedStats: amap<EntityId, Attributes.DerivedStats>
     gameTime: cval<int64<ticks>>
-    rng: cval<System.Random>
+    rng: unit -> float
   }
 
   type ResolverActors = { actor: EntityId; target: EntityId }
@@ -368,7 +368,7 @@ module Resolution =
         let! actorStats = rparams.derivedStats |> AMap.find actorId
         let! targetStats = rparams.derivedStats |> AMap.find targetId
         let! gameTime = rparams.gameTime
-        let! rng = rparams.rng
+        let rng = rparams.rng
 
         let damageResult =
           Combat.calculatePhysicalDamage actorStats targetStats rng
@@ -429,7 +429,7 @@ module Resolution =
         let! actorStats = rparams.derivedStats |> AMap.find actorId
         let! targetStats = rparams.derivedStats |> AMap.find targetId
         let! gameTime = rparams.gameTime
-        let! rng = rparams.rng
+        let rng = rparams.rng
 
         let damageResult =
           Combat.calculateMagicalDamage
@@ -458,7 +458,7 @@ module Resolution =
 
         let updatedTarget = {
           targetComponents with
-              Resources = finalTargetResources
+              Resources = { finalTargetResources with HP = targetHpAfter }
         }
 
         let effectEvents, effectsToApply =
@@ -490,7 +490,7 @@ module Resolution =
     (currentEntities: amap<EntityId, All>)
     (derivedStats: amap<EntityId, Attributes.DerivedStats>)
     (gameTime: cval<int64<ticks>>)
-    (rng: cval<System.Random>)
+    (rng: unit -> float)
     (command: Command)
     : aval<GameEvent[] * Map<EntityId, All>> =
     let resolverParams = {

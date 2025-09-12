@@ -13,7 +13,7 @@ type GameState = {
   entities: cmap<EntityId, All>
   gameEvents: clist<GameEvent>
   gameTime: cval<int64<ticks>>
-  rng: cval<System.Random>
+  rng: unit -> float
 }
 
 
@@ -122,12 +122,15 @@ module GameState =
       return finalDerived
     }
 
-  let create() = {
+  let create'(rng: unit -> float) = {
     entities = cmap()
     gameEvents = clist []
     gameTime = cval 0L<ticks>
-    rng = cval(System.Random 42)
+    rng = rng
   }
+
+  let create() =
+    create'(fun () -> System.Random.Shared.NextDouble())
 
   let tick (state: GameState) (time: int64<ticks>) =
     let allEffects =
