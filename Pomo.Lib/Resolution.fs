@@ -458,7 +458,7 @@ module Resolution =
 
         let updatedTarget = {
           targetComponents with
-              Resources = finalTargetResources
+              Resources = { finalTargetResources with HP = targetHpAfter }
         }
 
         let effectEvents, effectsToApply =
