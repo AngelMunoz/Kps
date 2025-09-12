@@ -108,6 +108,7 @@ module Effects =
   type Duration =
     | Instant
     | Timed of Ticks
+    | Loop of Ticks * Ticks // Interval * Total Duration
 
   type Stat =
     | Strength
@@ -139,6 +140,7 @@ module Effects =
     EffectId: EffectId // Corresponds to a definition
     SourceId: EntityId
     RemainingTicks: Ticks
+    NextTickIn: Ticks
     Stacks: int
   }
 

@@ -7,7 +7,7 @@ open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.GameEvent
 open Pomo.Lib.Domain.Effects
-open Pomo.Lib.Rules
+open Pomo.Lib.Effects
 
 type GameState = {
   entities: cmap<EntityId, All>
@@ -130,111 +130,39 @@ module GameState =
   }
 
   let tick (state: GameState) (time: int64<ticks>) =
-
-    // Adaptively compute the changes for all entities
-    let allChanges(newTime: aval<int64<ticks>>) = adaptive {
-      let! newTime = newTime
-
-      let results =
-        state.entities
-        |> AMap.chooseA(fun entityId components -> adaptive {
-          let effects = components.Effects |> AList.toASet
-
-          let expiredEffects =
-            effects
-            |> ASet.filter(fun effect -> effect.RemainingTicks <= newTime)
-
-          // If there are no expired effects, there are no changes for this entity.
-          let! isEmpty = expiredEffects |> ASet.isEmpty
-
-          if isEmpty then
-            return None
-          else
-            let newEffects = ASet.difference effects expiredEffects
-
-            let updatedComponents = {
-              components with
-                  Effects = AList.ofASet newEffects
-            }
-
-            let events =
-              expiredEffects
-              |> ASet.map(fun expired ->
-                EffectExpired {
-                  target = entityId
-                  effectId = expired.EffectId
-                })
-
-            return Some(updatedComponents, events)
-        })
-
-      return newTime, results
-    }
-
-    let newTime = state.gameTime |> AVal.map(fun t -> t + time)
+    let allEffects =
+      Pomo.Lib.Content.EffectStore.definitions
+      |> HashMap.ofMap
+      |> AMap.ofHashMap
 
     transact(fun _ ->
-
-      // 1 . Get the computed changes
-      let newTime, changesToApply = allChanges newTime |> AVal.force
-
-      // 2. Set the new time
+      let currentTime = state.gameTime.Value
+      let newTime = currentTime + time
       state.gameTime.Value <- newTime
 
-      // 3. Apply the changes
-      for entityId, (updatedComponents, events) in changesToApply |> AMap.force do
-        state.entities[entityId] <- updatedComponents
-        state.gameEvents.AddRange(events |> ASet.force))
-
-
-
-
-    // Adaptively compute the changes for all entities
-    let allChanges newTime =
-      state.entities
-      |> AMap.chooseA(fun entityId components -> adaptive {
-        let expiredEffects =
-          components.Effects
-          |> AList.filter(fun effect -> effect.RemainingTicks <= newTime)
-          |> AList.toASet
-
-        let! hasExpired = expiredEffects |> ASet.isEmpty
-
-        if not hasExpired then
-          return None // No changes
-        else
-          let newEffects =
-            components.Effects |> AList.toASet |> ASet.xor(expiredEffects)
+      let allEntityChanges =
+        state.entities
+        |> AMap.mapA(fun entityId components -> adaptive {
+          let! updatedEffects, generatedEvents =
+            StatusEffects.tickEffects
+              components.Effects
+              allEffects
+              time
+              entityId
 
           let updatedComponents = {
             components with
-                Effects = AList.ofASet newEffects
+                Effects = updatedEffects |> AList.ofIndexList
           }
 
-          let events =
-            expiredEffects
-            |> ASet.map(fun expired ->
-              EffectExpired {
-                target = entityId
-                effectId = expired.EffectId
-              })
+          return (updatedComponents, generatedEvents)
+        })
 
-          return Some(updatedComponents, events)
-      })
+      let changesToApply = allEntityChanges |> AMap.force
 
-    let newTime = (state.gameTime |> AVal.force) + time
-    // 2. Get the computed changes
-    let changesToApply = allChanges newTime |> AMap.force
-
-    transact(fun _ ->
-      // 1. Set the new time
-      state.gameTime.Value <- newTime
-
-
-      // 3. Apply the changes
       for entityId, (updatedComponents, events) in changesToApply do
-        state.entities[entityId] <- updatedComponents
-        state.gameEvents.AddRange(events |> ASet.force))
+        state.entities.[entityId] <- updatedComponents
+        state.gameEvents.AddRange(events))
 
   let getDerivedStats
     (state: GameState)
