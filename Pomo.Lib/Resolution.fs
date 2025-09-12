@@ -124,22 +124,19 @@ module Resolution =
         let! actor = rparams.entities |> AMap.tryFind ractors.actor
 
         match actor with
-        | None -> return initialTarget
+        | None -> return ractors.target, initialTarget
         | Some actor ->
           let! forcedTargetId = checkTauntTarget actor.Effects ractors.target
 
           match forcedTargetId with
-          | None -> return initialTarget
+          | None -> return ractors.target, initialTarget
           | Some targetId ->
-            if targetId <> ractors.target then
-              let! newTarget = rparams.entities |> AMap.tryFind targetId
+            let! newTarget = rparams.entities |> AMap.tryFind targetId
 
-              return
-                match newTarget with
-                | Some t -> t
-                | None -> initialTarget
-            else
-              return initialTarget
+            return
+              match newTarget with
+              | Some t -> targetId, t
+              | None -> ractors.target, initialTarget
       }
 
   module Shared =
@@ -162,7 +159,11 @@ module Resolution =
 
         Some event, resources
       else
-        None, { targetComponents.Resources with HP = newHp }
+        None,
+        {
+          targetComponents.Resources with
+              HP = newHp
+        }
 
     let applyResourceCost
       (costOpt: option<Abilities.ResourceCost>)
@@ -360,12 +361,13 @@ module Resolution =
   /// Resolves a MeleeAttack command, calculating damage and generating events.
   let private resolveMeleeAttack(abilityId: Abilities.AbilityId) : ResolverFn =
     fun (rparams, ractors) -> adaptive {
-      let { actor = actorId; target = targetId } = ractors
+      let { actor = actorId } = ractors
       let! validationResult = validateAction rparams ractors abilityId
 
       match validationResult with
       | None -> return Array.empty, Map.empty
-      | Some(actorComponents, targetComponents, costOpt, abilityDef) ->
+      | Some(actorComponents, (targetId, targetComponents), costOpt, abilityDef) ->
+
         let! actorStats = rparams.derivedStats |> AMap.find actorId
         let! targetStats = rparams.derivedStats |> AMap.find targetId
         let! gameTime = rparams.gameTime
@@ -421,12 +423,12 @@ module Resolution =
 
   let private resolveCastSpell(abilityId: Abilities.AbilityId) : ResolverFn =
     fun (rparams, ractors) -> adaptive {
-      let { actor = actorId; target = targetId } = ractors
+      let { actor = actorId } = ractors
       let! validationResult = validateAction rparams ractors abilityId
 
       match validationResult with
       | None -> return Array.empty, Map.empty
-      | Some(actorComponents, targetComponents, costOpt, abilityDef) ->
+      | Some(actorComponents, (targetId, targetComponents), costOpt, abilityDef) ->
         let! actorStats = rparams.derivedStats |> AMap.find actorId
         let! targetStats = rparams.derivedStats |> AMap.find targetId
         let! gameTime = rparams.gameTime
@@ -459,7 +461,10 @@ module Resolution =
 
         let updatedTarget = {
           targetComponents with
-              Resources = { finalTargetResources with HP = targetHpAfter }
+              Resources = {
+                finalTargetResources with
+                    HP = targetHpAfter
+              }
         }
 
         let effectEvents, effectsToApply =

@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Phase3Tests.fs" />
     <Compile Include="Tests.fs" />
   </ItemGroup>
 
