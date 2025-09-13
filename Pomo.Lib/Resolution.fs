@@ -551,10 +551,18 @@ module Resolution =
             targetStats
             rng
 
-        // Spells should apply direct damage unless they are purely utility/buff spells
-        // For now, we'll assume all spells do direct damage except those that only have 
-        // non-damaging effects like pure buffs/heals
-        let shouldApplyDirectDamage = true // Allow spells to do damage even with effects
+        // Spells should apply direct damage unless they only have periodic effects (DoT/HoT)
+        let shouldApplyDirectDamage =
+          if abilityDef.Effects.IsEmpty then
+            true // No effects, assume direct damage spell
+          else
+            // Check if all effects are periodic (DoT/HoT) - if so, no direct damage
+            not (abilityDef.Effects |> List.forall (fun effectId ->
+              let effectDef = EffectStore.definitions[effectId]
+              match effectDef.Kind with
+              | Effects.EffectKind.DamageOverTime _ -> true
+              | Effects.EffectKind.HealOverTime _ -> true
+              | _ -> false))
 
         let initialDamage =
           if shouldApplyDirectDamage then damageResult.Amount else 0

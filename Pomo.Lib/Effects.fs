@@ -86,7 +86,16 @@ module StatusEffects =
         effects
         |> IndexList.partition(fun effect ->
           let newRemaining = effect.RemainingTicks - ticksElapsed
-          newRemaining > 0L<ticks>)
+          let effectDef = effectDefs[effect.EffectId]
+          
+          match effectDef.Duration with
+          | Loop(_, _) -> 
+            // Periodic effects should be processed even when reaching 0 remaining time
+            // to allow the final tick
+            newRemaining >= 0L<ticks>
+          | _ -> 
+            // Non-periodic effects expire when remaining time <= 0
+            newRemaining > 0L<ticks>)
 
       // 2. Create expiration events for the expired effects.
       let expirationEvents =
