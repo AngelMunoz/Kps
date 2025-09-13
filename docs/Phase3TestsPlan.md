@@ -22,15 +22,26 @@ Legend:
 | T7  | Effect stacking: AddStack increments up to cap then stops                                               | [x]    | Test added in Phase3Tests.fs |
 | T8  | DoT ticking applies periodic damage and expires after loops                                             | [x]    | Test added in Phase3Tests.fs |
 | T9  | HoT ticking applies periodic healing and expires after loops                                            | [x]    | Test added in Phase3Tests.fs |
-| T10 | Shield partial depletion across multiple hits (spillover to HP)                                         |        |                              |
-| T11 | Deterministic RNG yields identical damage sequence with fixed seed                                      |        |                              |
-| T12 | Cooldown-ready abilities set includes ability after cooldown elapses                                    |        |                              |
+| T10 | Shield partial depletion across multiple hits (spillover to HP)                                         | [x]    | Test added in Phase3Tests.fs |
+| T11 | Deterministic RNG yields identical damage sequence with fixed seed                                      | [x]    | Test added in Phase3Tests.fs |
+| T12 | Cooldown-ready abilities set includes ability after cooldown elapses                                    | [x]    | Test added in Phase3Tests.fs |
 
 ## Next Steps
 
-1. Inspect effect & ability definitions for IDs and stacking rules.
-2. Draft `Phase3Tests.fs` with tests for T1-T3 first (core combat gating).
-3. Iterate through remaining scenarios, updating this plan.
+All Phase 3 test scenarios are now implemented and passing! 
+
+✓ **PHASE 3 COMPLETE**
+
+1. ✓ Inspect effect & ability definitions for IDs and stacking rules.
+2. ✓ Draft `Phase3Tests.fs` with tests for T1-T3 first (core combat gating).
+3. ✓ Iterate through remaining scenarios, updating this plan.
+4. ✓ Implement tests for shield partial depletion (T10).
+5. ✓ Implement tests for deterministic RNG behavior (T11).
+6. ✓ Implement tests for cooldown-ready abilities tracking (T12).
+
+**Total: 12/12 scenarios implemented and passing** 
+
+Phase 3 is ready for integration testing and progression to Phase 4.
 
 ## Conventions
 
