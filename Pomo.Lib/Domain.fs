@@ -93,12 +93,12 @@ module Effects =
   type EffectKind =
     | Buff
     | Debuff
-    | DamageOverTime
-    | HealOverTime
+    | DamageOverTime of int
+    | HealOverTime of int
     | Stun
     | Silence
     | Taunt
-    | Shield
+    | Shield of int
 
   type StackingRule =
     | NoStack

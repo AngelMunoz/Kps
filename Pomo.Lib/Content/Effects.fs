@@ -48,7 +48,7 @@ module EffectStore =
        {
          Id = EffectId 102
          Name = "Shield"
-         Kind = EffectKind.Shield
+         Kind = EffectKind.Shield 10
          Duration = Timed(15000L<ticks>)
          Stacking = StackingRule.AddStack(5) // Max 5 stacks
          Modifiers = []
@@ -69,6 +69,24 @@ module EffectStore =
          Kind = EffectKind.Debuff
          Duration = Timed(10000L<ticks>)
          Stacking = StackingRule.NoStack
+         Modifiers = []
+       })
+      (EffectId 105,
+       {
+         Id = EffectId 105
+         Name = "Poison"
+         Kind = EffectKind.DamageOverTime 5
+         Duration = Loop(2000L<ticks>, 8000L<ticks>)
+         Stacking = StackingRule.RefreshDuration
+         Modifiers = []
+       })
+      (EffectId 106,
+       {
+         Id = EffectId 106
+         Name = "Regeneration"
+         Kind = EffectKind.HealOverTime 5
+         Duration = Loop(2000L<ticks>, 8000L<ticks>)
+         Stacking = StackingRule.RefreshDuration
          Modifiers = []
        })
     ]
