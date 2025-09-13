@@ -256,7 +256,7 @@ module Resolution =
           (0, [])
 
       let shieldDamage =
-        damageResult.Amount - (max 0 (damageResult.Amount - totalShieldValue))
+        damageResult.Amount - max 0 (damageResult.Amount - totalShieldValue)
 
       let updatedEffects =
         if shieldDamage > 0 then
@@ -329,6 +329,7 @@ module Resolution =
         }
       | Some e, Effects.StackingRule.AddStack maxStacks ->
         let newStacks = min maxStacks (e.Stacks + 1)
+
         let duration =
           match effectDef.Duration with
           | Effects.Duration.Timed d -> d
@@ -379,7 +380,7 @@ module Resolution =
         let! existingEffect = adaptive {
           let! effects = targetComponents.Effects |> AList.toAVal
 
-          return effects |> IndexList.toSeq |> Seq.tryFind(fun e -> e.EffectId = effectId)
+          return effects |> IndexList.tryFind(fun _ e -> e.EffectId = effectId)
         }
 
         let newEffect =
@@ -557,12 +558,16 @@ module Resolution =
             true // No effects, assume direct damage spell
           else
             // Check if all effects are periodic (DoT/HoT) - if so, no direct damage
-            not (abilityDef.Effects |> List.forall (fun effectId ->
-              let effectDef = EffectStore.definitions[effectId]
-              match effectDef.Kind with
-              | Effects.EffectKind.DamageOverTime _ -> true
-              | Effects.EffectKind.HealOverTime _ -> true
-              | _ -> false))
+            not(
+              abilityDef.Effects
+              |> List.forall(fun effectId ->
+                let effectDef = EffectStore.definitions[effectId]
+
+                match effectDef.Kind with
+                | Effects.EffectKind.DamageOverTime _ -> true
+                | Effects.EffectKind.HealOverTime _ -> true
+                | _ -> false)
+            )
 
         let initialDamage =
           if shouldApplyDirectDamage then damageResult.Amount else 0
