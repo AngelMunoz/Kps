@@ -144,7 +144,7 @@ Deliverable: end-to-end resolution for MeleeAttack and a simple spell.
 
 2. Status Effects Framework
 
-   - Effect kinds: Buff, Debuff, DoT, HoT, Stun, Silence, Taunt, Shield
+   - Effect kinds: Buff, Debuff, Stun, Silence, Taunt. Kinds that imply a magnitude will carry data directly (e.g., `DamageOverTime of int`, `HealOverTime of int`, `Shield of int`).
    - Stacking rules: none, refresh, add-stack up to cap
    - Durations:
      - `Instant`

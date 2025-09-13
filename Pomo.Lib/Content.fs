@@ -36,4 +36,36 @@ module AbilityStore =
         Cooldown = 1000L<ticks>
         Effects = [ EffectId 104 ]
       }
+      AbilityId 4,
+      {
+        Id = AbilityId 4
+        Name = "Buff Spell"
+        Cost = Some { Type = ResourceType.MP; Amount = 10 }
+        Cooldown = 1000L<ticks>
+        Effects = [ EffectId 1 ] // RefreshDuration effect
+      }
+      AbilityId 5,
+      {
+        Id = AbilityId 5
+        Name = "Shield Spell"
+        Cost = Some { Type = ResourceType.MP; Amount = 15 }
+        Cooldown = 1000L<ticks>
+        Effects = [ EffectId 102 ] // AddStack effect
+      }
+      AbilityId 6,
+      {
+        Id = AbilityId 6
+        Name = "Poison Spell"
+        Cost = Some { Type = ResourceType.MP; Amount = 10 }
+        Cooldown = 1000L<ticks>
+        Effects = [ EffectId 105 ] // DoT effect
+      }
+      AbilityId 7,
+      {
+        Id = AbilityId 7
+        Name = "Regen Spell"
+        Cost = Some { Type = ResourceType.MP; Amount = 10 }
+        Cooldown = 1000L<ticks>
+        Effects = [ EffectId 106 ] // HoT effect
+      }
     ]

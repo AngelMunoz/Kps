@@ -234,34 +234,59 @@ module Resolution =
         |> AList.choose(fun effect ->
           let effectDef = EffectStore.definitions.[effect.EffectId]
 
-          if effectDef.Kind = Effects.EffectKind.Shield then
-            Some effect
-          else
-            None)
+          match effectDef.Kind with
+          | Effects.EffectKind.Shield _ -> Some effect
+          | _ -> None)
 
-      let! totalShieldValue =
-        shieldEffects |> AList.sumBy(fun effect -> effect.Stacks * 10)
+      let! totalShieldValue, shieldEffectsWithValue =
+        shieldEffects
+        |> AList.mapA(fun effect -> adaptive {
+          let effectDef = EffectStore.definitions.[effect.EffectId]
+
+          let value =
+            match effectDef.Kind with
+            | Effects.EffectKind.Shield v -> v
+            | _ -> 0 // Should not happen
+
+          return effect, value
+        })
+        |> AList.fold
+          (fun (total, effects) (effect, value) ->
+            (total + effect.Stacks * value, (effect, value) :: effects))
+          (0, [])
 
       let shieldDamage =
-        damageResult.Amount - (max 0 (damageResult.Amount - totalShieldValue))
+        damageResult.Amount - max 0 (damageResult.Amount - totalShieldValue)
 
       let updatedEffects =
         if shieldDamage > 0 then
+          let _, updated =
+            shieldEffectsWithValue
+            |> List.fold
+              (fun (remainingDamage, acc) (effect, value) ->
+                if remainingDamage <= 0 then
+                  (0, effect :: acc)
+                else
+                  let damageToThisShield =
+                    min remainingDamage (effect.Stacks * value)
+
+                  let stacksLost = (damageToThisShield + value - 1) / value
+
+                  let updatedEffect = {
+                    effect with
+                        Stacks = max 0 (effect.Stacks - stacksLost)
+                  }
+
+                  (remainingDamage - damageToThisShield, updatedEffect :: acc))
+              (shieldDamage, [])
+
           targetComponents.Effects
-          |> AList.mapA(fun effect -> adaptive {
-            let effectDef = EffectStore.definitions.[effect.EffectId]
-
-            if effectDef.Kind = Effects.EffectKind.Shield then
-              let damageToThisShield = min shieldDamage (effect.Stacks * 10)
-
-              let stacksLost = (damageToThisShield + 9) / 10
-
-              return {
-                effect with
-                    Stacks = max 0 (effect.Stacks - stacksLost)
-              }
-            else
-              return effect
+          |> AList.mapA(fun e -> adaptive {
+            match
+              updated |> List.tryFind(fun ue -> ue.EffectId = e.EffectId)
+            with
+            | Some ue -> return ue
+            | None -> return e
           })
           |> AList.choose(fun e -> if e.Stacks > 0 then Some e else None)
         else
@@ -276,6 +301,103 @@ module Resolution =
     }
 
   module CastSpell =
+    let private determineNewEffect
+      (effectDef: Effects.EffectDefinition)
+      (existingEffect: option<Effects.ActiveEffect>)
+      (gameTime: int64<ticks>)
+      (actorId: EntityId)
+      (effectId: Effects.EffectId)
+      =
+      match existingEffect, effectDef.Stacking with
+      | Some _, Effects.StackingRule.NoStack -> None // Do not apply
+      | Some e, Effects.StackingRule.RefreshDuration ->
+        let duration =
+          match effectDef.Duration with
+          | Effects.Duration.Timed d -> d
+          | Effects.Duration.Loop(_, d) -> d
+          | _ -> 0L<ticks>
+
+        let interval =
+          match effectDef.Duration with
+          | Effects.Duration.Loop(i, _) -> i
+          | _ -> 0L<ticks>
+
+        Some {
+          e with
+              RemainingTicks = duration
+              NextTickIn = interval
+        }
+      | Some e, Effects.StackingRule.AddStack maxStacks ->
+        let newStacks = min maxStacks (e.Stacks + 1)
+
+        let duration =
+          match effectDef.Duration with
+          | Effects.Duration.Timed d -> d
+          | Effects.Duration.Loop(_, d) -> d
+          | _ -> 0L<ticks>
+
+        let interval =
+          match effectDef.Duration with
+          | Effects.Duration.Loop(i, _) -> i
+          | _ -> 0L<ticks>
+
+        Some {
+          e with
+              Stacks = newStacks
+              RemainingTicks = duration
+              NextTickIn = interval
+        }
+      | None, _ ->
+        let duration =
+          match effectDef.Duration with
+          | Effects.Duration.Timed d -> d
+          | Effects.Duration.Loop(_, d) -> d
+          | _ -> 0L<ticks>
+
+        let interval =
+          match effectDef.Duration with
+          | Effects.Duration.Loop(i, _) -> i
+          | _ -> 0L<ticks>
+
+        Some {
+          EffectId = effectId
+          SourceId = actorId
+          RemainingTicks = duration
+          NextTickIn = interval
+          Stacks = 1
+        }
+
+    let private processEffect
+      (targetComponents: All)
+      (gameTime: int64<ticks>)
+      (actorId: EntityId)
+      (targetId: EntityId)
+      (effectId: Effects.EffectId)
+      =
+      adaptive {
+        let effectDef = EffectStore.definitions[effectId]
+
+        let! existingEffect = adaptive {
+          let! effects = targetComponents.Effects |> AList.toAVal
+
+          return effects |> IndexList.tryFind(fun _ e -> e.EffectId = effectId)
+        }
+
+        let newEffect =
+          determineNewEffect effectDef existingEffect gameTime actorId effectId
+
+        let event =
+          newEffect
+          |> Option.map(fun _ ->
+            EffectApplied {
+              target = targetId
+              effectId = effectId
+              source = actorId
+            })
+
+        return event, newEffect
+      }
+
     let applyEffects
       (abilityDef: Abilities.AbilityDefinition)
       (actorId: EntityId)
@@ -283,46 +405,23 @@ module Resolution =
       (gameTime: int64<ticks>)
       (targetComponents: All)
       =
-      abilityDef.Effects
-      |> List.choose(fun effectId ->
-        let effectDef = EffectStore.definitions.[effectId]
+      adaptive {
+        let! results =
+          abilityDef.Effects
+          |> AList.ofList
+          |> AList.mapA(
+            processEffect targetComponents gameTime actorId targetId
+          )
+          |> AList.toAVal
 
-        let alreadyExists =
-          (targetComponents.Effects |> AList.force)
-          |> Seq.exists(fun e -> e.EffectId = effectId)
+        let events, effects =
+          results
+          |> IndexList.unzip
+          |> (fun (e, ef) ->
+            e |> IndexList.choose id, ef |> IndexList.choose id)
 
-        if
-          effectDef.Stacking = Effects.StackingRule.NoStack && alreadyExists
-        then
-          None
-        else
-          let duration =
-            match effectDef.Duration with
-            | Effects.Duration.Timed d -> d
-            | _ -> 0L<ticks>
-
-          let interval =
-            match effectDef.Duration with
-            | Effects.Duration.Loop(i, _) -> i
-            | _ -> 0L<ticks>
-
-          let activeEffect: Effects.ActiveEffect = {
-            EffectId = effectId
-            SourceId = actorId
-            RemainingTicks = gameTime + duration
-            NextTickIn = interval
-            Stacks = 1
-          }
-
-          let event =
-            EffectApplied {
-              target = targetId
-              effectId = effectId
-              source = actorId
-            }
-
-          Some(event, activeEffect))
-      |> List.unzip
+        return events, effects
+      }
 
   /// A validation function that checks for the presence of actor and target, and the actor's status.
   let validateAction
@@ -444,6 +543,8 @@ module Resolution =
         let! gameTime = rparams.gameTime
         let rng = rparams.rng
 
+        // Spells can either do direct damage, apply effects, or both.
+        // We'll calculate damage and then decide whether to apply it.
         let damageResult =
           Combat.calculateMagicalDamage
             Attributes.Element.Neutral
@@ -451,11 +552,36 @@ module Resolution =
             targetStats
             rng
 
+        // Spells should apply direct damage unless they only have periodic effects (DoT/HoT)
+        let shouldApplyDirectDamage =
+          if abilityDef.Effects.IsEmpty then
+            true // No effects, assume direct damage spell
+          else
+            // Check if all effects are periodic (DoT/HoT) - if so, no direct damage
+            not(
+              abilityDef.Effects
+              |> List.forall(fun effectId ->
+                let effectDef = EffectStore.definitions[effectId]
+
+                match effectDef.Kind with
+                | Effects.EffectKind.DamageOverTime _ -> true
+                | Effects.EffectKind.HealOverTime _ -> true
+                | _ -> false)
+            )
+
+        let initialDamage =
+          if shouldApplyDirectDamage then damageResult.Amount else 0
+
         let damageEvent =
-          DamageApplied {
-            target = targetId
-            amount = damageResult.Amount
-          }
+          if initialDamage > 0 then
+            Some(
+              DamageApplied {
+                target = targetId
+                amount = initialDamage
+              }
+            )
+          else
+            None
 
         let costEvents, actorWithCost =
           Shared.applyResourceCost costOpt actorComponents actorId
@@ -464,7 +590,7 @@ module Resolution =
           Shared.updateCooldowns actorWithCost abilityId gameTime abilityDef
 
         let targetHpAfter =
-          max 0 (targetComponents.Resources.HP - damageResult.Amount)
+          max 0 (targetComponents.Resources.HP - initialDamage)
 
         let deathEvent, finalTargetResources =
           Shared.checkForDeath targetHpAfter targetComponents targetId
@@ -477,7 +603,7 @@ module Resolution =
               }
         }
 
-        let effectEvents, effectsToApply =
+        let! effectEvents, effectsToApply =
           CastSpell.applyEffects
             abilityDef
             actorId
@@ -485,23 +611,45 @@ module Resolution =
             gameTime
             targetComponents
 
-        let finalTarget = {
-          updatedTarget with
-              Effects =
-                updatedTarget.Effects
-                |> AList.append(AList.ofList effectsToApply)
-        }
+        let finalTarget =
+          let newEffectMap =
+            effectsToApply |> IndexList.map(fun e -> e.EffectId, e) |> Map.ofSeq
+
+          let existingIds =
+            updatedTarget.Effects
+            |> AList.force
+            |> Seq.map(fun e -> e.EffectId)
+            |> Set.ofSeq
+
+          let updatedEffects =
+            updatedTarget.Effects
+            |> AList.map(fun e ->
+              match newEffectMap.TryFind e.EffectId with
+              | Some ne -> ne
+              | None -> e)
+
+          let effectsToAdd =
+            newEffectMap
+            |> Map.filter(fun id _ -> not(existingIds.Contains id))
+            |> Map.toList
+            |> List.map snd
+
+          {
+            updatedTarget with
+                Effects =
+                  updatedEffects |> AList.append(AList.ofList effectsToAdd)
+          }
 
         let changes =
           Map.ofList [ actorId, updatedActor; targetId, finalTarget ]
 
         let allEvents = [|
-          damageEvent
+          if damageEvent.IsSome then
+            yield damageEvent.Value
           yield! costEvents
           yield! effectEvents
-          match deathEvent with
-          | Some ev -> ev
-          | None -> ()
+          if deathEvent.IsSome then
+            yield deathEvent.Value
         |]
 
         return allEvents, changes

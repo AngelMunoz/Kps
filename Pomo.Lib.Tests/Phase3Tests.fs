@@ -119,7 +119,10 @@ type ``Phase3 - Shield``() =
       |> AList.force
       |> Seq.choose(fun e ->
         let def = EffectStore.definitions.[e.EffectId]
-        if def.Kind = EffectKind.Shield then Some e.Stacks else None)
+
+        match def.Kind with
+        | EffectKind.Shield _ -> Some e.Stacks
+        | _ -> None)
       |> Seq.sum
 
     let hp() = state.entities.[targetId].Resources.HP
@@ -436,3 +439,223 @@ type ``Phase3 - Effect Stacking``() =
     Assert.Equal(remaining, secondRemaining)
 
     Assert.Equal(1, secondEffect.Stacks)
+
+  // T6 Effect stacking: RefreshDuration --------------------------------------
+  [<Fact>]
+  member _.``T6 RefreshDuration resets timer, stack count unchanged``() =
+    // Arrange
+    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let casterId = EntityId 1
+    let targetId = EntityId 2
+    let spellId = Abilities.AbilityId 4 // A spell that applies a RefreshDuration effect
+    let refreshEffectId = EffectId 1 // Minor Strength Buff
+
+    let caster = makeEntity casterId baseStats 100 100 100 [ spellId ] []
+    let target = makeEntity targetId baseStats 100 100 100 [] []
+    addEntity state casterId caster
+    addEntity state targetId target
+
+    let applySpell() =
+      Resolution.apply
+        state
+        (CastSpell {
+          actor = casterId
+          target = targetId
+          abilityId = spellId
+        })
+
+    // Act
+    applySpell() // First application
+    let effectsAfterFirst = state.entities.[targetId].Effects |> AList.force
+
+    let firstEffect =
+      effectsAfterFirst |> Seq.find(fun e -> e.EffectId = refreshEffectId)
+
+    Gameplay.GameState.tick state 1000L<ticks> // Advance time
+
+    applySpell() // Second application (should refresh)
+    let effectsAfterSecond = state.entities.[targetId].Effects |> AList.force
+
+    let secondEffect =
+      effectsAfterSecond |> Seq.find(fun e -> e.EffectId = refreshEffectId)
+
+    // Assert
+    let effectDef = EffectStore.definitions.[refreshEffectId]
+
+    let expectedDuration =
+      match effectDef.Duration with
+      | Timed d -> d
+      | _ -> failwith "Expected timed duration"
+
+    Assert.Equal(1, effectsAfterFirst.Count)
+    Assert.Equal(1, effectsAfterSecond.Count)
+    Assert.Equal(1, secondEffect.Stacks) // Stacks should not change
+
+    // The duration should be reset to the full value
+    Assert.True(
+      secondEffect.RemainingTicks > firstEffect.RemainingTicks - 1000L<ticks>,
+      "Duration should be refreshed"
+    )
+
+    Assert.Equal(expectedDuration, secondEffect.RemainingTicks)
+
+  // T7 Effect stacking: AddStack ---------------------------------------------
+  [<Fact>]
+  member _.``T7 AddStack increments up to cap then stops``() =
+    // Arrange
+    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let casterId = EntityId 1
+    let targetId = EntityId 2
+    let spellId = Abilities.AbilityId 5 // Shield Spell
+    let addStackEffectId = EffectId 102 // Shield effect
+
+    let caster = makeEntity casterId baseStats 100 100 100 [ spellId ] []
+    let target = makeEntity targetId baseStats 100 100 100 [] []
+    addEntity state casterId caster
+    addEntity state targetId target
+
+    let applySpell() =
+      Resolution.apply
+        state
+        (CastSpell {
+          actor = casterId
+          target = targetId
+          abilityId = spellId
+        })
+
+    let getEffectStacks() =
+      state.entities.[targetId].Effects
+      |> AList.force
+      |> Seq.tryFind(fun e -> e.EffectId = addStackEffectId)
+      |> Option.map(fun e -> e.Stacks)
+      |> Option.defaultValue 0
+
+    // Act & Assert
+    applySpell() // 1
+    Assert.Equal(1, getEffectStacks())
+
+    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
+    applySpell() // 2
+    Assert.Equal(2, getEffectStacks())
+
+    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
+    applySpell() // 3
+    Assert.Equal(3, getEffectStacks())
+
+    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
+    applySpell() // 4
+    Assert.Equal(4, getEffectStacks())
+
+    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
+    applySpell() // 5
+    Assert.Equal(5, getEffectStacks())
+
+    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
+    applySpell() // 6 - Should not exceed cap
+    Assert.Equal(5, getEffectStacks())
+
+  // T8 DoT ticking applies periodic damage -----------------------------------
+  [<Fact>]
+  member _.``T8 DoT ticking applies periodic damage and expires``() =
+    // Arrange
+    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let casterId = EntityId 1
+    let targetId = EntityId 2
+    let spellId = Abilities.AbilityId 6 // Poison Spell
+    let dotEffectId = EffectId 105 // Poison
+
+    let caster = makeEntity casterId baseStats 100 100 100 [ spellId ] []
+    let target = makeEntity targetId baseStats 100 100 100 [] []
+    addEntity state casterId caster
+    addEntity state targetId target
+
+    let applySpell() =
+      Resolution.apply
+        state
+        (CastSpell {
+          actor = casterId
+          target = targetId
+          abilityId = spellId
+        })
+
+    let hp() = state.entities.[targetId].Resources.HP
+    let initialHp = hp()
+
+    // Act
+    applySpell()
+    let hpAfterApply = hp()
+    Assert.Equal(initialHp, hpAfterApply) // No initial damage
+
+    // Tick forward to trigger DoT
+    Gameplay.GameState.tick state 2000L<ticks> // 1st tick
+    let hpAfterTick1 = hp()
+    Assert.Equal(initialHp - 5, hpAfterTick1)
+
+    Gameplay.GameState.tick state 2000L<ticks> // 2nd tick
+    let hpAfterTick2 = hp()
+    Assert.Equal(initialHp - 10, hpAfterTick2)
+
+    Gameplay.GameState.tick state 2000L<ticks> // 3rd tick
+    let hpAfterTick3 = hp()
+    Assert.Equal(initialHp - 15, hpAfterTick3)
+
+    Gameplay.GameState.tick state 2000L<ticks> // 4th tick
+    let hpAfterTick4 = hp()
+    Assert.Equal(initialHp - 20, hpAfterTick4)
+
+    // Effect should have expired now (8000L<ticks> total duration)
+    let effects = state.entities.[targetId].Effects |> AList.force
+    Assert.Empty(effects)
+
+  // T9 HoT ticking applies periodic healing ------------------------------------
+  [<Fact>]
+  member _.``T9 HoT ticking applies periodic healing and expires``() =
+    // Arrange
+    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let casterId = EntityId 1
+    let targetId = EntityId 2
+    let spellId = Abilities.AbilityId 7 // Regen Spell
+    let hotEffectId = EffectId 106 // Regeneration
+
+    let caster = makeEntity casterId baseStats 100 100 100 [ spellId ] []
+    let target = makeEntity targetId baseStats 50 100 100 [] [] // Start with 50 HP
+    addEntity state casterId caster
+    addEntity state targetId target
+
+    let applySpell() =
+      Resolution.apply
+        state
+        (CastSpell {
+          actor = casterId
+          target = targetId
+          abilityId = spellId
+        })
+
+    let hp() = state.entities.[targetId].Resources.HP
+    let initialHp = hp()
+
+    // Act
+    applySpell()
+    let hpAfterApply = hp()
+    Assert.Equal(initialHp, hpAfterApply) // No initial healing
+
+    // Tick forward to trigger HoT
+    Gameplay.GameState.tick state 2000L<ticks> // 1st tick
+    let hpAfterTick1 = hp()
+    Assert.Equal(initialHp + 5, hpAfterTick1)
+
+    Gameplay.GameState.tick state 2000L<ticks> // 2nd tick
+    let hpAfterTick2 = hp()
+    Assert.Equal(initialHp + 10, hpAfterTick2)
+
+    Gameplay.GameState.tick state 2000L<ticks> // 3rd tick
+    let hpAfterTick3 = hp()
+    Assert.Equal(initialHp + 15, hpAfterTick3)
+
+    Gameplay.GameState.tick state 2000L<ticks> // 4th tick
+    let hpAfterTick4 = hp()
+    Assert.Equal(initialHp + 20, hpAfterTick4)
+
+    // Effect should have expired now (8000L<ticks> total duration)
+    let effects = state.entities.[targetId].Effects |> AList.force
+    Assert.Empty(effects)

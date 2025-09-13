@@ -85,7 +85,17 @@ module StatusEffects =
       let remaining, expired =
         effects
         |> IndexList.partition(fun effect ->
-          effect.RemainingTicks - ticksElapsed > 0L<ticks>)
+          let newRemaining = effect.RemainingTicks - ticksElapsed
+          let effectDef = effectDefs[effect.EffectId]
+          
+          match effectDef.Duration with
+          | Loop(_, _) -> 
+            // Periodic effects should be processed even when reaching 0 remaining time
+            // to allow the final tick
+            newRemaining >= 0L<ticks>
+          | _ -> 
+            // Non-periodic effects expire when remaining time <= 0
+            newRemaining > 0L<ticks>)
 
       // 2. Create expiration events for the expired effects.
       let expirationEvents =
@@ -107,25 +117,68 @@ module StatusEffects =
             let newNextTickIn = effect.NextTickIn - ticksElapsed
             let effectDef = effectDefs[effect.EffectId]
 
-            let updatedEffect, newEvent =
+            let updatedEffect, newEvents =
               match effectDef.Duration with
               | Loop(interval, _) when newNextTickIn <= 0L<ticks> ->
                 // This periodic effect should tick.
-                let event =
+                let effectAppliedEvent =
                   GameEvent.EffectApplied {
                     source = effect.SourceId
                     target = target
                     effectId = effect.EffectId
                   }
 
-                let updated = {
-                  effect with
-                      RemainingTicks = newRemainingTicks
-                      // Reset the tick timer, accounting for any "overdue" time.
-                      NextTickIn = interval + newNextTickIn
-                }
+                // Process DoT/HoT damage/healing based on effect kind
+                let damageOrHealEvent =
+                  match effectDef.Kind with
+                  | EffectKind.DamageOverTime amount ->
+                    // Apply damage per stack
+                    let totalDamage = amount * effect.Stacks
 
-                updated, Some event
+                    Some(
+                      GameEvent.DamageApplied {
+                        target = target
+                        amount = totalDamage
+                      }
+                    )
+                  | EffectKind.HealOverTime amount ->
+                    // Apply healing per stack
+                    let totalHealing = amount * effect.Stacks
+
+                    Some(
+                      GameEvent.Healed {
+                        target = target
+                        amount = totalHealing
+                      }
+                    )
+                  | _ -> None
+
+                // Check if effect will expire after this tick
+                let willExpire = newRemainingTicks <= 0L<ticks>
+
+                let updated =
+                  if willExpire then
+                    // Effect expires after this tick, create a dummy effect that will be filtered out
+                    {
+                      effect with
+                          RemainingTicks = 0L<ticks>
+                          NextTickIn = 0L<ticks>
+                    }
+                  else
+                    {
+                      effect with
+                          RemainingTicks = newRemainingTicks
+                          // Reset the tick timer, accounting for any "overdue" time.
+                          NextTickIn = interval + newNextTickIn
+                    }
+
+                // Combine effect applied event with damage/heal event
+                let events =
+                  match damageOrHealEvent with
+                  | Some dhe -> [ effectAppliedEvent; dhe ]
+                  | None -> [ effectAppliedEvent ]
+
+                updated, events
               | _ ->
                 // Not a periodic effect or not time to tick yet.
                 let updated = {
@@ -134,12 +187,11 @@ module StatusEffects =
                       NextTickIn = newNextTickIn
                 }
 
-                updated, None
+                updated, []
 
             let newAccEvents =
-              match newEvent with
-              | Some e -> IndexList.add e accEvents
-              | None -> accEvents
+              newEvents
+              |> List.fold (fun acc e -> IndexList.add e acc) accEvents
 
             IndexList.add updatedEffect accEffects, newAccEvents)
           (IndexList.empty, IndexList.empty)
@@ -147,7 +199,10 @@ module StatusEffects =
 
       // 4. Combine all events and return the final state.
       // The fold processes in reverse, so we reverse the results back.
-      let finalEffects = IndexList.rev updatedRemaining
+      let finalEffects =
+        updatedRemaining
+        |> IndexList.rev
+        |> IndexList.filter(fun effect -> effect.RemainingTicks > 0L<ticks>)
 
       let allEvents =
         IndexList.append expirationEvents (IndexList.rev tickEvents)

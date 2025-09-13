@@ -132,6 +132,12 @@ module GameState =
   let create() =
     create'(fun () -> System.Random.Shared.NextDouble())
 
+  let getDerivedStats
+    (state: GameState)
+    : amap<EntityId, Attributes.DerivedStats> =
+    state.entities
+    |> AMap.mapA(fun id c -> applyModifiers c.BaseStats c.Effects)
+
   let tick (state: GameState) (time: int64<ticks>) =
     let allEffects =
       Pomo.Lib.Content.EffectStore.definitions
@@ -165,13 +171,75 @@ module GameState =
 
       for entityId, (updatedComponents, events) in changesToApply do
         state.entities.[entityId] <- updatedComponents
-        state.gameEvents.AddRange(events))
+        state.gameEvents.AddRange(events)
 
-  let getDerivedStats
-    (state: GameState)
-    : amap<EntityId, Attributes.DerivedStats> =
-    state.entities
-    |> AMap.mapA(fun id c -> applyModifiers c.BaseStats c.Effects)
+      // Process healing and damage events to apply HP changes
+      // Get all events that were just added in this tick
+      let totalNewEvents =
+        changesToApply
+        |> HashMap.toSeq
+        |> Seq.sumBy(fun (_, (_, events)) -> events.Count)
+
+      let recentEvents =
+        state.gameEvents
+        |> AList.force
+        |> Seq.toList
+        |> List.rev
+        |> List.take totalNewEvents
+
+      for event in recentEvents do
+        match event with
+        | GameEvent.Healed healedEvent ->
+          let targetId = healedEvent.target
+
+          match state.entities |> AMap.tryFind targetId |> AVal.force with
+          | Some targetComponents ->
+            let currentHp = targetComponents.Resources.HP
+
+            let maxHp =
+              // Get derived stats to find max HP
+              let derivedStats = getDerivedStats state |> AMap.force
+
+              match derivedStats |> HashMap.tryFind targetId with
+              | Some stats -> stats.MaxHP
+              | None -> currentHp // Fallback to current HP if no derived stats
+
+            let newHp = min maxHp (currentHp + healedEvent.amount)
+
+            let updatedResources = {
+              targetComponents.Resources with
+                  HP = newHp
+            }
+
+            let updatedComponents = {
+              targetComponents with
+                  Resources = updatedResources
+            }
+
+            state.entities.[targetId] <- updatedComponents
+          | None -> () // Target entity not found, ignore
+        | GameEvent.DamageApplied damageEvent ->
+          let targetId = damageEvent.target
+
+          match state.entities |> AMap.tryFind targetId |> AVal.force with
+          | Some targetComponents ->
+            let currentHp = targetComponents.Resources.HP
+            let newHp = max 0 (currentHp - damageEvent.amount)
+
+            let updatedResources = {
+              targetComponents.Resources with
+                  HP = newHp
+            }
+
+            let updatedComponents = {
+              targetComponents with
+                  Resources = updatedResources
+            }
+
+            state.entities.[targetId] <- updatedComponents
+          | None -> () // Target entity not found, ignore
+        | _ -> () // Not a healing or damage event, ignore
+    )
 
   let aAlive(state: GameState) : aset<EntityId> =
     state.entities
