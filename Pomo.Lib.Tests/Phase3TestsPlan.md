@@ -18,10 +18,10 @@ Legend:
 | T3  | Silence blocks spell but allows melee                                                                   | [x]    |                              |
 | T4  | Taunt redirection forces target to taunter                                                              | [x]    |                              |
 | T5  | Effect stacking: NoStack ignores second application                                                     | [x]    |                              |
-| T6  | Effect stacking: RefreshDuration resets timer, stack count unchanged                                    |        |                              |
-| T7  | Effect stacking: AddStack increments up to cap then stops                                               |        |                              |
-| T8  | DoT ticking applies periodic damage and expires after loops                                             |        |                              |
-| T9  | HoT ticking applies periodic healing and expires after loops                                            |        |                              |
+| T6  | Effect stacking: RefreshDuration resets timer, stack count unchanged                                    | [x]    | Test added in Phase3Tests.fs |
+| T7  | Effect stacking: AddStack increments up to cap then stops                                               | [x]    | Test added in Phase3Tests.fs |
+| T8  | DoT ticking applies periodic damage and expires after loops                                             | [x]    | Test added in Phase3Tests.fs |
+| T9  | HoT ticking applies periodic healing and expires after loops                                            | [x]    | Test added in Phase3Tests.fs |
 | T10 | Shield partial depletion across multiple hits (spillover to HP)                                         |        |                              |
 | T11 | Deterministic RNG yields identical damage sequence with fixed seed                                      |        |                              |
 | T12 | Cooldown-ready abilities set includes ability after cooldown elapses                                    |        |                              |
