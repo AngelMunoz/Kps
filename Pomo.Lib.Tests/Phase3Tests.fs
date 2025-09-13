@@ -659,3 +659,244 @@ type ``Phase3 - Effect Stacking``() =
     // Effect should have expired now (8000L<ticks> total duration)
     let effects = state.entities.[targetId].Effects |> AList.force
     Assert.Empty(effects)
+
+// T10 Shield partial depletion across multiple hits (spillover to HP) -----------
+type ``Phase3 - Shield Extended``() =
+  [<Fact>]
+  member _.``T10 Shield partial depletion across multiple hits with spillover``() =
+    // Arrange
+    let state = Gameplay.GameState.create'(fun () -> 0.5) // deterministic RNG
+    let attackerId = EntityId 1
+    let targetId = EntityId 2
+    let melee = Abilities.AbilityId 1
+
+    let attacker = makeEntity attackerId baseStats 100 30 100 [ melee ] []
+
+    // Give target 2 stacks of Shield (EffectId 102) -> 20 shield points total
+    let shieldEffectId = EffectId 102
+
+    let target =
+      makeEntity targetId baseStats 100 30 100 [] [
+        (shieldEffectId, 2, 10000L<ticks>)
+      ]
+
+    addEntity state attackerId attacker
+    addEntity state targetId target
+
+    let perform() =
+      Resolution.apply
+        state
+        (MeleeAttack {
+          actor = attackerId
+          target = targetId
+          abilityId = melee
+        })
+
+    let getShieldStacks() =
+      state.entities.[targetId].Effects
+      |> AList.force
+      |> Seq.choose(fun e ->
+        let def = EffectStore.definitions.[e.EffectId]
+
+        match def.Kind with
+        | EffectKind.Shield _ -> Some e.Stacks
+        | _ -> None)
+      |> Seq.sum
+
+    let hp() = state.entities.[targetId].Resources.HP
+
+    // Initial state: 2 shield stacks (20 points), 100 HP
+    let initialStacks = getShieldStacks()
+    let initialHp = hp()
+    Assert.Equal(2, initialStacks)
+    Assert.Equal(100, initialHp)
+
+    // First hit: 19 damage vs 20 shield points
+    // Shield absorbs 19, reduces by 2 stacks (ceil(19/10)) to 0 stacks
+    // Remaining 1 shield point after damage should be consumed
+    perform()
+    let stacksAfter1 = getShieldStacks()
+    let hpAfter1 = hp()
+    Assert.Equal(0, stacksAfter1) // Shield should be depleted
+    Assert.Equal(100, hpAfter1) // HP should be unchanged (shield absorbed all damage)
+
+    // Second hit: No shield, full 19 damage to HP
+    Gameplay.GameState.tick state 2000L<ticks> // advance past cooldown
+    perform()
+    let stacksAfter2 = getShieldStacks()
+    let hpAfter2 = hp()
+    Assert.Equal(0, stacksAfter2)
+    Assert.Equal(81, hpAfter2) // 100 - 19 = 81
+
+    // Third hit: No shield, another 19 damage to HP
+    Gameplay.GameState.tick state 2000L<ticks>
+    perform()
+    let stacksAfter3 = getShieldStacks()
+    let hpAfter3 = hp()
+    Assert.Equal(0, stacksAfter3)
+    Assert.Equal(62, hpAfter3) // 81 - 19 = 62
+
+// T11 Deterministic RNG yields identical damage sequence ------------------
+type ``Phase3 - Determinism``() =
+  [<Fact>]
+  member _.``T11 Deterministic RNG yields identical damage sequence with fixed seed``() =
+    // Arrange: Create two identical game states with the same RNG seed
+    let rng1 = fun () -> 0.3 // Fixed value
+    let rng2 = fun () -> 0.3 // Same fixed value
+    
+    let state1 = Gameplay.GameState.create' rng1
+    let state2 = Gameplay.GameState.create' rng2
+    
+    let attackerId = EntityId 1
+    let targetId = EntityId 2
+    let melee = Abilities.AbilityId 1
+
+    let attacker1 = makeEntity attackerId baseStats 100 30 100 [ melee ] []
+    let target1 = makeEntity targetId baseStats 100 30 100 [] []
+    
+    let attacker2 = makeEntity attackerId baseStats 100 30 100 [ melee ] []
+    let target2 = makeEntity targetId baseStats 100 30 100 [] []
+
+    addEntity state1 attackerId attacker1
+    addEntity state1 targetId target1
+    addEntity state2 attackerId attacker2
+    addEntity state2 targetId target2
+
+    let performAttack state =
+      Resolution.apply
+        state
+        (MeleeAttack {
+          actor = attackerId
+          target = targetId
+          abilityId = melee
+        })
+
+    // Act: Perform the same sequence of actions on both states
+    performAttack state1
+    performAttack state2
+
+    // Assert: Both states should have identical results
+    let target1Hp = state1.entities.[targetId].Resources.HP
+    let target2Hp = state2.entities.[targetId].Resources.HP
+    Assert.Equal(target1Hp, target2Hp)
+
+    // Get damage events from both states
+    let getDamageEvents (state: Gameplay.GameState) =
+      state.gameEvents
+      |> AList.choose (function
+        | GameEvent.DamageApplied e when e.target = targetId -> Some e.amount
+        | _ -> None)
+      |> AList.force
+      |> Seq.toList
+
+    let damage1 = getDamageEvents state1
+    let damage2 = getDamageEvents state2
+    
+    Assert.Equal<int list>(damage1, damage2)
+    
+    // Perform second round after cooldown
+    Gameplay.GameState.tick state1 2500L<ticks>
+    Gameplay.GameState.tick state2 2500L<ticks>
+    
+    performAttack state1
+    performAttack state2
+    
+    let target1HpAfter2 = state1.entities.[targetId].Resources.HP
+    let target2HpAfter2 = state2.entities.[targetId].Resources.HP
+    Assert.Equal(target1HpAfter2, target2HpAfter2)
+
+// T12 Cooldown-ready abilities set includes ability after cooldown elapses -----
+type ``Phase3 - Cooldown Management``() =
+  [<Fact>]
+  member _.``T12 Cooldown-ready abilities set includes ability after cooldown elapses``() =
+    // Arrange
+    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let attackerId = EntityId 1
+    let targetId = EntityId 2
+    let melee = Abilities.AbilityId 1
+    let spell = Abilities.AbilityId 2
+
+    let attacker = makeEntity attackerId baseStats 100 100 100 [ melee; spell ] []
+    let target = makeEntity targetId baseStats 100 100 100 [] []
+
+    addEntity state attackerId attacker
+    addEntity state targetId target
+
+    // Act & Assert: Check initial readiness (all abilities should be ready)
+    let readyAbilitiesInitial = Gameplay.GameState.aReadyAbilities state |> ASet.force
+    let attackerAbilitiesInitial = 
+      readyAbilitiesInitial 
+      |> Seq.filter (fun (id, _) -> id = attackerId)
+      |> Seq.map snd
+      |> Set.ofSeq
+    
+    Assert.Contains(melee, attackerAbilitiesInitial)
+    Assert.Contains(spell, attackerAbilitiesInitial)
+
+    // Use melee ability (puts it on cooldown)
+    Resolution.apply
+      state
+      (MeleeAttack {
+        actor = attackerId
+        target = targetId
+        abilityId = melee
+      })
+
+    // Check that melee is no longer ready, but spell still is
+    let readyAfterMelee = Gameplay.GameState.aReadyAbilities state |> ASet.force
+    let attackerAbilitiesAfterMelee =
+      readyAfterMelee
+      |> Seq.filter (fun (id, _) -> id = attackerId)
+      |> Seq.map snd
+      |> Set.ofSeq
+
+    Assert.DoesNotContain(melee, attackerAbilitiesAfterMelee)
+    Assert.Contains(spell, attackerAbilitiesAfterMelee)
+
+    // Advance time past melee cooldown (melee has 2000L<ticks> cooldown)
+    Gameplay.GameState.tick state 2100L<ticks>
+
+    // Check that melee is ready again
+    let readyAfterCooldown = Gameplay.GameState.aReadyAbilities state |> ASet.force
+    let attackerAbilitiesAfterCooldown =
+      readyAfterCooldown
+      |> Seq.filter (fun (id, _) -> id = attackerId)
+      |> Seq.map snd
+      |> Set.ofSeq
+
+    Assert.Contains(melee, attackerAbilitiesAfterCooldown)
+    Assert.Contains(spell, attackerAbilitiesAfterCooldown)
+
+    // Use spell ability (puts it on cooldown - spell has 5000L<ticks> cooldown)
+    Resolution.apply
+      state
+      (CastSpell {
+        actor = attackerId
+        target = targetId
+        abilityId = spell
+      })
+
+    // Check that spell is no longer ready, but melee still is
+    let readyAfterSpell = Gameplay.GameState.aReadyAbilities state |> ASet.force
+    let attackerAbilitiesAfterSpell =
+      readyAfterSpell
+      |> Seq.filter (fun (id, _) -> id = attackerId)
+      |> Seq.map snd
+      |> Set.ofSeq
+
+    Assert.Contains(melee, attackerAbilitiesAfterSpell)
+    Assert.DoesNotContain(spell, attackerAbilitiesAfterSpell)
+
+    // Advance time past spell cooldown
+    Gameplay.GameState.tick state 5100L<ticks>
+
+    // Check that both abilities are ready again
+    let readyAfterBothCooldowns = Gameplay.GameState.aReadyAbilities state |> ASet.force
+    let attackerAbilitiesAfterBoth =
+      readyAfterBothCooldowns
+      |> Seq.filter (fun (id, _) -> id = attackerId)
+      |> Seq.map snd
+      |> Set.ofSeq
+
+    Assert.Contains(melee, attackerAbilitiesAfterBoth)
+    Assert.Contains(spell, attackerAbilitiesAfterBoth)
