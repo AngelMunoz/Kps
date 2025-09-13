@@ -534,18 +534,23 @@ type ``Phase3 - Effect Stacking``() =
     applySpell() // 1
     Assert.Equal(1, getEffectStacks())
 
+    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
     applySpell() // 2
     Assert.Equal(2, getEffectStacks())
 
+    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
     applySpell() // 3
     Assert.Equal(3, getEffectStacks())
 
+    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
     applySpell() // 4
     Assert.Equal(4, getEffectStacks())
 
+    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
     applySpell() // 5
     Assert.Equal(5, getEffectStacks())
 
+    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
     applySpell() // 6 - Should not exceed cap
     Assert.Equal(5, getEffectStacks())
 

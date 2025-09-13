@@ -317,13 +317,35 @@ module Resolution =
           | Effects.Duration.Loop(_, d) -> d
           | _ -> 0L<ticks>
 
+        let interval =
+          match effectDef.Duration with
+          | Effects.Duration.Loop(i, _) -> i
+          | _ -> 0L<ticks>
+
         Some {
           e with
-              RemainingTicks = gameTime + duration
+              RemainingTicks = duration
+              NextTickIn = interval
         }
       | Some e, Effects.StackingRule.AddStack maxStacks ->
         let newStacks = min maxStacks (e.Stacks + 1)
-        Some { e with Stacks = newStacks }
+        let duration =
+          match effectDef.Duration with
+          | Effects.Duration.Timed d -> d
+          | Effects.Duration.Loop(_, d) -> d
+          | _ -> 0L<ticks>
+
+        let interval =
+          match effectDef.Duration with
+          | Effects.Duration.Loop(i, _) -> i
+          | _ -> 0L<ticks>
+
+        Some {
+          e with
+              Stacks = newStacks
+              RemainingTicks = duration
+              NextTickIn = interval
+        }
       | None, _ ->
         let duration =
           match effectDef.Duration with
@@ -339,7 +361,7 @@ module Resolution =
         Some {
           EffectId = effectId
           SourceId = actorId
-          RemainingTicks = gameTime + duration
+          RemainingTicks = duration
           NextTickIn = interval
           Stacks = 1
         }
@@ -357,7 +379,7 @@ module Resolution =
         let! existingEffect = adaptive {
           let! effects = targetComponents.Effects |> AList.toAVal
 
-          return effects |> IndexList.tryFind(fun i e -> e.EffectId = effectId)
+          return effects |> IndexList.toSeq |> Seq.tryFind(fun e -> e.EffectId = effectId)
         }
 
         let newEffect =
@@ -529,10 +551,10 @@ module Resolution =
             targetStats
             rng
 
-        let shouldApplyDirectDamage =
-          // Simple heuristic: if a spell has no effects, it's probably direct damage.
-          // This can be refined later with explicit ability properties.
-          abilityDef.Effects.IsEmpty
+        // Spells should apply direct damage unless they are purely utility/buff spells
+        // For now, we'll assume all spells do direct damage except those that only have 
+        // non-damaging effects like pure buffs/heals
+        let shouldApplyDirectDamage = true // Allow spells to do damage even with effects
 
         let initialDamage =
           if shouldApplyDirectDamage then damageResult.Amount else 0
