@@ -12,6 +12,7 @@ Good luck to us — and let’s move methodically.
 - Reactive state graph: use FDA to derive views and system inputs from authoritative state.
 - Extensibility: design for adding stats, effects, skills, and content over time.
 - Performant Reactive Core: Use incremental adaptive collections (`amap`, `aset`, `alist`) for dynamic state to enable efficient, fine-grained updates instead of replacing large collections. For static or slowly changing data, BCL collections are suitable.
+- **Dependency Injection via Handles:** Decouple pure logic from side-effecting services (e.g., logging, content loading) by defining abstractions (`IContentService`). Pass these services as a single `IGameServices` "handle" to core logic. This makes dependencies explicit and the core highly testable. The application's entry point will act as the "composition root" to assemble concrete services.
 - When multiple adaptive values are required but feel scattered, SRTPs are an option to consider.
 - Adaptive values must be adaptive until they must be evaluated, meaning that every computation or adaptive value must be done in the "adaptive realm" until the final result is needed.
   - If multiple values are required, consider using `adaptive { ... }` computation expressions to group them together.
@@ -175,27 +176,7 @@ Deliverable: two or three effects implemented and unit-tested.
 
 Deliverable: a handful of abilities across physical and magic themes.
 
-## Phase 5 — Event Bus and Reactive State Graph
-
-1. Event Stream and Log
-
-   - `cval<GameEvent[]>` or an adaptive queue; push events emitted by resolutions.
-   - All events are appended to a persistent log for the entire session. This log is the source of truth for replays.
-   - Derived projections:
-     - lowHealthAllies, tauntedTargets
-     - activeShieldsByEntity
-
-2. Incremental Updates
-
-   - Use AMap/AList for entities and effects; recompute derived stats incrementally
-   - Keep authoritative state minimal; everything else is derived aval/aset/amap
-
-3. Side-Effect Boundaries
-   - All core logic pure; FDA bridges to IO (rendering later) consume derived projections
-
-Deliverable: solid FDA-backed world with incremental recomputation.
-
-## Phase 6 — Save/Load and Determinism
+## Phase 5 — Save/Load and Determinism
 
 1. Serializable World Snapshot
 
@@ -206,7 +187,7 @@ Deliverable: solid FDA-backed world with incremental recomputation.
 
 Deliverable: snapshot save/load for core state.
 
-## Phase 7 — Content and Progression
+## Phase 6 — Content and Progression
 
 1. Entities and Archetypes
 
@@ -223,7 +204,7 @@ Deliverable: snapshot save/load for core state.
 
 Deliverable: simple loop: fight -> reward -> progress.
 
-## Phase 8 — Minimal Integration with MonoGame
+## Phase 7 — Minimal Integration with MonoGame
 
 1. Game Loop Hook
 
@@ -291,22 +272,25 @@ let apply (state: GameState) (cmd:Command) =
 ```
 
 ## Minimal Milestones Checklist
-
 - Phase 0: Types and RNG ✓
 - Phase 1: Entity store + FDA projections ✓
 - Phase 2: Commands + resolution + events (MeleeAttack + simple spell) ✓
+- Phase 3: Combat maths and effects (formulas, status framework, resources/costs) ✓
+- Phase 3.5: Architectural Refinement (DI)
 
 ## How to Integrate Into PomoGame (later)
 
-- Initialize cworld in PomoGame.Initialize
-- In Update: translate keyboard/gamepad to Commands, call apply
-- For now: log events to console to verify flows
+- **Composition Root:** In `PomoGame.Initialize`, create concrete services (e.g., `ConsoleLogger`, `JsonContentService`) and compose the `gameServices` handle.
+- **Initialize State:** Create the initial `worldState` record.
+- **Game Loop:** In `PomoGame.Update`, translate user input into `Commands` and pass the `services` handle and `worldState` to the `apply` function.
+- **Debug View:** For now, log events from the `gameEvents` list to the console to verify flows.
 
 ## Testing Strategy
 
-- Property-based tests for stat composition and effect stacking
-- Deterministic simulations with fixed seeds
-- Scenario tests: given world + command -> expected events and state
+- **Unit tests with Fakes:** For core logic modules (e.g., `ActionResolver`), use simple, in-memory "fake" implementations of the `IGameServices` interfaces (e.g., a `FakeContentService` backed by a `Map`). This allows testing logic in isolation, such as verifying that a spell fails correctly when the fake service is configured to not find it.
+- **Property-based tests:** Use for stat composition and effect stacking rules to ensure they are mathematically sound across a wide range of inputs.
+- **Deterministic simulations:** Use fixed seeds for the RNG service to test complex, multi-turn scenarios and ensure the simulation is perfectly reproducible.
+- **Integration/Scenario tests:** Given a real set of services, an initial world state, and a sequence of commands, assert the final state and emitted events are as expected.
 
 ## Future Extensions (post-core)
 

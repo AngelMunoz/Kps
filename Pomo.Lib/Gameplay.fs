@@ -2,7 +2,6 @@ namespace Pomo.Lib.Gameplay
 
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
-open Pomo.Lib.Domain.Primitives
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.GameEvent
@@ -10,9 +9,9 @@ open Pomo.Lib.Domain.Effects
 open Pomo.Lib.Effects
 
 type GameState = {
-  entities: cmap<EntityId, All>
+  entities: cmap<int<EntityId>, All>
   gameEvents: clist<GameEvent>
-  gameTime: cval<int64<ticks>>
+  gameTime: cval<int64<Tick>>
   rng: unit -> float
 }
 
@@ -125,7 +124,7 @@ module GameState =
   let create'(rng: unit -> float) = {
     entities = cmap()
     gameEvents = clist []
-    gameTime = cval 0L<ticks>
+    gameTime = cval 0L<Tick>
     rng = rng
   }
 
@@ -134,11 +133,10 @@ module GameState =
 
   let getDerivedStats
     (state: GameState)
-    : amap<EntityId, Attributes.DerivedStats> =
-    state.entities
-    |> AMap.mapA(fun id c -> applyModifiers c.BaseStats c.Effects)
+    : amap<int<EntityId>, Attributes.DerivedStats> =
+    state.entities |> AMap.mapA(fun _ c -> applyModifiers c.BaseStats c.Effects)
 
-  let tick (state: GameState) (time: int64<ticks>) =
+  let tick (state: GameState) (time: int64<Tick>) =
     let allEffects =
       Pomo.Lib.Content.EffectStore.definitions
       |> HashMap.ofMap
@@ -241,7 +239,7 @@ module GameState =
         | _ -> () // Not a healing or damage event, ignore
     )
 
-  let aAlive(state: GameState) : aset<EntityId> =
+  let aAlive(state: GameState) : aset<int<EntityId>> =
     state.entities
     |> AMap.filter(fun _ c -> c.Resources.Status = Attributes.Status.Alive)
     |> AMap.toASet
@@ -249,7 +247,7 @@ module GameState =
 
   let aReadyAbilities
     (state: GameState)
-    : aset<(EntityId * Abilities.AbilityId)> =
+    : aset<(int<EntityId> * int<AbilityId>)> =
     let allCoolDowns =
       state.entities
       |> AMap.toASet

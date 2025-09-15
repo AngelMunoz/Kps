@@ -5,7 +5,6 @@ open Xunit
 open FSharp.Data.Adaptive
 open Pomo.Lib
 open Pomo.Lib.Domain
-open Pomo.Lib.Domain.Primitives
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.Effects
@@ -24,20 +23,20 @@ module private Phase3Helpers =
   }
 
   let makeEntity
-    (id: EntityId)
+    (id: int<EntityId>)
     (baseStats: BaseAttributes)
     hp
     mp
     stamina
-    (abilities: Abilities.AbilityId list)
-    (effects: (EffectId * int * int64<ticks>) list)
+    (abilities: int<AbilityId> list)
+    (effects: (int<EffectId> * int * int64<Tick>) list)
     =
-    let emptySeq: seq<Abilities.AbilityId * int64<ticks>> = Seq.empty
-    let cooldowns: cmap<Abilities.AbilityId, int64<ticks>> = cmap emptySeq
+    let emptySeq: seq<int<AbilityId> * int64<Tick>> = Seq.empty
+    let cooldowns: cmap<int<AbilityId>, int64<Tick>> = cmap emptySeq
 
     transact(fun _ ->
       for a in abilities do
-        cooldowns.Add(a, 0L<ticks>) |> ignore)
+        cooldowns.Add(a, 0L<Tick>) |> ignore)
 
     let activeEffects =
       effects
@@ -45,7 +44,7 @@ module private Phase3Helpers =
         EffectId = effectId
         SourceId = id
         RemainingTicks = remaining
-        NextTickIn = 0L<ticks>
+        NextTickIn = 0L<Tick>
         Stacks = stacks
       })
       |> clist
@@ -69,12 +68,12 @@ module private Phase3Helpers =
 
   let addEntity
     (state: Gameplay.GameState)
-    (id: EntityId)
+    (id: int<EntityId>)
     (all: Components.All)
     =
     transact(fun _ -> state.entities.Add(id, all) |> ignore)
 
-  let derivedOf (state: Gameplay.GameState) (id: EntityId) =
+  let derivedOf (state: Gameplay.GameState) (id: int<EntityId>) =
     Gameplay.GameState.getDerivedStats state |> AMap.force |> (fun m -> m.[id])
 
 open Phase3Helpers
@@ -86,18 +85,18 @@ type ``Phase3 - Shield``() =
   member _.``T1 Shield absorbs damage before HP until depleted``() =
     // Arrange
     let state = Gameplay.GameState.create'(fun () -> 0.5) // deterministic RNG
-    let attackerId = EntityId 1
-    let targetId = EntityId 2
-    let melee = Abilities.AbilityId 1
+    let attackerId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let melee = 1<AbilityId>
 
     let attacker = makeEntity attackerId baseStats 100 30 100 [ melee ] []
 
-    // Give target 3 stacks of Shield (EffectId 102) -> 30 shield points total
-    let shieldEffectId = EffectId 102
+    // Give target 3 stacks of Shield (102<EffectId>) -> 30 shield points total
+    let shieldEffectId = 102<EffectId>
 
     let target =
       makeEntity targetId baseStats 100 30 100 [] [
-        (shieldEffectId, 3, 10000L<ticks>)
+        (shieldEffectId, 3, 10000L<Tick>)
       ]
 
     addEntity state attackerId attacker
@@ -141,7 +140,7 @@ type ``Phase3 - Shield``() =
     Assert.Equal(100, hpAfter1)
 
     // Second hit: 1 stack (10 pts) absorbs 10, remaining 9 goes to HP. Stacks become 0, HP=91.
-    Gameplay.GameState.tick state 2000L<ticks> // advance past cooldown
+    Gameplay.GameState.tick state 2000L<Tick> // advance past cooldown
     perform() // 2
     let stacksAfter2 = getShieldStacks()
     let hpAfter2 = hp()
@@ -149,7 +148,7 @@ type ``Phase3 - Shield``() =
     Assert.Equal(91, hpAfter2)
 
     // Third hit: no shield, full 19 damage to HP => 72.
-    Gameplay.GameState.tick state 2000L<ticks>
+    Gameplay.GameState.tick state 2000L<Tick>
     perform() // 3
     let stacksAfter3 = getShieldStacks()
     let hpAfter3 = hp()
@@ -174,14 +173,14 @@ type ``Phase3 - Stun``() =
   member _.``T2 Stun prevents all actions``() =
     // Arrange
     let state = Gameplay.GameState.create'(fun () -> 0.5)
-    let attackerId = EntityId 1
-    let targetId = EntityId 2
-    let melee = Abilities.AbilityId 1
-    let stunEffectId = EffectId 100 // Stun
+    let attackerId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let melee = 1<AbilityId>
+    let stunEffectId = 100<EffectId> // Stun
 
     let attacker =
       makeEntity attackerId baseStats 100 30 100 [ melee ] [
-        (stunEffectId, 1, 10000L<ticks>)
+        (stunEffectId, 1, 10000L<Tick>)
       ]
 
     let target = makeEntity targetId baseStats 100 30 100 [] []
@@ -222,7 +221,7 @@ type ``Phase3 - Stun``() =
     let cooldown =
       (state.entities.[attackerId].AbilityCooldowns |> AMap.force).[melee]
 
-    Assert.Equal(0L<ticks>, cooldown)
+    Assert.Equal(0L<Tick>, cooldown)
 
 // T3 Silence blocks spell but allows melee -----------------------------------
 
@@ -231,15 +230,15 @@ type ``Phase3 - Silence``() =
   member _.``T3 Silence blocks spell but allows melee``() =
     // Arrange
     let state = Gameplay.GameState.create'(fun () -> 0.5)
-    let attackerId = EntityId 1
-    let targetId = EntityId 2
-    let melee = Abilities.AbilityId 1
-    let spell = Abilities.AbilityId 2 // Assuming a spell ability
-    let silenceEffectId = EffectId 101 // Silence
+    let attackerId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let melee = 1<AbilityId>
+    let spell = 2<AbilityId> // Assuming a spell ability
+    let silenceEffectId = 101<EffectId> // Silence
 
     let attacker =
       makeEntity attackerId baseStats 100 30 100 [ melee; spell ] [
-        (silenceEffectId, 1, 10000L<ticks>)
+        (silenceEffectId, 1, 10000L<Tick>)
       ]
 
     let target = makeEntity targetId baseStats 100 30 100 [] []
@@ -320,11 +319,11 @@ type ``Phase3 - Taunt``() =
   member _.``T4 Taunt redirection forces target to taunter``() =
     // Arrange
     let state = Gameplay.GameState.create'(fun () -> 0.5)
-    let attackerId = EntityId 1
-    let intendedTargetId = EntityId 2
-    let taunterId = EntityId 3
-    let melee = Abilities.AbilityId 1
-    let tauntEffectId = EffectId 103 // Taunt
+    let attackerId = 1<EntityId>
+    let intendedTargetId = 2<EntityId>
+    let taunterId = 3<EntityId>
+    let melee = 1<AbilityId>
+    let tauntEffectId = 103<EffectId> // Taunt
 
     let attacker = makeEntity attackerId baseStats 100 30 100 [ melee ] []
     let intendedTarget = makeEntity intendedTargetId baseStats 100 30 100 [] []
@@ -338,8 +337,8 @@ type ``Phase3 - Taunt``() =
     let tauntEffect = {
       EffectId = tauntEffectId
       SourceId = taunterId
-      RemainingTicks = 10000L<ticks>
-      NextTickIn = 0L<ticks>
+      RemainingTicks = 10000L<Tick>
+      NextTickIn = 0L<Tick>
       Stacks = 1
     }
 
@@ -395,10 +394,10 @@ type ``Phase3 - Effect Stacking``() =
   member _.``T5 NoStack ignores second application``() =
     // Arrange
     let state = Gameplay.GameState.create'(fun () -> 0.5)
-    let casterId = EntityId 1
-    let targetId = EntityId 2
-    let spellId = Abilities.AbilityId 3 // A spell that applies a NoStack effect
-    let noStackEffectId = EffectId 104 // Assuming this is a NoStack effect
+    let casterId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let spellId = 3<AbilityId> // A spell that applies a NoStack effect
+    let noStackEffectId = 104<EffectId> // Assuming this is a NoStack effect
 
     let caster = makeEntity casterId baseStats 100 100 100 [ spellId ] []
     let target = makeEntity targetId baseStats 100 100 100 [] []
@@ -421,7 +420,7 @@ type ``Phase3 - Effect Stacking``() =
     let firstEffect =
       effectsAfterFirst |> Seq.find(fun e -> e.EffectId = noStackEffectId)
 
-    Gameplay.GameState.tick state 1000L<ticks> // Advance time slightly
+    Gameplay.GameState.tick state 1000L<Tick> // Advance time slightly
 
     applySpell() // Second application
     let effectsAfterSecond = state.entities.[targetId].Effects |> AList.force
@@ -433,7 +432,7 @@ type ``Phase3 - Effect Stacking``() =
     let secondEffect =
       effectsAfterSecond |> Seq.find(fun e -> e.EffectId = noStackEffectId)
 
-    let remaining = firstEffect.RemainingTicks - 1000L<ticks>
+    let remaining = firstEffect.RemainingTicks - 1000L<Tick>
     let secondRemaining = secondEffect.RemainingTicks
 
     Assert.Equal(remaining, secondRemaining)
@@ -445,10 +444,10 @@ type ``Phase3 - Effect Stacking``() =
   member _.``T6 RefreshDuration resets timer, stack count unchanged``() =
     // Arrange
     let state = Gameplay.GameState.create'(fun () -> 0.5)
-    let casterId = EntityId 1
-    let targetId = EntityId 2
-    let spellId = Abilities.AbilityId 4 // A spell that applies a RefreshDuration effect
-    let refreshEffectId = EffectId 1 // Minor Strength Buff
+    let casterId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let spellId = 4<AbilityId> // A spell that applies a RefreshDuration effect
+    let refreshEffectId = 1<EffectId> // Minor Strength Buff
 
     let caster = makeEntity casterId baseStats 100 100 100 [ spellId ] []
     let target = makeEntity targetId baseStats 100 100 100 [] []
@@ -471,7 +470,7 @@ type ``Phase3 - Effect Stacking``() =
     let firstEffect =
       effectsAfterFirst |> Seq.find(fun e -> e.EffectId = refreshEffectId)
 
-    Gameplay.GameState.tick state 1000L<ticks> // Advance time
+    Gameplay.GameState.tick state 1000L<Tick> // Advance time
 
     applySpell() // Second application (should refresh)
     let effectsAfterSecond = state.entities.[targetId].Effects |> AList.force
@@ -493,7 +492,7 @@ type ``Phase3 - Effect Stacking``() =
 
     // The duration should be reset to the full value
     Assert.True(
-      secondEffect.RemainingTicks > firstEffect.RemainingTicks - 1000L<ticks>,
+      secondEffect.RemainingTicks > firstEffect.RemainingTicks - 1000L<Tick>,
       "Duration should be refreshed"
     )
 
@@ -504,10 +503,10 @@ type ``Phase3 - Effect Stacking``() =
   member _.``T7 AddStack increments up to cap then stops``() =
     // Arrange
     let state = Gameplay.GameState.create'(fun () -> 0.5)
-    let casterId = EntityId 1
-    let targetId = EntityId 2
-    let spellId = Abilities.AbilityId 5 // Shield Spell
-    let addStackEffectId = EffectId 102 // Shield effect
+    let casterId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let spellId = 5<AbilityId> // Shield Spell
+    let addStackEffectId = 102<EffectId> // Shield effect
 
     let caster = makeEntity casterId baseStats 100 100 100 [ spellId ] []
     let target = makeEntity targetId baseStats 100 100 100 [] []
@@ -534,23 +533,23 @@ type ``Phase3 - Effect Stacking``() =
     applySpell() // 1
     Assert.Equal(1, getEffectStacks())
 
-    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
+    Gameplay.GameState.tick state 1000L<Tick> // Wait for cooldown
     applySpell() // 2
     Assert.Equal(2, getEffectStacks())
 
-    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
+    Gameplay.GameState.tick state 1000L<Tick> // Wait for cooldown
     applySpell() // 3
     Assert.Equal(3, getEffectStacks())
 
-    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
+    Gameplay.GameState.tick state 1000L<Tick> // Wait for cooldown
     applySpell() // 4
     Assert.Equal(4, getEffectStacks())
 
-    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
+    Gameplay.GameState.tick state 1000L<Tick> // Wait for cooldown
     applySpell() // 5
     Assert.Equal(5, getEffectStacks())
 
-    Gameplay.GameState.tick state 1000L<ticks> // Wait for cooldown
+    Gameplay.GameState.tick state 1000L<Tick> // Wait for cooldown
     applySpell() // 6 - Should not exceed cap
     Assert.Equal(5, getEffectStacks())
 
@@ -559,10 +558,10 @@ type ``Phase3 - Effect Stacking``() =
   member _.``T8 DoT ticking applies periodic damage and expires``() =
     // Arrange
     let state = Gameplay.GameState.create'(fun () -> 0.5)
-    let casterId = EntityId 1
-    let targetId = EntityId 2
-    let spellId = Abilities.AbilityId 6 // Poison Spell
-    let dotEffectId = EffectId 105 // Poison
+    let casterId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let spellId = 6<AbilityId> // Poison Spell
+    let dotEffectId = 105<EffectId> // Poison
 
     let caster = makeEntity casterId baseStats 100 100 100 [ spellId ] []
     let target = makeEntity targetId baseStats 100 100 100 [] []
@@ -587,19 +586,19 @@ type ``Phase3 - Effect Stacking``() =
     Assert.Equal(initialHp, hpAfterApply) // No initial damage
 
     // Tick forward to trigger DoT
-    Gameplay.GameState.tick state 2000L<ticks> // 1st tick
+    Gameplay.GameState.tick state 2000L<Tick> // 1st tick
     let hpAfterTick1 = hp()
     Assert.Equal(initialHp - 5, hpAfterTick1)
 
-    Gameplay.GameState.tick state 2000L<ticks> // 2nd tick
+    Gameplay.GameState.tick state 2000L<Tick> // 2nd tick
     let hpAfterTick2 = hp()
     Assert.Equal(initialHp - 10, hpAfterTick2)
 
-    Gameplay.GameState.tick state 2000L<ticks> // 3rd tick
+    Gameplay.GameState.tick state 2000L<Tick> // 3rd tick
     let hpAfterTick3 = hp()
     Assert.Equal(initialHp - 15, hpAfterTick3)
 
-    Gameplay.GameState.tick state 2000L<ticks> // 4th tick
+    Gameplay.GameState.tick state 2000L<Tick> // 4th tick
     let hpAfterTick4 = hp()
     Assert.Equal(initialHp - 20, hpAfterTick4)
 
@@ -612,10 +611,10 @@ type ``Phase3 - Effect Stacking``() =
   member _.``T9 HoT ticking applies periodic healing and expires``() =
     // Arrange
     let state = Gameplay.GameState.create'(fun () -> 0.5)
-    let casterId = EntityId 1
-    let targetId = EntityId 2
-    let spellId = Abilities.AbilityId 7 // Regen Spell
-    let hotEffectId = EffectId 106 // Regeneration
+    let casterId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let spellId = 7<AbilityId> // Regen Spell
+    let hotEffectId = 106<EffectId> // Regeneration
 
     let caster = makeEntity casterId baseStats 100 100 100 [ spellId ] []
     let target = makeEntity targetId baseStats 50 100 100 [] [] // Start with 50 HP
@@ -640,19 +639,19 @@ type ``Phase3 - Effect Stacking``() =
     Assert.Equal(initialHp, hpAfterApply) // No initial healing
 
     // Tick forward to trigger HoT
-    Gameplay.GameState.tick state 2000L<ticks> // 1st tick
+    Gameplay.GameState.tick state 2000L<Tick> // 1st tick
     let hpAfterTick1 = hp()
     Assert.Equal(initialHp + 5, hpAfterTick1)
 
-    Gameplay.GameState.tick state 2000L<ticks> // 2nd tick
+    Gameplay.GameState.tick state 2000L<Tick> // 2nd tick
     let hpAfterTick2 = hp()
     Assert.Equal(initialHp + 10, hpAfterTick2)
 
-    Gameplay.GameState.tick state 2000L<ticks> // 3rd tick
+    Gameplay.GameState.tick state 2000L<Tick> // 3rd tick
     let hpAfterTick3 = hp()
     Assert.Equal(initialHp + 15, hpAfterTick3)
 
-    Gameplay.GameState.tick state 2000L<ticks> // 4th tick
+    Gameplay.GameState.tick state 2000L<Tick> // 4th tick
     let hpAfterTick4 = hp()
     Assert.Equal(initialHp + 20, hpAfterTick4)
 
@@ -663,21 +662,23 @@ type ``Phase3 - Effect Stacking``() =
 // T10 Shield partial depletion across multiple hits (spillover to HP) -----------
 type ``Phase3 - Shield Extended``() =
   [<Fact>]
-  member _.``T10 Shield partial depletion across multiple hits with spillover``() =
+  member _.``T10 Shield partial depletion across multiple hits with spillover``
+    ()
+    =
     // Arrange
     let state = Gameplay.GameState.create'(fun () -> 0.5) // deterministic RNG
-    let attackerId = EntityId 1
-    let targetId = EntityId 2
-    let melee = Abilities.AbilityId 1
+    let attackerId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let melee = 1<AbilityId>
 
     let attacker = makeEntity attackerId baseStats 100 30 100 [ melee ] []
 
-    // Give target 2 stacks of Shield (EffectId 102) -> 20 shield points total
-    let shieldEffectId = EffectId 102
+    // Give target 2 stacks of Shield (102<EffectId>) -> 20 shield points total
+    let shieldEffectId = 102<EffectId>
 
     let target =
       makeEntity targetId baseStats 100 30 100 [] [
-        (shieldEffectId, 2, 10000L<ticks>)
+        (shieldEffectId, 2, 10000L<Tick>)
       ]
 
     addEntity state attackerId attacker
@@ -721,7 +722,7 @@ type ``Phase3 - Shield Extended``() =
     Assert.Equal(100, hpAfter1) // HP should be unchanged (shield absorbed all damage)
 
     // Second hit: No shield, full 19 damage to HP
-    Gameplay.GameState.tick state 2000L<ticks> // advance past cooldown
+    Gameplay.GameState.tick state 2000L<Tick> // advance past cooldown
     perform()
     let stacksAfter2 = getShieldStacks()
     let hpAfter2 = hp()
@@ -729,7 +730,7 @@ type ``Phase3 - Shield Extended``() =
     Assert.Equal(81, hpAfter2) // 100 - 19 = 81
 
     // Third hit: No shield, another 19 damage to HP
-    Gameplay.GameState.tick state 2000L<ticks>
+    Gameplay.GameState.tick state 2000L<Tick>
     perform()
     let stacksAfter3 = getShieldStacks()
     let hpAfter3 = hp()
@@ -739,21 +740,23 @@ type ``Phase3 - Shield Extended``() =
 // T11 Deterministic RNG yields identical damage sequence ------------------
 type ``Phase3 - Determinism``() =
   [<Fact>]
-  member _.``T11 Deterministic RNG yields identical damage sequence with fixed seed``() =
+  member _.``T11 Deterministic RNG yields identical damage sequence with fixed seed``
+    ()
+    =
     // Arrange: Create two identical game states with the same RNG seed
     let rng1 = fun () -> 0.3 // Fixed value
     let rng2 = fun () -> 0.3 // Same fixed value
-    
+
     let state1 = Gameplay.GameState.create' rng1
     let state2 = Gameplay.GameState.create' rng2
-    
-    let attackerId = EntityId 1
-    let targetId = EntityId 2
-    let melee = Abilities.AbilityId 1
+
+    let attackerId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let melee = 1<AbilityId>
 
     let attacker1 = makeEntity attackerId baseStats 100 30 100 [ melee ] []
     let target1 = makeEntity targetId baseStats 100 30 100 [] []
-    
+
     let attacker2 = makeEntity attackerId baseStats 100 30 100 [ melee ] []
     let target2 = makeEntity targetId baseStats 100 30 100 [] []
 
@@ -781,7 +784,7 @@ type ``Phase3 - Determinism``() =
     Assert.Equal(target1Hp, target2Hp)
 
     // Get damage events from both states
-    let getDamageEvents (state: Gameplay.GameState) =
+    let getDamageEvents(state: Gameplay.GameState) =
       state.gameEvents
       |> AList.choose (function
         | GameEvent.DamageApplied e when e.target = targetId -> Some e.amount
@@ -791,16 +794,16 @@ type ``Phase3 - Determinism``() =
 
     let damage1 = getDamageEvents state1
     let damage2 = getDamageEvents state2
-    
+
     Assert.Equal<int list>(damage1, damage2)
-    
+
     // Perform second round after cooldown
-    Gameplay.GameState.tick state1 2500L<ticks>
-    Gameplay.GameState.tick state2 2500L<ticks>
-    
+    Gameplay.GameState.tick state1 2500L<Tick>
+    Gameplay.GameState.tick state2 2500L<Tick>
+
     performAttack state1
     performAttack state2
-    
+
     let target1HpAfter2 = state1.entities.[targetId].Resources.HP
     let target2HpAfter2 = state2.entities.[targetId].Resources.HP
     Assert.Equal(target1HpAfter2, target2HpAfter2)
@@ -808,28 +811,34 @@ type ``Phase3 - Determinism``() =
 // T12 Cooldown-ready abilities set includes ability after cooldown elapses -----
 type ``Phase3 - Cooldown Management``() =
   [<Fact>]
-  member _.``T12 Cooldown-ready abilities set includes ability after cooldown elapses``() =
+  member _.``T12 Cooldown-ready abilities set includes ability after cooldown elapses``
+    ()
+    =
     // Arrange
     let state = Gameplay.GameState.create'(fun () -> 0.5)
-    let attackerId = EntityId 1
-    let targetId = EntityId 2
-    let melee = Abilities.AbilityId 1
-    let spell = Abilities.AbilityId 2
+    let attackerId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let melee = 1<AbilityId>
+    let spell = 2<AbilityId>
 
-    let attacker = makeEntity attackerId baseStats 100 100 100 [ melee; spell ] []
+    let attacker =
+      makeEntity attackerId baseStats 100 100 100 [ melee; spell ] []
+
     let target = makeEntity targetId baseStats 100 100 100 [] []
 
     addEntity state attackerId attacker
     addEntity state targetId target
 
     // Act & Assert: Check initial readiness (all abilities should be ready)
-    let readyAbilitiesInitial = Gameplay.GameState.aReadyAbilities state |> ASet.force
-    let attackerAbilitiesInitial = 
-      readyAbilitiesInitial 
-      |> Seq.filter (fun (id, _) -> id = attackerId)
+    let readyAbilitiesInitial =
+      Gameplay.GameState.aReadyAbilities state |> ASet.force
+
+    let attackerAbilitiesInitial =
+      readyAbilitiesInitial
+      |> Seq.filter(fun (id, _) -> id = attackerId)
       |> Seq.map snd
       |> Set.ofSeq
-    
+
     Assert.Contains(melee, attackerAbilitiesInitial)
     Assert.Contains(spell, attackerAbilitiesInitial)
 
@@ -844,9 +853,10 @@ type ``Phase3 - Cooldown Management``() =
 
     // Check that melee is no longer ready, but spell still is
     let readyAfterMelee = Gameplay.GameState.aReadyAbilities state |> ASet.force
+
     let attackerAbilitiesAfterMelee =
       readyAfterMelee
-      |> Seq.filter (fun (id, _) -> id = attackerId)
+      |> Seq.filter(fun (id, _) -> id = attackerId)
       |> Seq.map snd
       |> Set.ofSeq
 
@@ -854,13 +864,15 @@ type ``Phase3 - Cooldown Management``() =
     Assert.Contains(spell, attackerAbilitiesAfterMelee)
 
     // Advance time past melee cooldown (melee has 2000L<ticks> cooldown)
-    Gameplay.GameState.tick state 2100L<ticks>
+    Gameplay.GameState.tick state 2100L<Tick>
 
     // Check that melee is ready again
-    let readyAfterCooldown = Gameplay.GameState.aReadyAbilities state |> ASet.force
+    let readyAfterCooldown =
+      Gameplay.GameState.aReadyAbilities state |> ASet.force
+
     let attackerAbilitiesAfterCooldown =
       readyAfterCooldown
-      |> Seq.filter (fun (id, _) -> id = attackerId)
+      |> Seq.filter(fun (id, _) -> id = attackerId)
       |> Seq.map snd
       |> Set.ofSeq
 
@@ -878,9 +890,10 @@ type ``Phase3 - Cooldown Management``() =
 
     // Check that spell is no longer ready, but melee still is
     let readyAfterSpell = Gameplay.GameState.aReadyAbilities state |> ASet.force
+
     let attackerAbilitiesAfterSpell =
       readyAfterSpell
-      |> Seq.filter (fun (id, _) -> id = attackerId)
+      |> Seq.filter(fun (id, _) -> id = attackerId)
       |> Seq.map snd
       |> Set.ofSeq
 
@@ -888,13 +901,15 @@ type ``Phase3 - Cooldown Management``() =
     Assert.DoesNotContain(spell, attackerAbilitiesAfterSpell)
 
     // Advance time past spell cooldown
-    Gameplay.GameState.tick state 5100L<ticks>
+    Gameplay.GameState.tick state 5100L<Tick>
 
     // Check that both abilities are ready again
-    let readyAfterBothCooldowns = Gameplay.GameState.aReadyAbilities state |> ASet.force
+    let readyAfterBothCooldowns =
+      Gameplay.GameState.aReadyAbilities state |> ASet.force
+
     let attackerAbilitiesAfterBoth =
       readyAfterBothCooldowns
-      |> Seq.filter (fun (id, _) -> id = attackerId)
+      |> Seq.filter(fun (id, _) -> id = attackerId)
       |> Seq.map snd
       |> Set.ofSeq
 

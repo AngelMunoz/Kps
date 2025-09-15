@@ -7,7 +7,6 @@ open FsCheck.FSharp
 open FsCheck.Xunit
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
-open Pomo.Lib.Domain.Primitives
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Gameplay
@@ -47,19 +46,19 @@ module private Generators =
 // --------------------------------------------------
 module private TestHelpers =
   let makeEntity
-    (id: EntityId)
+    (id: int<EntityId>)
     (baseStats: BaseAttributes)
     hp
     mp
     stamina
-    (abilities: Abilities.AbilityId list)
+    (abilities: int<AbilityId> list)
     : Components.All =
-    let emptySeq: seq<Abilities.AbilityId * int64<ticks>> = Seq.empty
-    let cooldowns: cmap<Abilities.AbilityId, int64<ticks>> = cmap emptySeq
+    let emptySeq: seq<int<AbilityId> * int64<Tick>> = Seq.empty
+    let cooldowns: cmap<int<AbilityId>, int64<Tick>> = cmap emptySeq
 
     transact(fun _ ->
       for a in abilities do
-        cooldowns.Add(a, 0L<ticks>) |> ignore)
+        cooldowns.Add(a, 0L<Tick>) |> ignore)
 
     {
       Identity = {
@@ -78,10 +77,10 @@ module private TestHelpers =
       AbilityCooldowns = (cooldowns :> amap<_, _>)
     }
 
-  let addEntity (state: GameState) (id: EntityId) (all: Components.All) =
+  let addEntity (state: GameState) (id: int<EntityId>) (all: Components.All) =
     transact(fun _ -> state.entities.Add(id, all) |> ignore)
 
-  let derivedOf (state: GameState) (id: EntityId) =
+  let derivedOf (state: GameState) (id: int<EntityId>) =
     GameState.getDerivedStats state |> AMap.force |> (fun m -> m.[id])
 
 // --------------------------------------------------
@@ -93,7 +92,7 @@ type ``Derived Stats``() =
     (baseAttrs: BaseAttributes)
     =
     let state = GameState.create()
-    let id = EntityId 1
+    let id = 1<EntityId>
     let entity = TestHelpers.makeEntity id baseAttrs 100 100 100 []
     TestHelpers.addEntity state id entity
     let derived = TestHelpers.derivedOf state id
@@ -134,9 +133,9 @@ type ``Action Resolution``() =
   [<Fact>]
   member _.``Melee attack applies expected damage and emits DamageApplied``() =
     let state = GameState.create'(fun () -> 0.5)
-    let attackerId = EntityId 1
-    let targetId = EntityId 2
-    let melee = Abilities.AbilityId 1
+    let attackerId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let melee = 1<AbilityId>
     let attacker = TestHelpers.makeEntity attackerId baseA 100 50 100 [ melee ]
     let target = TestHelpers.makeEntity targetId baseB 80 30 50 []
     TestHelpers.addEntity state attackerId attacker
@@ -160,16 +159,17 @@ type ``Action Resolution``() =
         | GameEvent.DamageApplied e when e.target = targetId -> Some e
         | _ -> None)
       |> AList.tryFirst
+      |> AVal.force
+      |> Option.get
 
-    let damageEventExists = damageEventExists |> AVal.force |> Option.get
     Assert.Equal(17, damageEventExists.amount)
 
   [<Fact>]
   member _.``Spell casting applies damage, costs MP, and can kill target``() =
     let state = GameState.create'(fun () -> 0.5)
-    let casterId = EntityId 10
-    let victimId = EntityId 11
-    let spell = Abilities.AbilityId 2
+    let casterId = 10<EntityId>
+    let victimId = 11<EntityId>
+    let spell = 2<AbilityId>
 
     let casterBase = {
       Strength = 2
@@ -202,23 +202,20 @@ type ``Action Resolution``() =
         abilityId = spell
       })
 
-    let events = state.gameEvents
-
     let damageAppliedCorrectly =
-      events
+      state.gameEvents
       |> AList.choose(fun ev ->
         match ev with
         | GameEvent.DamageApplied e when e.target = victimId -> Some e
         | _ -> None)
       |> AList.tryFirst
-
-    let damageAppliedCorrectly =
-      damageAppliedCorrectly |> AVal.force |> Option.get
+      |> AVal.force
+      |> Option.get
 
     Assert.Equal(40, damageAppliedCorrectly.amount)
 
     let mpChanged =
-      events
+      state.gameEvents
       |> AList.exists(fun ev ->
         match ev with
         | GameEvent.ResourceChanged rc when
@@ -226,8 +223,9 @@ type ``Action Resolution``() =
           ->
           true
         | _ -> false)
+      |> AVal.force
 
-    Assert.True(AVal.force mpChanged)
+    Assert.True(mpChanged)
 
     let victimAfter = state.entities.[victimId]
 
@@ -235,22 +233,23 @@ type ``Action Resolution``() =
     Assert.Equal(Status.Dead, victimAfter.Resources.Status)
 
     let victimDied =
-      events
+      state.gameEvents
       |> AList.exists(fun ev ->
         match ev with
         | GameEvent.EntityDied d when d.entityId = victimId -> true
         | _ -> false)
+      |> AVal.force
 
-    Assert.True(AVal.force victimDied)
+    Assert.True(victimDied)
 
   [<Fact>]
   member _.``Melee ability stamina cost reduces stamina and emits ResourceChanged``
     ()
     =
     let state = GameState.create()
-    let attackerId = EntityId 100
-    let targetId = EntityId 200
-    let melee = Abilities.AbilityId 1
+    let attackerId = 100<EntityId>
+    let targetId = 200<EntityId>
+    let melee = 1<AbilityId>
     let attacker = TestHelpers.makeEntity attackerId baseA 100 40 100 [ melee ]
     let target = TestHelpers.makeEntity targetId baseB 40 10 20 []
     TestHelpers.addEntity state attackerId attacker
@@ -284,9 +283,9 @@ type ``Action Resolution``() =
   [<Fact>]
   member _.``Cooldown prevents immediate reuse``() =
     let state = GameState.create()
-    let attackerId = EntityId 1
-    let targetId = EntityId 2
-    let melee = Abilities.AbilityId 1
+    let attackerId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let melee = 1<AbilityId>
     let attacker = TestHelpers.makeEntity attackerId baseA 100 50 100 [ melee ]
     let target = TestHelpers.makeEntity targetId baseB 80 30 50 []
     TestHelpers.addEntity state attackerId attacker
@@ -328,9 +327,9 @@ type ``Action Resolution``() =
   [<Fact>]
   member _.``Action puts ability on cooldown``() =
     let state = GameState.create()
-    let attackerId = EntityId 1
-    let targetId = EntityId 2
-    let melee = Abilities.AbilityId 1
+    let attackerId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let melee = 1<AbilityId>
     let attacker = TestHelpers.makeEntity attackerId baseA 100 50 100 [ melee ]
     let target = TestHelpers.makeEntity targetId baseB 80 30 50 []
     TestHelpers.addEntity state attackerId attacker
@@ -348,15 +347,15 @@ type ``Action Resolution``() =
     let cooldowns = AMap.force attackerAfter.AbilityCooldowns
     let cooldown = cooldowns[melee]
     let expectedCooldown = AbilityStore.definitions[melee].Cooldown
-    Assert.True(cooldown > 0L<ticks>)
+    Assert.True(cooldown > 0L<Tick>)
     Assert.Equal(expectedCooldown, cooldown)
 
   [<Fact>]
   member _.``Ability is usable again after cooldown expires``() =
     let state = GameState.create()
-    let attackerId = EntityId 1
-    let targetId = EntityId 2
-    let melee = Abilities.AbilityId 1
+    let attackerId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let melee = 1<AbilityId>
     let attacker = TestHelpers.makeEntity attackerId baseA 100 50 100 [ melee ]
     let target = TestHelpers.makeEntity targetId baseB 80 30 50 []
     TestHelpers.addEntity state attackerId attacker
@@ -373,7 +372,7 @@ type ``Action Resolution``() =
 
     let cooldown = AbilityStore.definitions[melee].Cooldown
     // Advance time past the cooldown
-    GameState.tick state (cooldown + 1L<ticks>)
+    GameState.tick state (cooldown + 1L<Tick>)
 
     // Second attack, should succeed now
     Resolution.apply

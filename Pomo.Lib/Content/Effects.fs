@@ -1,91 +1,90 @@
 namespace Pomo.Lib.Content
 
 open Pomo.Lib.Domain
-open Pomo.Lib.Domain.Primitives
 open Pomo.Lib.Domain.Effects
 
 module EffectStore =
-  let definitions: Map<EffectId, EffectDefinition> =
+  let definitions: Map<int<EffectId>, EffectDefinition> =
     Map.ofList [
-      (EffectId 1,
+      (1<EffectId>,
        {
-         Id = EffectId 1
+         Id = 1<EffectId>
          Name = "Minor Strength Buff"
          Kind = EffectKind.Buff
-         Duration = Timed(30000L<ticks>)
+         Duration = Timed(30000L<Tick>)
          Stacking = StackingRule.RefreshDuration
          Modifiers = [ StatModifier.Additive(Stat.Strength, 5) ]
        })
-      (EffectId 2,
+      (2<EffectId>,
        {
-         Id = EffectId 2
+         Id = 2<EffectId>
          Name = "Minor Armor Debuff"
          Kind = EffectKind.Debuff
-         Duration = Timed(20000L<ticks>)
+         Duration = Timed(20000L<Tick>)
          Stacking = StackingRule.RefreshDuration
          Modifiers = [ StatModifier.Additive(Stat.Armor, -5) ]
        })
       // Phase 3 Effect Kinds for testing
-      (EffectId 100,
+      (100<EffectId>,
        {
-         Id = EffectId 100
+         Id = 100<EffectId>
          Name = "Stun"
          Kind = EffectKind.Stun
-         Duration = Timed(5000L<ticks>)
+         Duration = Timed(5000L<Tick>)
          Stacking = StackingRule.RefreshDuration
          Modifiers = []
        })
-      (EffectId 101,
+      (101<EffectId>,
        {
-         Id = EffectId 101
+         Id = 101<EffectId>
          Name = "Silence"
          Kind = EffectKind.Silence
-         Duration = Timed(8000L<ticks>)
+         Duration = Timed(8000L<Tick>)
          Stacking = StackingRule.RefreshDuration
          Modifiers = []
        })
-      (EffectId 102,
+      (102<EffectId>,
        {
-         Id = EffectId 102
+         Id = 102<EffectId>
          Name = "Shield"
          Kind = EffectKind.Shield 10
-         Duration = Timed(15000L<ticks>)
+         Duration = Timed(15000L<Tick>)
          Stacking = StackingRule.AddStack(5) // Max 5 stacks
          Modifiers = []
        })
-      (EffectId 103,
+      (103<EffectId>,
        {
-         Id = EffectId 103
+         Id = 103<EffectId>
          Name = "Taunt"
          Kind = EffectKind.Taunt
-         Duration = Timed(3000L<ticks>)
+         Duration = Timed(3000L<Tick>)
          Stacking = StackingRule.RefreshDuration
          Modifiers = []
        })
-      (EffectId 104,
+      (104<EffectId>,
        {
-         Id = EffectId 104
+         Id = 104<EffectId>
          Name = "No-Stack Debuff"
          Kind = EffectKind.Debuff
-         Duration = Timed(10000L<ticks>)
+         Duration = Timed(10000L<Tick>)
          Stacking = StackingRule.NoStack
          Modifiers = []
        })
-      (EffectId 105,
+      (105<EffectId>,
        {
-         Id = EffectId 105
+         Id = 105<EffectId>
          Name = "Poison"
          Kind = EffectKind.DamageOverTime 5
-         Duration = Loop(2000L<ticks>, 8000L<ticks>)
+         Duration = Loop(2000L<Tick>, 8000L<Tick>)
          Stacking = StackingRule.RefreshDuration
          Modifiers = []
        })
-      (EffectId 106,
+      (106<EffectId>,
        {
-         Id = EffectId 106
+         Id = 106<EffectId>
          Name = "Regeneration"
          Kind = EffectKind.HealOverTime 5
-         Duration = Loop(2000L<ticks>, 8000L<ticks>)
+         Duration = Loop(2000L<Tick>, 8000L<Tick>)
          Stacking = StackingRule.RefreshDuration
          Modifiers = []
        })

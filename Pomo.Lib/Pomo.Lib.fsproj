@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <PackageReference Include="FSharp.Data.Adaptive" Version="1.2.25" />
+    <PackageReference Include="FSharp.UMX" Version="1.1.0" />
   </ItemGroup>
 
 </Project>

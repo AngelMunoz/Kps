@@ -1,11 +1,18 @@
 namespace Pomo.Lib.Domain
 
-[<Measure>]
-type ticks
+open FSharp.UMX
 
-module Primitives =
-  type EntityId = EntityId of int
-  type Ticks = int64<ticks>
+[<Measure>]
+type Tick
+
+[<Measure>]
+type EntityId
+
+[<Measure>]
+type EffectId
+
+[<Measure>]
+type AbilityId
 
 module Classification =
   type Faction =
@@ -50,8 +57,6 @@ module Attributes =
     Luck: int
   }
 
-  type Resistances = Map<Element, float>
-
   type DerivedStats = {
     MaxHP: int
     MaxMP: int
@@ -60,7 +65,7 @@ module Attributes =
     Armor: int
     Evasion: float
     CritChance: float
-    Resistances: Resistances
+    Resistances: Map<Element, float>
   }
 
   type Status =
@@ -86,10 +91,6 @@ module Inventory =
     | Accessory
 
 module Effects =
-  open Primitives
-
-  type EffectId = EffectId of int
-
   type EffectKind =
     | Buff
     | Debuff
@@ -107,8 +108,8 @@ module Effects =
 
   type Duration =
     | Instant
-    | Timed of Ticks
-    | Loop of Ticks * Ticks // Interval * Total Duration
+    | Timed of int64<Tick>
+    | Loop of int64<Tick> * int64<Tick> // Interval * Total Duration
 
   type Stat =
     | Strength
@@ -128,7 +129,7 @@ module Effects =
     | Multiplicative of Stat * float
 
   type EffectDefinition = {
-    Id: EffectId
+    Id: int<EffectId>
     Name: string
     Kind: EffectKind
     Stacking: StackingRule
@@ -137,15 +138,14 @@ module Effects =
   }
 
   type ActiveEffect = {
-    EffectId: EffectId // Corresponds to a definition
-    SourceId: EntityId
-    RemainingTicks: Ticks
-    NextTickIn: Ticks
+    EffectId: int<EffectId> // Corresponds to a definition
+    SourceId: int<EntityId>
+    RemainingTicks: int64<Tick>
+    NextTickIn: int64<Tick>
     Stacks: int
   }
 
 module Abilities =
-  open Primitives
   open Effects
 
   type ResourceType =
@@ -155,45 +155,37 @@ module Abilities =
 
   type ResourceCost = { Type: ResourceType; Amount: int }
 
-  type AbilityId = AbilityId of int
-
   type AbilityDefinition = {
-    Id: AbilityId
+    Id: int<AbilityId>
     Name: string
-    Cooldown: Ticks
+    Cooldown: int64<Tick>
     Cost: ResourceCost option
-    Effects: Effects.EffectId list
+    Effects: int<EffectId> list
   }
 
 module GameEvent =
-  type DamageAppliedEvent = {
-    target: Primitives.EntityId
-    amount: int
-  }
+  type DamageAppliedEvent = { target: int<EntityId>; amount: int }
 
-  type HealedEvent = {
-    target: Primitives.EntityId
-    amount: int
-  }
+  type HealedEvent = { target: int<EntityId>; amount: int }
 
   type ResourceChangedEvent = {
-    target: Primitives.EntityId
+    target: int<EntityId>
     resource: string
     newValue: int
   }
 
   type EffectAppliedEvent = {
-    target: Primitives.EntityId
-    effectId: Effects.EffectId
-    source: Primitives.EntityId
+    target: int<EntityId>
+    effectId: int<EffectId>
+    source: int<EntityId>
   }
 
   type EffectExpiredEvent = {
-    target: Primitives.EntityId
-    effectId: Effects.EffectId
+    target: int<EntityId>
+    effectId: int<EffectId>
   }
 
-  type EntityDiedEvent = { entityId: Primitives.EntityId }
+  type EntityDiedEvent = { entityId: int<EntityId> }
 
   type GameEvent =
     | DamageApplied of DamageAppliedEvent

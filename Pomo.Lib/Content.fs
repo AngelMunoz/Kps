@@ -6,66 +6,66 @@ open Pomo.Lib.Domain.Effects
 
 module AbilityStore =
 
-  let definitions: Map<AbilityId, AbilityDefinition> =
+  let definitions: Map<int<AbilityId>, AbilityDefinition> =
     Map.ofList [
-      AbilityId 1,
+      1<AbilityId>,
       {
-        Id = AbilityId 1
+        Id = 1<AbilityId>
         Name = "Melee Attack"
         Cost =
           Some {
             Type = ResourceType.Stamina
             Amount = 10
           }
-        Cooldown = 2000L<ticks> // 2 seconds
+        Cooldown = 2000L<Tick> // 2 seconds
         Effects = []
       }
-      AbilityId 2,
+      2<AbilityId>,
       {
-        Id = AbilityId 2
+        Id = 2<AbilityId>
         Name = "Fireball"
         Cost = Some { Type = ResourceType.MP; Amount = 20 }
-        Cooldown = 5000L<ticks> // 5 seconds
-        Effects = [ EffectId 2 ]
+        Cooldown = 5000L<Tick> // 5 seconds
+        Effects = [ 2<EffectId> ]
       }
-      AbilityId 3,
+      3<AbilityId>,
       {
-        Id = AbilityId 3
+        Id = 3<AbilityId>
         Name = "No-Stack Spell"
         Cost = Some { Type = ResourceType.MP; Amount = 10 }
-        Cooldown = 1000L<ticks>
-        Effects = [ EffectId 104 ]
+        Cooldown = 1000L<Tick>
+        Effects = [ 104<EffectId> ]
       }
-      AbilityId 4,
+      4<AbilityId>,
       {
-        Id = AbilityId 4
+        Id = 4<AbilityId>
         Name = "Buff Spell"
         Cost = Some { Type = ResourceType.MP; Amount = 10 }
-        Cooldown = 1000L<ticks>
-        Effects = [ EffectId 1 ] // RefreshDuration effect
+        Cooldown = 1000L<Tick>
+        Effects = [ 1<EffectId> ] // RefreshDuration effect
       }
-      AbilityId 5,
+      5<AbilityId>,
       {
-        Id = AbilityId 5
+        Id = 5<AbilityId>
         Name = "Shield Spell"
         Cost = Some { Type = ResourceType.MP; Amount = 15 }
-        Cooldown = 1000L<ticks>
-        Effects = [ EffectId 102 ] // AddStack effect
+        Cooldown = 1000L<Tick>
+        Effects = [ 102<EffectId> ] // AddStack effect
       }
-      AbilityId 6,
+      6<AbilityId>,
       {
-        Id = AbilityId 6
+        Id = 6<AbilityId>
         Name = "Poison Spell"
         Cost = Some { Type = ResourceType.MP; Amount = 10 }
-        Cooldown = 1000L<ticks>
-        Effects = [ EffectId 105 ] // DoT effect
+        Cooldown = 1000L<Tick>
+        Effects = [ 105<EffectId> ] // DoT effect
       }
-      AbilityId 7,
+      7<AbilityId>,
       {
-        Id = AbilityId 7
+        Id = 7<AbilityId>
         Name = "Regen Spell"
         Cost = Some { Type = ResourceType.MP; Amount = 10 }
-        Cooldown = 1000L<ticks>
-        Effects = [ EffectId 106 ] // HoT effect
+        Cooldown = 1000L<Tick>
+        Effects = [ 106<EffectId> ] // HoT effect
       }
     ]

@@ -2,26 +2,25 @@ namespace Pomo.Lib.Effects
 
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
-open Pomo.Lib.Domain.Primitives
 open Pomo.Lib.Domain.Effects
 
 module StatusEffects =
   let applyEffect
     (targetEffects: ActiveEffect alist)
     (effectToApply: EffectDefinition)
-    (sourceId: EntityId)
+    (sourceId: int<EntityId>)
     =
 
     let getDuration(d: Duration) =
       match d with
       | Timed t -> t
-      | Instant -> 0L<ticks>
+      | Instant -> 0L<Tick>
       | Loop(_, total) -> total
 
     let getInterval(d: Duration) =
       match d with
       | Loop(interval, _) -> interval
-      | _ -> 0L<ticks>
+      | _ -> 0L<Tick>
 
     adaptive {
       let! existing =
@@ -75,8 +74,8 @@ module StatusEffects =
   let tickEffects
     (activeEffects: ActiveEffect alist)
     allEffects
-    (ticksElapsed: Ticks)
-    (target: EntityId)
+    (ticksElapsed: int64<Tick>)
+    (target: int<EntityId>)
     =
     adaptive {
       let! effects = activeEffects |> AList.toAVal
@@ -87,15 +86,15 @@ module StatusEffects =
         |> IndexList.partition(fun effect ->
           let newRemaining = effect.RemainingTicks - ticksElapsed
           let effectDef = effectDefs[effect.EffectId]
-          
+
           match effectDef.Duration with
-          | Loop(_, _) -> 
+          | Loop(_, _) ->
             // Periodic effects should be processed even when reaching 0 remaining time
             // to allow the final tick
-            newRemaining >= 0L<ticks>
-          | _ -> 
+            newRemaining >= 0L<Tick>
+          | _ ->
             // Non-periodic effects expire when remaining time <= 0
-            newRemaining > 0L<ticks>)
+            newRemaining > 0L<Tick>)
 
       // 2. Create expiration events for the expired effects.
       let expirationEvents =
@@ -119,7 +118,7 @@ module StatusEffects =
 
             let updatedEffect, newEvents =
               match effectDef.Duration with
-              | Loop(interval, _) when newNextTickIn <= 0L<ticks> ->
+              | Loop(interval, _) when newNextTickIn <= 0L<Tick> ->
                 // This periodic effect should tick.
                 let effectAppliedEvent =
                   GameEvent.EffectApplied {
@@ -154,15 +153,15 @@ module StatusEffects =
                   | _ -> None
 
                 // Check if effect will expire after this tick
-                let willExpire = newRemainingTicks <= 0L<ticks>
+                let willExpire = newRemainingTicks <= 0L<Tick>
 
                 let updated =
                   if willExpire then
                     // Effect expires after this tick, create a dummy effect that will be filtered out
                     {
                       effect with
-                          RemainingTicks = 0L<ticks>
-                          NextTickIn = 0L<ticks>
+                          RemainingTicks = 0L<Tick>
+                          NextTickIn = 0L<Tick>
                     }
                   else
                     {
@@ -202,7 +201,7 @@ module StatusEffects =
       let finalEffects =
         updatedRemaining
         |> IndexList.rev
-        |> IndexList.filter(fun effect -> effect.RemainingTicks > 0L<ticks>)
+        |> IndexList.filter(fun effect -> effect.RemainingTicks > 0L<Tick>)
 
       let allEvents =
         IndexList.append expirationEvents (IndexList.rev tickEvents)

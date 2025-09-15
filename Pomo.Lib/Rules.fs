@@ -1,19 +1,18 @@
 namespace Pomo.Lib.Rules
 
 open Pomo.Lib.Domain
-open Pomo.Lib.Domain.Primitives
 
 /// Represents the actions that can be initiated by entities in the game.
 type MeleeAttackAction = {
-  actor: EntityId
-  target: EntityId
-  abilityId: Abilities.AbilityId
+  actor: int<EntityId>
+  target: int<EntityId>
+  abilityId: int<AbilityId>
 }
 
 type CastSpellAction = {
-  actor: EntityId
-  target: EntityId
-  abilityId: Abilities.AbilityId
+  actor: int<EntityId>
+  target: int<EntityId>
+  abilityId: int<AbilityId>
 }
 
 type Command =

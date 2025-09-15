@@ -2,7 +2,6 @@ namespace Pomo.Lib.Rules
 
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
-open Pomo.Lib.Domain.Primitives
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.GameEvent
 open Pomo.Lib.Content
@@ -12,18 +11,21 @@ open Pomo.Lib.Rules.Combat
 module Resolution =
 
   type ResolverParams = {
-    entities: amap<EntityId, All>
-    derivedStats: amap<EntityId, Attributes.DerivedStats>
-    gameTime: cval<int64<ticks>>
+    entities: amap<int<EntityId>, All>
+    derivedStats: amap<int<EntityId>, Attributes.DerivedStats>
+    gameTime: cval<int64<Tick>>
     rng: unit -> float
   }
 
-  type ResolverActors = { actor: EntityId; target: EntityId }
+  type ResolverActors = {
+    actor: int<EntityId>
+    target: int<EntityId>
+  }
 
   /// Helper function to check if an actor is taunted and must target a specific entity
   let private checkTauntTarget
     (actorEffects: alist<Effects.ActiveEffect>)
-    (intendedTarget: EntityId)
+    (intendedTarget: int<EntityId>)
     =
     adaptive {
       let tauntEffects =
@@ -60,7 +62,8 @@ module Resolution =
 
 
   type ResolverFn =
-    ResolverParams * ResolverActors -> aval<GameEvent[] * Map<EntityId, All>>
+    ResolverParams * ResolverActors
+      -> aval<GameEvent[] * Map<int<EntityId>, All>>
 
   module ValidateAction =
     let checkStun(actor: All) =
@@ -86,8 +89,8 @@ module Resolution =
 
     let checkCooldown
       (actor: All)
-      (abilityId: Abilities.AbilityId)
-      (gameTime: int64<ticks> aval)
+      (abilityId: int<AbilityId>)
+      (gameTime: int64<Tick> aval)
       =
       adaptive {
         let! cooldowns = actor.AbilityCooldowns |> AMap.tryFind abilityId
@@ -143,7 +146,7 @@ module Resolution =
     let checkForDeath
       (newHp: int)
       (targetComponents: All)
-      (targetId: EntityId)
+      (targetId: int<EntityId>)
       =
       if
         newHp <= 0
@@ -168,7 +171,7 @@ module Resolution =
     let applyResourceCost
       (costOpt: option<Abilities.ResourceCost>)
       (actorComponents: All)
-      (actorId: EntityId)
+      (actorId: int<EntityId>)
       =
       match costOpt with
       | Some cost ->
@@ -215,8 +218,8 @@ module Resolution =
 
     let updateCooldowns
       (actorComponents: All)
-      (abilityId: Abilities.AbilityId)
-      (gameTime: int64<ticks>)
+      (abilityId: int<AbilityId>)
+      (gameTime: int64<Tick>)
       (abilityDef: Abilities.AbilityDefinition)
       =
       {
@@ -304,9 +307,9 @@ module Resolution =
     let private determineNewEffect
       (effectDef: Effects.EffectDefinition)
       (existingEffect: option<Effects.ActiveEffect>)
-      (gameTime: int64<ticks>)
-      (actorId: EntityId)
-      (effectId: Effects.EffectId)
+      (gameTime: int64<Tick>)
+      (actorId: int<EntityId>)
+      (effectId: int<EffectId>)
       =
       match existingEffect, effectDef.Stacking with
       | Some _, Effects.StackingRule.NoStack -> None // Do not apply
@@ -315,12 +318,12 @@ module Resolution =
           match effectDef.Duration with
           | Effects.Duration.Timed d -> d
           | Effects.Duration.Loop(_, d) -> d
-          | _ -> 0L<ticks>
+          | _ -> 0L<Tick>
 
         let interval =
           match effectDef.Duration with
           | Effects.Duration.Loop(i, _) -> i
-          | _ -> 0L<ticks>
+          | _ -> 0L<Tick>
 
         Some {
           e with
@@ -334,12 +337,12 @@ module Resolution =
           match effectDef.Duration with
           | Effects.Duration.Timed d -> d
           | Effects.Duration.Loop(_, d) -> d
-          | _ -> 0L<ticks>
+          | _ -> 0L<Tick>
 
         let interval =
           match effectDef.Duration with
           | Effects.Duration.Loop(i, _) -> i
-          | _ -> 0L<ticks>
+          | _ -> 0L<Tick>
 
         Some {
           e with
@@ -352,12 +355,12 @@ module Resolution =
           match effectDef.Duration with
           | Effects.Duration.Timed d -> d
           | Effects.Duration.Loop(_, d) -> d
-          | _ -> 0L<ticks>
+          | _ -> 0L<Tick>
 
         let interval =
           match effectDef.Duration with
           | Effects.Duration.Loop(i, _) -> i
-          | _ -> 0L<ticks>
+          | _ -> 0L<Tick>
 
         Some {
           EffectId = effectId
@@ -369,10 +372,10 @@ module Resolution =
 
     let private processEffect
       (targetComponents: All)
-      (gameTime: int64<ticks>)
-      (actorId: EntityId)
-      (targetId: EntityId)
-      (effectId: Effects.EffectId)
+      (gameTime: int64<Tick>)
+      (actorId: int<EntityId>)
+      (targetId: int<EntityId>)
+      (effectId: int<EffectId>)
       =
       adaptive {
         let effectDef = EffectStore.definitions[effectId]
@@ -400,9 +403,9 @@ module Resolution =
 
     let applyEffects
       (abilityDef: Abilities.AbilityDefinition)
-      (actorId: EntityId)
-      (targetId: EntityId)
-      (gameTime: int64<ticks>)
+      (actorId: int<EntityId>)
+      (targetId: int<EntityId>)
+      (gameTime: int64<Tick>)
       (targetComponents: All)
       =
       adaptive {
@@ -427,7 +430,7 @@ module Resolution =
   let validateAction
     (rparams: ResolverParams)
     (ractors: ResolverActors)
-    (abilityId: Abilities.AbilityId)
+    (abilityId: int<AbilityId>)
     =
     adaptive {
       let! actor = rparams.entities |> AMap.tryFind ractors.actor
@@ -468,7 +471,7 @@ module Resolution =
     }
 
   /// Resolves a MeleeAttack command, calculating damage and generating events.
-  let private resolveMeleeAttack(abilityId: Abilities.AbilityId) : ResolverFn =
+  let private resolveMeleeAttack(abilityId: int<AbilityId>) : ResolverFn =
     fun (rparams, ractors) -> adaptive {
       let { actor = actorId } = ractors
       let! validationResult = validateAction rparams ractors abilityId
@@ -530,7 +533,7 @@ module Resolution =
         return events, changes
     }
 
-  let private resolveCastSpell(abilityId: Abilities.AbilityId) : ResolverFn =
+  let private resolveCastSpell(abilityId: int<AbilityId>) : ResolverFn =
     fun (rparams, ractors) -> adaptive {
       let { actor = actorId } = ractors
       let! validationResult = validateAction rparams ractors abilityId
@@ -656,12 +659,12 @@ module Resolution =
     }
 
   let private step
-    (currentEntities: amap<EntityId, All>)
-    (derivedStats: amap<EntityId, Attributes.DerivedStats>)
-    (gameTime: cval<int64<ticks>>)
+    (currentEntities: amap<int<EntityId>, All>)
+    (derivedStats: amap<int<EntityId>, Attributes.DerivedStats>)
+    (gameTime: cval<int64<Tick>>)
     (rng: unit -> float)
     (command: Command)
-    : aval<GameEvent[] * Map<EntityId, All>> =
+    : aval<GameEvent[] * Map<int<EntityId>, All>> =
     let resolverParams = {
       entities = currentEntities
       derivedStats = derivedStats
