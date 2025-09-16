@@ -3,6 +3,7 @@ namespace Pomo.Lib.Effects
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Effects
+open Pomo.Lib.Domain.AggregatedEffects
 
 module StatusEffects =
   let applyEffect
@@ -106,17 +107,17 @@ module StatusEffects =
           })
 
       // 3. Process the remaining effects to handle ticks and update timers.
-      // We'll collect updated effects and new tick events in one pass.
-      let updatedRemaining, tickEvents =
+      // We'll collect updated effects, new tick events, and aggregated results in one pass.
+      let updatedRemaining, tickEvents, tickResult =
         remaining
         |> IndexList.fold
-          (fun (accEffects, accEvents) effect ->
+          (fun (accEffects, accEvents, accResult) effect ->
 
             let newRemainingTicks = effect.RemainingTicks - ticksElapsed
             let newNextTickIn = effect.NextTickIn - ticksElapsed
             let effectDef = effectDefs[effect.EffectId]
 
-            let updatedEffect, newEvents =
+            let updatedEffect, newEvents, result =
               match effectDef.Duration with
               | Loop(interval, _) when newNextTickIn <= 0L<Tick> ->
                 // This periodic effect should tick.
@@ -128,29 +129,35 @@ module StatusEffects =
                   }
 
                 // Process DoT/HoT damage/healing based on effect kind
-                let damageOrHealEvent =
+                let tickDamage, tickHealing, damageOrHealEvent =
                   match effectDef.Kind with
                   | EffectKind.DamageOverTime amount ->
                     // Apply damage per stack
                     let totalDamage = amount * effect.Stacks
 
-                    Some(
-                      GameEvent.DamageApplied {
-                        target = target
-                        amount = totalDamage
-                      }
-                    )
+                    let event =
+                      Some(
+                        GameEvent.DamageApplied {
+                          target = target
+                          amount = totalDamage
+                        }
+                      )
+
+                    totalDamage, 0, event
                   | EffectKind.HealOverTime amount ->
                     // Apply healing per stack
                     let totalHealing = amount * effect.Stacks
 
-                    Some(
-                      GameEvent.Healed {
-                        target = target
-                        amount = totalHealing
-                      }
-                    )
-                  | _ -> None
+                    let event =
+                      Some(
+                        GameEvent.Healed {
+                          target = target
+                          amount = totalHealing
+                        }
+                      )
+
+                    0, totalHealing, event
+                  | _ -> 0, 0, None
 
                 // Check if effect will expire after this tick
                 let willExpire = newRemainingTicks <= 0L<Tick>
@@ -177,7 +184,12 @@ module StatusEffects =
                   | Some dhe -> [ effectAppliedEvent; dhe ]
                   | None -> [ effectAppliedEvent ]
 
-                updated, events
+                updated,
+                events,
+                {
+                  Damage = tickDamage
+                  Healing = tickHealing
+                }
               | _ ->
                 // Not a periodic effect or not time to tick yet.
                 let updated = {
@@ -186,14 +198,19 @@ module StatusEffects =
                       NextTickIn = newNextTickIn
                 }
 
-                updated, []
+                updated, [], AggregatedEffects.empty
 
             let newAccEvents =
               newEvents
               |> List.fold (fun acc e -> IndexList.add e acc) accEvents
 
-            IndexList.add updatedEffect accEffects, newAccEvents)
-          (IndexList.empty, IndexList.empty)
+            let newAccResult = {
+              Damage = accResult.Damage + result.Damage
+              Healing = accResult.Healing + result.Healing
+            }
+
+            IndexList.add updatedEffect accEffects, newAccEvents, newAccResult)
+          (IndexList.empty, IndexList.empty, AggregatedEffects.empty)
 
 
       // 4. Combine all events and return the final state.
@@ -206,5 +223,5 @@ module StatusEffects =
       let allEvents =
         IndexList.append expirationEvents (IndexList.rev tickEvents)
 
-      return finalEffects, allEvents
+      return finalEffects, allEvents, tickResult
     }

@@ -7,6 +7,7 @@ open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.GameEvent
 open Pomo.Lib.Domain.Effects
 open Pomo.Lib.Effects
+open Pomo.Lib.Domain.AggregatedEffects
 
 type GameState = {
   entities: cmap<int<EntityId>, All>
@@ -150,16 +151,33 @@ module GameState =
       let allEntityChanges =
         state.entities
         |> AMap.mapA(fun entityId components -> adaptive {
-          let! updatedEffects, generatedEvents =
+          let! updatedEffects, generatedEvents, tickResult =
             StatusEffects.tickEffects
               components.Effects
               allEffects
               time
               entityId
 
+          let! derivedStats = getDerivedStats state |> AMap.tryFind entityId
+
+          let maxHp =
+            match derivedStats with
+            | Some stats -> stats.MaxHP
+            | None -> components.Resources.HP
+
+          let currentHp = components.Resources.HP
+          let newHp = min maxHp (currentHp + tickResult.Healing)
+          let finalHp = max 0 (newHp - tickResult.Damage)
+
+          let updatedResources = {
+            components.Resources with
+                HP = finalHp
+          }
+
           let updatedComponents = {
             components with
                 Effects = updatedEffects |> AList.ofIndexList
+                Resources = updatedResources
           }
 
           return (updatedComponents, generatedEvents)
@@ -169,75 +187,7 @@ module GameState =
 
       for entityId, (updatedComponents, events) in changesToApply do
         state.entities.[entityId] <- updatedComponents
-        state.gameEvents.AddRange(events)
-
-      // Process healing and damage events to apply HP changes
-      // Get all events that were just added in this tick
-      let totalNewEvents =
-        changesToApply
-        |> HashMap.toSeq
-        |> Seq.sumBy(fun (_, (_, events)) -> events.Count)
-
-      let recentEvents =
-        state.gameEvents
-        |> AList.force
-        |> Seq.toList
-        |> List.rev
-        |> List.take totalNewEvents
-
-      for event in recentEvents do
-        match event with
-        | GameEvent.Healed healedEvent ->
-          let targetId = healedEvent.target
-
-          match state.entities |> AMap.tryFind targetId |> AVal.force with
-          | Some targetComponents ->
-            let currentHp = targetComponents.Resources.HP
-
-            let maxHp =
-              // Get derived stats to find max HP
-              let derivedStats = getDerivedStats state |> AMap.force
-
-              match derivedStats |> HashMap.tryFind targetId with
-              | Some stats -> stats.MaxHP
-              | None -> currentHp // Fallback to current HP if no derived stats
-
-            let newHp = min maxHp (currentHp + healedEvent.amount)
-
-            let updatedResources = {
-              targetComponents.Resources with
-                  HP = newHp
-            }
-
-            let updatedComponents = {
-              targetComponents with
-                  Resources = updatedResources
-            }
-
-            state.entities.[targetId] <- updatedComponents
-          | None -> () // Target entity not found, ignore
-        | GameEvent.DamageApplied damageEvent ->
-          let targetId = damageEvent.target
-
-          match state.entities |> AMap.tryFind targetId |> AVal.force with
-          | Some targetComponents ->
-            let currentHp = targetComponents.Resources.HP
-            let newHp = max 0 (currentHp - damageEvent.amount)
-
-            let updatedResources = {
-              targetComponents.Resources with
-                  HP = newHp
-            }
-
-            let updatedComponents = {
-              targetComponents with
-                  Resources = updatedResources
-            }
-
-            state.entities.[targetId] <- updatedComponents
-          | None -> () // Target entity not found, ignore
-        | _ -> () // Not a healing or damage event, ignore
-    )
+        state.gameEvents.AddRange(events))
 
   let aAlive(state: GameState) : aset<int<EntityId>> =
     state.entities

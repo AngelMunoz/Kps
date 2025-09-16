@@ -10,6 +10,7 @@ open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Gameplay
+open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Rules
 open Pomo.Lib.Content
 

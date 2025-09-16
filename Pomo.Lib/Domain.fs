@@ -163,6 +163,11 @@ module Abilities =
     Effects: int<EffectId> list
   }
 
+module AggregatedEffects =
+  type TickResult = { Damage: int; Healing: int }
+
+  let empty = { Damage = 0; Healing = 0 }
+
 module GameEvent =
   type DamageAppliedEvent = { target: int<EntityId>; amount: int }
 

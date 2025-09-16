@@ -11,6 +11,7 @@ open Pomo.Lib.Domain.Effects
 open Pomo.Lib.Domain.GameEvent
 open Pomo.Lib.Content
 open Pomo.Lib.Rules
+open Pomo.Lib.Domain.Rules
 
 module private Phase3Helpers =
   let baseStats = {
