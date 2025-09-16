@@ -12,7 +12,7 @@ Good luck to us — and let’s move methodically.
 - Reactive state graph: use FDA to derive views and system inputs from authoritative state.
 - Extensibility: design for adding stats, effects, skills, and content over time.
 - Performant Reactive Core: Use incremental adaptive collections (`amap`, `aset`, `alist`) for dynamic state to enable efficient, fine-grained updates instead of replacing large collections. For static or slowly changing data, BCL collections are suitable.
-- **Dependency Injection via Handles:** Decouple pure logic from side-effecting services (e.g., logging, content loading) by defining abstractions (`IContentService`). Pass these services as a single `IGameServices` "handle" to core logic. This makes dependencies explicit and the core highly testable. The application's entry point will act as the "composition root" to assemble concrete services.
+- **Dependency Injection via Handles:** Decouple pure logic from side-effecting services (e.g., logging, content loading) by defining abstractions (`IContentService`). Pass these services as a single `EngineServices` "handle" to core logic. This makes dependencies explicit and the core highly testable. The application's entry point will act as the "composition root" to assemble concrete services.
 - When multiple adaptive values are required but feel scattered, SRTPs are an option to consider.
 - Adaptive values must be adaptive until they must be evaluated, meaning that every computation or adaptive value must be done in the "adaptive realm" until the final result is needed.
   - If multiple values are required, consider using `adaptive { ... }` computation expressions to group them together.
@@ -280,16 +280,16 @@ let apply (state: GameState) (cmd:Command) =
 
 ## How to Integrate Into PomoGame (later)
 
-- **Composition Root:** In `PomoGame.Initialize`, create concrete services (e.g., `ConsoleLogger`, `JsonContentService`) and compose the `gameServices` handle.
+- **Composition Root:** In `PomoGame.Initialize`, create concrete services (e.g., `ConsoleLogger`, `JsonContentService`) and compose the `engineServices` handle.
 - **Initialize State:** Create the initial `worldState` record.
 - **Game Loop:** In `PomoGame.Update`, translate user input into `Commands` and pass the `services` handle and `worldState` to the `apply` function.
 - **Debug View:** For now, log events from the `gameEvents` list to the console to verify flows.
 
 ## Testing Strategy
 
-- **Unit tests with Fakes:** For core logic modules (e.g., `ActionResolver`), use simple, in-memory "fake" implementations of the `IGameServices` interfaces (e.g., a `FakeContentService` backed by a `Map`). This allows testing logic in isolation, such as verifying that a spell fails correctly when the fake service is configured to not find it.
+- **Unit tests with Fakes:** For core logic modules (e.g., `ActionResolver`), use simple, in-memory "fake" implementations of the `EngineServices` interfaces (e.g., a `FakeContentService` backed by a `Map`). This allows testing logic in isolation, such as verifying that a spell fails correctly when the fake service is configured to not find it.
 - **Property-based tests:** Use for stat composition and effect stacking rules to ensure they are mathematically sound across a wide range of inputs.
-- **Deterministic simulations:** Use fixed seeds for the RNG service to test complex, multi-turn scenarios and ensure the simulation is perfectly reproducible.
+- **Deterministic simulations:** Use a fixed-seed implementation of the RNG service to test complex, multi-turn scenarios and ensure the simulation is perfectly reproducible.
 - **Integration/Scenario tests:** Given a real set of services, an initial world state, and a sequence of commands, assert the final state and emitted events are as expected.
 
 ## Future Extensions (post-core)
