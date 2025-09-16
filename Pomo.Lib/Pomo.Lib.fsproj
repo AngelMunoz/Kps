@@ -7,8 +7,6 @@
 
   <ItemGroup>
     <Compile Include="Domain.fs" />
-    <Compile Include="Components.fs" />
-    <Compile Include="Rules.fs" />
     <Compile Include="Combat.fs" />
     <Compile Include="Content\Effects.fs" />
     <Compile Include="Effects.fs" />

@@ -2,6 +2,7 @@ namespace Pomo.Lib.Rules
 
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
+open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.GameEvent
 open Pomo.Lib.Content

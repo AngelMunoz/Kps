@@ -194,3 +194,61 @@ module GameEvent =
     | EffectApplied of EffectAppliedEvent
     | EffectExpired of EffectExpiredEvent
     | EntityDied of EntityDiedEvent
+
+module Rules =
+  type MeleeAttackAction = {
+    actor: int<EntityId>
+    target: int<EntityId>
+    abilityId: int<AbilityId>
+  }
+
+  type CastSpellAction = {
+    actor: int<EntityId>
+    target: int<EntityId>
+    abilityId: int<AbilityId>
+  }
+
+  type Command =
+    | MeleeAttack of MeleeAttackAction
+    | CastSpell of CastSpellAction
+
+
+module Components =
+  open FSharp.Data.Adaptive
+  open Effects
+
+  type All = {
+    Identity: Classification.Profession
+    BaseStats: Attributes.BaseAttributes
+    Resources: Attributes.Resources
+    Effects: alist<ActiveEffect>
+    Abilities: alist<int<AbilityId>> // Abilities this entity possesses
+    AbilityCooldowns: amap<int<AbilityId>, int64<Tick>> // Tracks when a cooldown is complete
+  }
+
+module Services =
+  open Abilities
+  open Effects
+
+  type IAbilityStore =
+    abstract member Find: int<AbilityId> -> AbilityDefinition option
+
+  type IEffectStore =
+    abstract member Find: int<EffectId> -> EffectDefinition option
+
+  type EngineServices = {
+    abilityStore: IAbilityStore
+    effectStore: IEffectStore
+    rng: unit -> float
+  }
+
+module State =
+  open FSharp.Data.Adaptive
+  open Components
+  open GameEvent
+
+  type StateChange = {
+    entities: HashMap<int<EntityId>, All>
+    events: GameEvent IndexList
+    gameTime: int64<Tick> voption
+  }
