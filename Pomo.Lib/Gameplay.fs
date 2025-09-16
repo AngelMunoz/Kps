@@ -7,6 +7,7 @@ open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.GameEvent
 open Pomo.Lib.Domain.Effects
 open Pomo.Lib.Effects
+open Pomo.Lib.Domain.State
 open Pomo.Lib.Domain.AggregatedEffects
 
 type GameState = {
@@ -137,18 +138,22 @@ module GameState =
     : amap<int<EntityId>, Attributes.DerivedStats> =
     state.entities |> AMap.mapA(fun _ c -> applyModifiers c.BaseStats c.Effects)
 
-  let tick (state: GameState) (time: int64<Tick>) =
+  type EntityChange = {
+    components: All
+    events: GameEvent IndexList
+  }
+
+  let tick (state: GameState) (time: int64<Tick>) : aval<StateChange> =
     let allEffects =
       Pomo.Lib.Content.EffectStore.definitions
       |> HashMap.ofMap
       |> AMap.ofHashMap
 
-    transact(fun _ ->
-      let currentTime = state.gameTime.Value
+    adaptive {
+      let! currentTime = state.gameTime
       let newTime = currentTime + time
-      state.gameTime.Value <- newTime
 
-      let allEntityChanges =
+      let! allEntityChanges =
         state.entities
         |> AMap.mapA(fun entityId components -> adaptive {
           let! updatedEffects, generatedEvents, tickResult =
@@ -180,14 +185,41 @@ module GameState =
                 Resources = updatedResources
           }
 
-          return (updatedComponents, generatedEvents)
+          return {
+            components = updatedComponents
+            events = generatedEvents
+          }
         })
+        |> AMap.toAVal
 
-      let changesToApply = allEntityChanges |> AMap.force
 
-      for entityId, (updatedComponents, events) in changesToApply do
-        state.entities.[entityId] <- updatedComponents
-        state.gameEvents.AddRange(events))
+      let events =
+        IndexList.ofList [
+          for _, change in allEntityChanges do
+            yield! change.events
+        ]
+
+      let entities =
+        allEntityChanges |> HashMap.map(fun _ change -> change.components)
+
+
+      return {
+        entities = entities
+        events = events
+        gameTime = ValueSome newTime
+      }
+    }
+
+  let applyTick (state: GameState) (change: StateChange) =
+    transact(fun _ ->
+      match change.gameTime with
+      | ValueSome newTime -> state.gameTime.Value <- newTime
+      | ValueNone -> ()
+
+      state.gameEvents.AddRange change.events
+
+      for entityId, updatedComponents in change.entities do
+        state.entities[entityId] <- updatedComponents)
 
   let aAlive(state: GameState) : aset<int<EntityId>> =
     state.entities

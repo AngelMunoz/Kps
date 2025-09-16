@@ -142,13 +142,16 @@ type ``Action Resolution``() =
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
 
-    Resolution.apply
-      state
+    let action =
       (MeleeAttack {
         actor = attackerId
         target = targetId
         abilityId = melee
       })
+
+    let delta = Resolution.step state action
+    let change = delta |> AVal.force
+    Resolution.apply state change
 
     let targetAfter = state.entities.[targetId]
     Assert.Equal(63, targetAfter.Resources.HP)
@@ -195,13 +198,16 @@ type ``Action Resolution``() =
     TestHelpers.addEntity state casterId caster
     TestHelpers.addEntity state victimId victim
 
-    Resolution.apply
-      state
+    let action =
       (CastSpell {
         actor = casterId
         target = victimId
         abilityId = spell
       })
+
+    let delta = Resolution.step state action
+    let change = delta |> AVal.force
+    Resolution.apply state change
 
     let damageAppliedCorrectly =
       state.gameEvents
@@ -258,13 +264,16 @@ type ``Action Resolution``() =
     let before = attacker.Resources.Stamina
     let cost = (AbilityStore.definitions.[melee].Cost |> Option.get).Amount
 
-    Resolution.apply
-      state
+    let action =
       (MeleeAttack {
         actor = attackerId
         target = targetId
         abilityId = melee
       })
+
+    let delta = Resolution.step state action
+    let change = delta |> AVal.force
+    Resolution.apply state change
 
     let attackerAfter = state.entities.[attackerId]
     Assert.Equal(before - cost, attackerAfter.Resources.Stamina)
@@ -293,25 +302,31 @@ type ``Action Resolution``() =
     TestHelpers.addEntity state targetId target
 
     // First attack, should succeed and apply cooldown
-    Resolution.apply
-      state
+    let action1 =
       (MeleeAttack {
         actor = attackerId
         target = targetId
         abilityId = melee
       })
+
+    let delta1 = Resolution.step state action1
+    let change1 = delta1 |> AVal.force
+    Resolution.apply state change1
 
     let eventsAfterFirst = state.gameEvents |> AList.force
     Assert.Equal(2, eventsAfterFirst.Count) // DamageApplied + ResourceChanged
 
     // Second attack, should be ignored due to cooldown
-    Resolution.apply
-      state
+    let action2 =
       (MeleeAttack {
         actor = attackerId
         target = targetId
         abilityId = melee
       })
+
+    let delta2 = Resolution.step state action2
+    let change2 = delta2 |> AVal.force
+    Resolution.apply state change2
 
     let eventsAfterSecond = state.gameEvents |> AList.force
     Assert.Equal(2, eventsAfterSecond.Count) // No new events
@@ -336,13 +351,16 @@ type ``Action Resolution``() =
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
 
-    Resolution.apply
-      state
+    let action =
       (MeleeAttack {
         actor = attackerId
         target = targetId
         abilityId = melee
       })
+
+    let delta = Resolution.step state action
+    let change = delta |> AVal.force
+    Resolution.apply state change
 
     let attackerAfter = state.entities.[attackerId]
     let cooldowns = AMap.force attackerAfter.AbilityCooldowns
@@ -363,26 +381,33 @@ type ``Action Resolution``() =
     TestHelpers.addEntity state targetId target
 
     // First attack
-    Resolution.apply
-      state
+    let action1 =
       (MeleeAttack {
         actor = attackerId
         target = targetId
         abilityId = melee
       })
+
+    let delta1 = Resolution.step state action1
+    let change1 = delta1 |> AVal.force
+    Resolution.apply state change1
 
     let cooldown = AbilityStore.definitions[melee].Cooldown
     // Advance time past the cooldown
-    GameState.tick state (cooldown + 1L<Tick>)
+    let advance = GameState.tick state (cooldown + 1L<Tick>) |> AVal.force
+    GameState.applyTick state advance
 
     // Second attack, should succeed now
-    Resolution.apply
-      state
+    let action2 =
       (MeleeAttack {
         actor = attackerId
         target = targetId
         abilityId = melee
       })
+
+    let delta2 = Resolution.step state action2
+    let change2 = delta2 |> AVal.force
+    Resolution.apply state change2
 
     let damageEvents =
       state.gameEvents

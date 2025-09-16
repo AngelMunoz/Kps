@@ -6,8 +6,10 @@ open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.GameEvent
 open Pomo.Lib.Content
+open Pomo.Lib.Domain.State
 open Pomo.Lib.Gameplay
 open Pomo.Lib.Rules.Combat
+open Pomo.Lib.Rules
 
 module Resolution =
 
@@ -62,9 +64,7 @@ module Resolution =
     }
 
 
-  type ResolverFn =
-    ResolverParams * ResolverActors
-      -> aval<GameEvent[] * Map<int<EntityId>, All>>
+  type ResolverFn = ResolverParams * ResolverActors -> aval<StateChange>
 
   module ValidateAction =
     let checkStun(actor: All) =
@@ -478,7 +478,12 @@ module Resolution =
       let! validationResult = validateAction rparams ractors abilityId
 
       match validationResult with
-      | None -> return Array.empty, Map.empty
+      | None ->
+        return {
+          entities = HashMap.empty
+          events = IndexList.empty
+          gameTime = ValueNone
+        }
       | Some(actorComponents, (targetId, targetComponents), costOpt, abilityDef) ->
 
         let! actorStats = rparams.derivedStats |> AMap.find actorId
@@ -521,17 +526,24 @@ module Resolution =
         let finalActor =
           Shared.updateCooldowns actorWithCost abilityId gameTime abilityDef
 
-        let changes = Map.ofList [ actorId, finalActor; targetId, finalTarget ]
+        let changes =
+          HashMap.ofList [ actorId, finalActor; targetId, finalTarget ]
 
-        let events = [|
-          damageEvent
-          yield! costEvents
-          match deathEvent with
-          | Some ev -> ev
-          | None -> ()
-        |]
+        let events =
+          [|
+            damageEvent
+            yield! costEvents
+            match deathEvent with
+            | Some ev -> ev
+            | None -> ()
+          |]
+          |> IndexList.ofArray
 
-        return events, changes
+        return {
+          entities = changes
+          events = events
+          gameTime = ValueNone
+        }
     }
 
   let private resolveCastSpell(abilityId: int<AbilityId>) : ResolverFn =
@@ -540,7 +552,12 @@ module Resolution =
       let! validationResult = validateAction rparams ractors abilityId
 
       match validationResult with
-      | None -> return Array.empty, Map.empty
+      | None ->
+        return {
+          entities = HashMap.empty
+          events = IndexList.empty
+          gameTime = ValueNone
+        }
       | Some(actorComponents, (targetId, targetComponents), costOpt, abilityDef) ->
         let! actorStats = rparams.derivedStats |> AMap.find actorId
         let! targetStats = rparams.derivedStats |> AMap.find targetId
@@ -645,35 +662,37 @@ module Resolution =
           }
 
         let changes =
-          Map.ofList [ actorId, updatedActor; targetId, finalTarget ]
+          HashMap.ofList [ actorId, updatedActor; targetId, finalTarget ]
 
-        let allEvents = [|
-          if damageEvent.IsSome then
-            yield damageEvent.Value
-          yield! costEvents
-          yield! effectEvents
-          if deathEvent.IsSome then
-            yield deathEvent.Value
-        |]
+        let allEvents =
+          [|
+            if damageEvent.IsSome then
+              damageEvent.Value
+            yield! costEvents
+            yield! effectEvents
+            if deathEvent.IsSome then
+              deathEvent.Value
+          |]
+          |> IndexList.ofArray
 
-        return allEvents, changes
+        return {
+          entities = changes
+          events = allEvents
+          gameTime = ValueNone
+        }
     }
 
-  let private step
-    (currentEntities: amap<int<EntityId>, All>)
-    (derivedStats: amap<int<EntityId>, Attributes.DerivedStats>)
-    (gameTime: cval<int64<Tick>>)
-    (rng: unit -> float)
-    (command: Command)
-    : aval<GameEvent[] * Map<int<EntityId>, All>> =
+  let step (state: GameState) (cmd: Command) : aval<StateChange> =
+    let derivedStats = GameState.getDerivedStats state
+
     let resolverParams = {
-      entities = currentEntities
+      entities = state.entities
       derivedStats = derivedStats
-      gameTime = gameTime
-      rng = rng
+      gameTime = state.gameTime
+      rng = state.rng
     }
 
-    match command with
+    match cmd with
     | MeleeAttack action ->
       resolveMeleeAttack
         action.abilityId
@@ -691,15 +710,9 @@ module Resolution =
            target = action.target
          })
 
-  let apply (state: GameState) (cmd: Command) =
-    let derivedStats = GameState.getDerivedStats state
-
-    let events, changes =
-      step state.entities derivedStats state.gameTime state.rng cmd
-      |> AVal.force
-
+  let apply (state: GameState) (change: StateChange) =
     transact(fun _ ->
-      state.gameEvents.AddRange events
+      state.gameEvents.AddRange change.events
 
-      for change in changes do
-        state.entities.[change.Key] <- change.Value)
+      for id, components in change.entities do
+        state.entities[id] <- components)
