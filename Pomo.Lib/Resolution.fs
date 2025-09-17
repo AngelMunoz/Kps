@@ -10,14 +10,14 @@ open Pomo.Lib.Domain.State
 open Pomo.Lib.Gameplay
 open Pomo.Lib.Rules.Combat
 open Pomo.Lib.Rules
+open Pomo.Lib.Domain.Services
 
 module Resolution =
-
   type ResolverParams = {
     entities: amap<int<EntityId>, All>
     derivedStats: amap<int<EntityId>, Attributes.DerivedStats>
     gameTime: cval<int64<Tick>>
-    rng: unit -> float
+    services: EngineServices
   }
 
   type ResolverActors = {
@@ -27,6 +27,7 @@ module Resolution =
 
   /// Helper function to check if an actor is taunted and must target a specific entity
   let private checkTauntTarget
+    (effectStore: IEffectStore)
     (actorEffects: alist<Effects.ActiveEffect>)
     (intendedTarget: int<EntityId>)
     =
@@ -34,10 +35,11 @@ module Resolution =
       let tauntEffects =
         actorEffects
         |> AList.filter(fun effect ->
-          let effectDef =
-            Pomo.Lib.Content.EffectStore.definitions.[effect.EffectId]
+          let effectDef = effectStore.tryFind effect.EffectId
 
-          effectDef.Kind = Effects.EffectKind.Taunt)
+          match effectDef with
+          | None -> false
+          | Some effectDef -> effectDef.Kind = Effects.EffectKind.Taunt)
 
       let! isEmpty = AList.isEmpty tauntEffects
 
@@ -67,26 +69,37 @@ module Resolution =
   type ResolverFn = ResolverParams * ResolverActors -> aval<StateChange>
 
   module ValidateAction =
-    let checkStun(actor: All) =
+    let checkStun (effectStore: IEffectStore) (actor: All) =
       actor.Effects
       |> AList.exists(fun e ->
-        let def = EffectStore.definitions.[e.EffectId]
-        def.Kind = Effects.EffectKind.Stun)
+        let def = effectStore.tryFind e.EffectId
 
-    let checkSilence (actor: All) (abilityDef: Abilities.AbilityDefinition) = adaptive {
-      let! hasSilence =
-        actor.Effects
-        |> AList.exists(fun e ->
-          let def = EffectStore.definitions.[e.EffectId]
-          def.Kind = Effects.EffectKind.Silence)
-
-      let isSpellAbility =
-        match abilityDef.Cost with
-        | Some cost -> cost.Type = Abilities.ResourceType.MP
+        match def with
         | None -> false
+        | Some def -> def.Kind = Effects.EffectKind.Stun)
 
-      return hasSilence && isSpellAbility
-    }
+    let checkSilence
+      (effectStore: IEffectStore)
+      (actor: All)
+      (abilityDef: Abilities.AbilityDefinition)
+      =
+      adaptive {
+        let! hasSilence =
+          actor.Effects
+          |> AList.exists(fun e ->
+            let def = effectStore.tryFind e.EffectId
+
+            match def with
+            | None -> false
+            | Some def -> def.Kind = Effects.EffectKind.Silence)
+
+        let isSpellAbility =
+          match abilityDef.Cost with
+          | Some cost -> cost.Type = Abilities.ResourceType.MP
+          | None -> false
+
+        return hasSilence && isSpellAbility
+      }
 
     let checkCooldown
       (actor: All)
@@ -105,19 +118,23 @@ module Resolution =
 
     let checkResourceCost
       (actor: All)
-      (abilityDef: Abilities.AbilityDefinition)
+      (abilityDef: Abilities.AbilityDefinition option)
       =
-      match abilityDef.Cost with
-      | Some c ->
-        let hasEnough =
-          match c.Type with
-          | Abilities.ResourceType.HP -> actor.Resources.HP >= c.Amount
-          | Abilities.ResourceType.MP -> actor.Resources.MP >= c.Amount
-          | Abilities.ResourceType.Stamina ->
-            actor.Resources.Stamina >= c.Amount
+      abilityDef
+      |> Option.map(fun abilityDef ->
+        match abilityDef.Cost with
+        | Some c ->
+          let hasEnough =
+            match c.Type with
+            | Abilities.ResourceType.HP -> actor.Resources.HP >= c.Amount
+            | Abilities.ResourceType.MP -> actor.Resources.MP >= c.Amount
+            | Abilities.ResourceType.Stamina ->
+              actor.Resources.Stamina >= c.Amount
 
-        hasEnough, Some c
-      | None -> true, None
+          hasEnough, Some c
+        | None -> true, None)
+      // No ability definition means invalid ability, treat as not enough resources
+      |> Option.defaultValue(false, None)
 
     let resolveTaunt
       (rparams: ResolverParams)
@@ -130,7 +147,11 @@ module Resolution =
         match actor with
         | None -> return ractors.target, initialTarget
         | Some actor ->
-          let! forcedTargetId = checkTauntTarget actor.Effects ractors.target
+          let! forcedTargetId =
+            checkTauntTarget
+              rparams.services.effectStore
+              actor.Effects
+              ractors.target
 
           match forcedTargetId with
           | None -> return ractors.target, initialTarget
@@ -221,108 +242,126 @@ module Resolution =
       (actorComponents: All)
       (abilityId: int<AbilityId>)
       (gameTime: int64<Tick>)
-      (abilityDef: Abilities.AbilityDefinition)
+      (abilityDef: Abilities.AbilityDefinition option)
       =
       {
         actorComponents with
             AbilityCooldowns =
               actorComponents.AbilityCooldowns
               |> AMap.map(fun k v ->
-                if k = abilityId then gameTime + abilityDef.Cooldown else v)
+                match abilityDef with
+                | None -> v
+                | Some abilityDef ->
+                  if k = abilityId then gameTime + abilityDef.Cooldown else v)
       }
 
   module MeleeAttack =
-    let applyShields (targetComponents: All) (damageResult: DamageResult) = adaptive {
-      let shieldEffects =
-        targetComponents.Effects
-        |> AList.choose(fun effect ->
-          let effectDef = EffectStore.definitions.[effect.EffectId]
+    let applyShields
+      (effectStore: IEffectStore)
+      (targetComponents: All)
+      (damageResult: DamageResult)
+      =
+      adaptive {
+        let shieldEffects =
+          targetComponents.Effects
+          |> AList.choose(fun effect ->
+            let effectDef = effectStore.tryFind effect.EffectId
 
-          match effectDef.Kind with
-          | Effects.EffectKind.Shield _ -> Some effect
-          | _ -> None)
+            match effectDef with
+            | None -> None
+            | Some effectDef ->
 
-      let! totalShieldValue, shieldEffectsWithValue =
-        shieldEffects
-        |> AList.mapA(fun effect -> adaptive {
-          let effectDef = EffectStore.definitions.[effect.EffectId]
-
-          let value =
             match effectDef.Kind with
-            | Effects.EffectKind.Shield v -> v
-            | _ -> 0 // Should not happen
+            | Effects.EffectKind.Shield _ -> Some effect
+            | _ -> None)
 
-          return effect, value
-        })
-        |> AList.fold
-          (fun (total, effects) (effect, value) ->
-            (total + effect.Stacks * value, (effect, value) :: effects))
-          (0, [])
+        let! totalShieldValue, shieldEffectsWithValue =
+          shieldEffects
+          |> AList.mapA(fun effect -> adaptive {
+            let effectDef = effectStore.tryFind effect.EffectId
 
-      let shieldDamage =
-        damageResult.Amount - max 0 (damageResult.Amount - totalShieldValue)
+            match effectDef with
+            | None -> return effect, 0
+            | Some effectDef ->
 
-      let updatedEffects =
-        if shieldDamage > 0 then
-          let _, updated =
-            shieldEffectsWithValue
-            |> List.fold
-              (fun (remainingDamage, acc) (effect, value) ->
-                if remainingDamage <= 0 then
-                  (0, effect :: acc)
-                else
-                  let damageToThisShield =
-                    min remainingDamage (effect.Stacks * value)
+            let value =
+              match effectDef.Kind with
+              | Effects.EffectKind.Shield v -> v
+              | _ -> 0 // Should not happen
 
-                  let stacksLost = (damageToThisShield + value - 1) / value
-
-                  let updatedEffect = {
-                    effect with
-                        Stacks = max 0 (effect.Stacks - stacksLost)
-                  }
-
-                  (remainingDamage - damageToThisShield, updatedEffect :: acc))
-              (shieldDamage, [])
-
-          targetComponents.Effects
-          |> AList.mapA(fun e -> adaptive {
-            match
-              updated |> List.tryFind(fun ue -> ue.EffectId = e.EffectId)
-            with
-            | Some ue -> return ue
-            | None -> return e
+            return effect, value
           })
-          |> AList.choose(fun e -> if e.Stacks > 0 then Some e else None)
-        else
-          targetComponents.Effects
+          |> AList.fold
+            (fun (total, effects) (effect, value) ->
+              (total + effect.Stacks * value, (effect, value) :: effects))
+            (0, [])
 
-      return
-        {
-          targetComponents with
-              Effects = updatedEffects
-        },
-        shieldDamage
-    }
+        let shieldDamage =
+          damageResult.Amount - max 0 (damageResult.Amount - totalShieldValue)
+
+        let updatedEffects =
+          if shieldDamage > 0 then
+            let _, updated =
+              shieldEffectsWithValue
+              |> List.fold
+                (fun (remainingDamage, acc) (effect, value) ->
+                  if remainingDamage <= 0 then
+                    (0, effect :: acc)
+                  else
+                    let damageToThisShield =
+                      min remainingDamage (effect.Stacks * value)
+
+                    let stacksLost = (damageToThisShield + value - 1) / value
+
+                    let updatedEffect = {
+                      effect with
+                          Stacks = max 0 (effect.Stacks - stacksLost)
+                    }
+
+                    (remainingDamage - damageToThisShield, updatedEffect :: acc))
+                (shieldDamage, [])
+
+            targetComponents.Effects
+            |> AList.mapA(fun e -> adaptive {
+              match
+                updated |> List.tryFind(fun ue -> ue.EffectId = e.EffectId)
+              with
+              | Some ue -> return ue
+              | None -> return e
+            })
+            |> AList.choose(fun e -> if e.Stacks > 0 then Some e else None)
+          else
+            targetComponents.Effects
+
+        return
+          {
+            targetComponents with
+                Effects = updatedEffects
+          },
+          shieldDamage
+      }
 
   module CastSpell =
     let private determineNewEffect
-      (effectDef: Effects.EffectDefinition)
+      (effectDef: Effects.EffectDefinition option)
       (existingEffect: option<Effects.ActiveEffect>)
       (gameTime: int64<Tick>)
       (actorId: int<EntityId>)
       (effectId: int<EffectId>)
       =
-      match existingEffect, effectDef.Stacking with
-      | Some _, Effects.StackingRule.NoStack -> None // Do not apply
-      | Some e, Effects.StackingRule.RefreshDuration ->
+      let stacking = effectDef |> Option.map _.Stacking
+
+      match existingEffect, stacking with
+      | Some _, Some Effects.StackingRule.NoStack -> None // Do not apply
+      | Some e, Some Effects.StackingRule.RefreshDuration ->
         let duration =
-          match effectDef.Duration with
+          match effectDef.Value.Duration with
           | Effects.Duration.Timed d -> d
           | Effects.Duration.Loop(_, d) -> d
           | _ -> 0L<Tick>
 
         let interval =
-          match effectDef.Duration with
+          match effectDef.Value.Duration with
           | Effects.Duration.Loop(i, _) -> i
           | _ -> 0L<Tick>
 
@@ -331,17 +370,17 @@ module Resolution =
               RemainingTicks = duration
               NextTickIn = interval
         }
-      | Some e, Effects.StackingRule.AddStack maxStacks ->
+      | Some e, Some(Effects.StackingRule.AddStack maxStacks) ->
         let newStacks = min maxStacks (e.Stacks + 1)
 
         let duration =
-          match effectDef.Duration with
+          match effectDef.Value.Duration with
           | Effects.Duration.Timed d -> d
           | Effects.Duration.Loop(_, d) -> d
           | _ -> 0L<Tick>
 
         let interval =
-          match effectDef.Duration with
+          match effectDef.Value.Duration with
           | Effects.Duration.Loop(i, _) -> i
           | _ -> 0L<Tick>
 
@@ -351,17 +390,19 @@ module Resolution =
               RemainingTicks = duration
               NextTickIn = interval
         }
+      | _, None
       | None, _ ->
         let duration =
-          match effectDef.Duration with
-          | Effects.Duration.Timed d -> d
-          | Effects.Duration.Loop(_, d) -> d
-          | _ -> 0L<Tick>
+          effectDef
+          |> Option.map _.Duration.Duration
+          |> Option.flatten
+          |> Option.defaultValue 0L<Tick>
 
         let interval =
-          match effectDef.Duration with
-          | Effects.Duration.Loop(i, _) -> i
-          | _ -> 0L<Tick>
+          effectDef
+          |> Option.map _.Duration.Interval
+          |> Option.flatten
+          |> Option.defaultValue 0L<Tick>
 
         Some {
           EffectId = effectId
@@ -372,6 +413,7 @@ module Resolution =
         }
 
     let private processEffect
+      (effectStore: IEffectStore)
       (targetComponents: All)
       (gameTime: int64<Tick>)
       (actorId: int<EntityId>)
@@ -379,7 +421,7 @@ module Resolution =
       (effectId: int<EffectId>)
       =
       adaptive {
-        let effectDef = EffectStore.definitions[effectId]
+        let effectDef = effectStore.tryFind effectId
 
         let! existingEffect = adaptive {
           let! effects = targetComponents.Effects |> AList.toAVal
@@ -403,28 +445,38 @@ module Resolution =
       }
 
     let applyEffects
-      (abilityDef: Abilities.AbilityDefinition)
+      (effectStore: IEffectStore)
+      (abilityDef: Abilities.AbilityDefinition option)
       (actorId: int<EntityId>)
       (targetId: int<EntityId>)
       (gameTime: int64<Tick>)
       (targetComponents: All)
       =
       adaptive {
-        let! results =
-          abilityDef.Effects
-          |> AList.ofList
-          |> AList.mapA(
-            processEffect targetComponents gameTime actorId targetId
-          )
-          |> AList.toAVal
+        match abilityDef with
+        | None -> return IndexList.empty, IndexList.empty
+        | Some abilityDef ->
 
-        let events, effects =
-          results
-          |> IndexList.unzip
-          |> (fun (e, ef) ->
-            e |> IndexList.choose id, ef |> IndexList.choose id)
+          let! results =
+            abilityDef.Effects
+            |> AList.ofList
+            |> AList.mapA(
+              processEffect
+                effectStore
+                targetComponents
+                gameTime
+                actorId
+                targetId
+            )
+            |> AList.toAVal
 
-        return events, effects
+          let events, effects =
+            results
+            |> IndexList.unzip
+            |> (fun (e, ef) ->
+              e |> IndexList.choose id, ef |> IndexList.choose id)
+
+          return events, effects
       }
 
   /// A validation function that checks for the presence of actor and target, and the actor's status.
@@ -436,18 +488,28 @@ module Resolution =
     adaptive {
       let! actor = rparams.entities |> AMap.tryFind ractors.actor
       let! target = rparams.entities |> AMap.tryFind ractors.target
-      let abilityDef = AbilityStore.definitions[abilityId]
+      let abilityDef = rparams.services.abilityStore.tryFind abilityId
 
       match actor, target with
       | Some actor, Some target when
         actor.Resources.Status = Attributes.Status.Alive
         ->
-        let! isStunned = ValidateAction.checkStun actor
+        let! isStunned =
+          ValidateAction.checkStun rparams.services.effectStore actor
 
         if isStunned then
           return None
         else
-          let! isSilenced = ValidateAction.checkSilence actor abilityDef
+          let! isSilenced = adaptive {
+            match abilityDef with
+            | None -> return false // Invalid ability, treat as silenced
+            | Some abilityDef ->
+              return!
+                ValidateAction.checkSilence
+                  rparams.services.effectStore
+                  actor
+                  abilityDef
+          }
 
           if isSilenced then
             return None
@@ -489,13 +551,16 @@ module Resolution =
         let! actorStats = rparams.derivedStats |> AMap.find actorId
         let! targetStats = rparams.derivedStats |> AMap.find targetId
         let! gameTime = rparams.gameTime
-        let rng = rparams.rng
+        let rng = rparams.services.rng
 
         let damageResult =
           Combat.calculatePhysicalDamage actorStats targetStats rng
 
         let! updatedTarget, shieldDamage =
-          MeleeAttack.applyShields targetComponents damageResult
+          MeleeAttack.applyShields
+            rparams.services.effectStore
+            targetComponents
+            damageResult
 
         let actualDamage = max 0 (damageResult.Amount - shieldDamage)
 
@@ -562,7 +627,7 @@ module Resolution =
         let! actorStats = rparams.derivedStats |> AMap.find actorId
         let! targetStats = rparams.derivedStats |> AMap.find targetId
         let! gameTime = rparams.gameTime
-        let rng = rparams.rng
+        let rng = rparams.services.rng
 
         // Spells can either do direct damage, apply effects, or both.
         // We'll calculate damage and then decide whether to apply it.
@@ -575,20 +640,26 @@ module Resolution =
 
         // Spells should apply direct damage unless they only have periodic effects (DoT/HoT)
         let shouldApplyDirectDamage =
-          if abilityDef.Effects.IsEmpty then
-            true // No effects, assume direct damage spell
-          else
+          match abilityDef with
+          | None -> false
+          | Some abilityDef when abilityDef.Effects.IsEmpty -> false
+          | Some abilityDef ->
             // Check if all effects are periodic (DoT/HoT) - if so, no direct damage
-            not(
+            let isOverTime =
               abilityDef.Effects
               |> List.forall(fun effectId ->
-                let effectDef = EffectStore.definitions[effectId]
+                let effectDef = rparams.services.effectStore.tryFind effectId
 
-                match effectDef.Kind with
-                | Effects.EffectKind.DamageOverTime _ -> true
-                | Effects.EffectKind.HealOverTime _ -> true
-                | _ -> false)
-            )
+                match effectDef with
+                | None -> false
+                | Some effectDef ->
+
+                  match effectDef.Kind with
+                  | Effects.EffectKind.DamageOverTime _ -> true
+                  | Effects.EffectKind.HealOverTime _ -> true
+                  | _ -> false)
+
+            not isOverTime
 
         let initialDamage =
           if shouldApplyDirectDamage then damageResult.Amount else 0
@@ -626,6 +697,7 @@ module Resolution =
 
         let! effectEvents, effectsToApply =
           CastSpell.applyEffects
+            rparams.services.effectStore
             abilityDef
             actorId
             targetId
@@ -689,7 +761,7 @@ module Resolution =
       entities = state.entities
       derivedStats = derivedStats
       gameTime = state.gameTime
-      rng = state.rng
+      services = state.services
     }
 
     match cmd with

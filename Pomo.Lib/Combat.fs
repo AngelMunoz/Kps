@@ -69,13 +69,3 @@ module Combat =
       IsCritical = false
       IsEvaded = false
     } // Magical attacks can't be evaded/crit for now
-
-  let calculateHealing (spellPower: int) (rng: System.Random) =
-    // 1. Base healing
-    let baseHeal = float spellPower
-
-    // 2. Add variance
-    let variance = 1.0 + (rng.NextDouble() * 0.2 - 0.1) // +/- 10% variance
-    let finalHeal = baseHeal * variance
-
-    int finalHeal

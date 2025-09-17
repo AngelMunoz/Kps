@@ -111,6 +111,17 @@ module Effects =
     | Timed of int64<Tick>
     | Loop of int64<Tick> * int64<Tick> // Interval * Total Duration
 
+    member this.Duration =
+      match this with
+      | Instant -> None
+      | Timed d -> Some d
+      | Loop(_, d) -> Some d
+
+    member this.Interval =
+      match this with
+      | Loop(i, _) -> Some i
+      | _ -> None
+
   type Stat =
     | Strength
     | Agility
@@ -232,14 +243,21 @@ module Components =
   }
 
 module Services =
+  open FSharp.Data.Adaptive
   open Abilities
   open Effects
 
   type IAbilityStore =
-    abstract member Find: int<AbilityId> -> AbilityDefinition option
+    abstract member tryFind: int<AbilityId> -> AbilityDefinition option
+    abstract member asList: list<AbilityDefinition>
+    abstract member asAList: alist<AbilityDefinition>
+    abstract member asAMap: amap<int<AbilityId>, AbilityDefinition>
 
   type IEffectStore =
-    abstract member Find: int<EffectId> -> EffectDefinition option
+    abstract member tryFind: int<EffectId> -> EffectDefinition option
+    abstract member asList: list<EffectDefinition>
+    abstract member asAList: alist<EffectDefinition>
+    abstract member asAMap: amap<int<EffectId>, EffectDefinition>
 
   type EngineServices = {
     abilityStore: IAbilityStore

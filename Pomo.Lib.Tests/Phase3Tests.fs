@@ -14,6 +14,62 @@ open Pomo.Lib.Rules
 open Pomo.Lib.Domain.Rules
 
 module private Phase3Helpers =
+
+  let create(rng: unit -> float) =
+    let effMap =
+      Pomo.Lib.Content.EffectStore.definitions
+      |> HashMap.ofMap
+      |> AMap.ofHashMap
+
+    let abilMap =
+      Pomo.Lib.Content.AbilityStore.definitions
+      |> HashMap.ofMap
+      |> AMap.ofHashMap
+
+    let effList =
+      AList.constant(fun () ->
+        [ for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions -> v ]
+        |> IndexList.ofList)
+
+    let abilList =
+      AList.constant(fun () ->
+        [
+          for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions -> v
+        ]
+        |> IndexList.ofList)
+
+    Gameplay.GameState.create' {
+      effectStore =
+        { new Services.IEffectStore with
+            member _.tryFind effectId =
+              Pomo.Lib.Content.EffectStore.definitions |> Map.tryFind effectId
+
+            member _.asAMap = effMap
+
+            member _.asAList = effList
+
+            member _.asList = [
+              for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions ->
+                v
+            ]
+        }
+      abilityStore =
+        { new Services.IAbilityStore with
+            member _.tryFind abilityId =
+              Pomo.Lib.Content.AbilityStore.definitions |> Map.tryFind abilityId
+
+            member _.asAMap = abilMap
+
+            member _.asAList = abilList
+
+            member _.asList = [
+              for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions ->
+                v
+            ]
+        }
+      rng = rng
+    }
+
   let baseStats = {
     Strength = 12
     Agility = 5
@@ -85,7 +141,7 @@ type ``Phase3 - Shield``() =
   [<Fact>]
   member _.``T1 Shield absorbs damage before HP until depleted``() =
     // Arrange
-    let state = Gameplay.GameState.create'(fun () -> 0.5) // deterministic RNG
+    let state = Phase3Helpers.create(fun () -> 0.5) // deterministic RNG
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
@@ -179,7 +235,7 @@ type ``Phase3 - Stun``() =
   [<Fact>]
   member _.``T2 Stun prevents all actions``() =
     // Arrange
-    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let state = Phase3Helpers.create(fun () -> 0.5)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
@@ -238,7 +294,7 @@ type ``Phase3 - Silence``() =
   [<Fact>]
   member _.``T3 Silence blocks spell but allows melee``() =
     // Arrange
-    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let state = Phase3Helpers.create(fun () -> 0.5)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
@@ -331,7 +387,7 @@ type ``Phase3 - Taunt``() =
   [<Fact>]
   member _.``T4 Taunt redirection forces target to taunter``() =
     // Arrange
-    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let state = Phase3Helpers.create(fun () -> 0.5)
     let attackerId = 1<EntityId>
     let intendedTargetId = 2<EntityId>
     let taunterId = 3<EntityId>
@@ -408,7 +464,7 @@ type ``Phase3 - Effect Stacking``() =
   [<Fact>]
   member _.``T5 NoStack ignores second application``() =
     // Arrange
-    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let state = Phase3Helpers.create(fun () -> 0.5)
     let casterId = 1<EntityId>
     let targetId = 2<EntityId>
     let spellId = 3<AbilityId> // A spell that applies a NoStack effect
@@ -463,7 +519,7 @@ type ``Phase3 - Effect Stacking``() =
   [<Fact>]
   member _.``T6 RefreshDuration resets timer, stack count unchanged``() =
     // Arrange
-    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let state = Phase3Helpers.create(fun () -> 0.5)
     let casterId = 1<EntityId>
     let targetId = 2<EntityId>
     let spellId = 4<AbilityId> // A spell that applies a RefreshDuration effect
@@ -527,7 +583,7 @@ type ``Phase3 - Effect Stacking``() =
   [<Fact>]
   member _.``T7 AddStack increments up to cap then stops``() =
     // Arrange
-    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let state = Phase3Helpers.create(fun () -> 0.5)
     let casterId = 1<EntityId>
     let targetId = 2<EntityId>
     let spellId = 5<AbilityId> // Shield Spell
@@ -591,7 +647,7 @@ type ``Phase3 - Effect Stacking``() =
   [<Fact>]
   member _.``T8 DoT ticking applies periodic damage and expires``() =
     // Arrange
-    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let state = Phase3Helpers.create(fun () -> 0.5)
     let casterId = 1<EntityId>
     let targetId = 2<EntityId>
     let spellId = 6<AbilityId> // Poison Spell
@@ -652,7 +708,7 @@ type ``Phase3 - Effect Stacking``() =
   [<Fact>]
   member _.``T9 HoT ticking applies periodic healing and expires``() =
     // Arrange
-    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let state = Phase3Helpers.create(fun () -> 0.5)
     let casterId = 1<EntityId>
     let targetId = 2<EntityId>
     let spellId = 7<AbilityId> // Regen Spell
@@ -716,7 +772,7 @@ type ``Phase3 - Shield Extended``() =
     ()
     =
     // Arrange
-    let state = Gameplay.GameState.create'(fun () -> 0.5) // deterministic RNG
+    let state = Phase3Helpers.create(fun () -> 0.5) // deterministic RNG
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
@@ -803,8 +859,8 @@ type ``Phase3 - Determinism``() =
     let rng1 = fun () -> 0.3 // Fixed value
     let rng2 = fun () -> 0.3 // Same fixed value
 
-    let state1 = Gameplay.GameState.create' rng1
-    let state2 = Gameplay.GameState.create' rng2
+    let state1 = Phase3Helpers.create rng1
+    let state2 = Phase3Helpers.create rng2
 
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
@@ -877,7 +933,7 @@ type ``Phase3 - Cooldown Management``() =
     ()
     =
     // Arrange
-    let state = Gameplay.GameState.create'(fun () -> 0.5)
+    let state = Phase3Helpers.create(fun () -> 0.5)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>

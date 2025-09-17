@@ -14,32 +14,46 @@ type GameState = {
   entities: cmap<int<EntityId>, All>
   gameEvents: clist<GameEvent>
   gameTime: cval<int64<Tick>>
-  rng: unit -> float
+  services: Services.EngineServices
 }
 
 
 module GameState =
+
+  let getModifiersForEffect (effectStore: Services.IEffectStore) effectId =
+    let effect = effectStore.tryFind effectId
+
+    match effect with
+    | Some e -> e.Modifiers |> IndexList.ofList
+    | None -> IndexList.empty
+    |> AList.ofIndexList
+
+  let getAdditiveModifiers(effects: StatModifier alist) =
+    effects
+    |> AList.fold
+      (fun acc modifier ->
+        match modifier with
+        | StatModifier.Additive(stat, value) ->
+          match HashMap.tryFind stat acc with
+          | Some existing -> HashMap.add stat (existing + value) acc
+          | None -> HashMap.add stat value acc
+        | _ -> acc)
+      HashMap.empty
+    |> AMap.ofAVal
+
+
   let private applyModifiers
+    (effectStore: Services.IEffectStore)
     (baseStats: Attributes.BaseAttributes)
     (effects: alist<Effects.ActiveEffect>)
     : aval<Attributes.DerivedStats> =
-    let modifiers =
-      effects
-      |> AList.collect(fun activeEffect ->
-        (Pomo.Lib.Content.EffectStore.definitions.[activeEffect.EffectId])
-          .Modifiers
-        |> AList.ofList)
-
-
-    let additiveModifiers =
-      modifiers
-      |> AList.choose (function
-        | Effects.StatModifier.Additive(stat, value) -> Some(stat, value)
-        | _ -> None)
-      |> AList.groupBy fst
-      |> AMap.map(fun _ values -> values |> IndexList.map snd |> IndexList.sum)
-
     adaptive {
+      let modifiers =
+        effects
+        |> AList.collect(fun effect ->
+          getModifiersForEffect effectStore effect.EffectId)
+
+      let additiveModifiers = getAdditiveModifiers modifiers
       // 1. Apply base stat modifiers
       let! modifiedBase =
         additiveModifiers
@@ -123,20 +137,74 @@ module GameState =
       return finalDerived
     }
 
-  let create'(rng: unit -> float) = {
+  let create'(services: Services.EngineServices) = {
     entities = cmap()
     gameEvents = clist []
     gameTime = cval 0L<Tick>
-    rng = rng
+    services = services
   }
 
   let create() =
-    create'(fun () -> System.Random.Shared.NextDouble())
+    let effMap =
+      Pomo.Lib.Content.EffectStore.definitions
+      |> HashMap.ofMap
+      |> AMap.ofHashMap
+
+    let abilMap =
+      Pomo.Lib.Content.AbilityStore.definitions
+      |> HashMap.ofMap
+      |> AMap.ofHashMap
+
+    let effList =
+      AList.constant(fun () ->
+        [ for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions -> v ]
+        |> IndexList.ofList)
+
+    let abilList =
+      AList.constant(fun () ->
+        [
+          for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions -> v
+        ]
+        |> IndexList.ofList)
+
+    create' {
+      effectStore =
+        { new Services.IEffectStore with
+            member _.tryFind effectId =
+              Pomo.Lib.Content.EffectStore.definitions |> Map.tryFind effectId
+
+            member _.asAMap = effMap
+
+            member _.asAList = effList
+
+            member _.asList = [
+              for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions ->
+                v
+            ]
+        }
+      abilityStore =
+        { new Services.IAbilityStore with
+            member _.tryFind abilityId =
+              Pomo.Lib.Content.AbilityStore.definitions |> Map.tryFind abilityId
+
+            member _.asAMap = abilMap
+
+            member _.asAList = abilList
+
+            member _.asList = [
+              for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions ->
+                v
+            ]
+        }
+      rng = fun () -> System.Random().NextDouble()
+    }
 
   let getDerivedStats
     (state: GameState)
     : amap<int<EntityId>, Attributes.DerivedStats> =
-    state.entities |> AMap.mapA(fun _ c -> applyModifiers c.BaseStats c.Effects)
+    state.entities
+    |> AMap.mapA(fun _ c ->
+      applyModifiers state.services.effectStore c.BaseStats c.Effects)
 
   type EntityChange = {
     components: All

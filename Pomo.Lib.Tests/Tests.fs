@@ -46,6 +46,64 @@ module private Generators =
 // Helpers
 // --------------------------------------------------
 module private TestHelpers =
+
+
+  let create(rng: unit -> float) =
+    let effMap =
+      Pomo.Lib.Content.EffectStore.definitions
+      |> HashMap.ofMap
+      |> AMap.ofHashMap
+
+    let abilMap =
+      Pomo.Lib.Content.AbilityStore.definitions
+      |> HashMap.ofMap
+      |> AMap.ofHashMap
+
+    let effList =
+      AList.constant(fun () ->
+        [ for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions -> v ]
+        |> IndexList.ofList)
+
+    let abilList =
+      AList.constant(fun () ->
+        [
+          for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions -> v
+        ]
+        |> IndexList.ofList)
+
+    GameState.create' {
+      effectStore =
+        { new Services.IEffectStore with
+            member _.tryFind effectId =
+              Pomo.Lib.Content.EffectStore.definitions |> Map.tryFind effectId
+
+            member _.asAMap = effMap
+
+            member _.asAList = effList
+
+            member _.asList = [
+              for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions ->
+                v
+            ]
+        }
+      abilityStore =
+        { new Services.IAbilityStore with
+            member _.tryFind abilityId =
+              Pomo.Lib.Content.AbilityStore.definitions |> Map.tryFind abilityId
+
+            member _.asAMap = abilMap
+
+            member _.asAList = abilList
+
+            member _.asList = [
+              for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions ->
+                v
+            ]
+        }
+      rng = rng
+    }
+
+
   let makeEntity
     (id: int<EntityId>)
     (baseStats: BaseAttributes)
@@ -92,7 +150,7 @@ type ``Derived Stats``() =
   member _.``Derived stats formula matches implementation``
     (baseAttrs: BaseAttributes)
     =
-    let state = GameState.create()
+    let state = TestHelpers.create(fun _ -> 0.5)
     let id = 1<EntityId>
     let entity = TestHelpers.makeEntity id baseAttrs 100 100 100 []
     TestHelpers.addEntity state id entity
@@ -133,7 +191,7 @@ type ``Action Resolution``() =
 
   [<Fact>]
   member _.``Melee attack applies expected damage and emits DamageApplied``() =
-    let state = GameState.create'(fun () -> 0.5)
+    let state = TestHelpers.create(fun () -> 0.5)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
@@ -170,7 +228,7 @@ type ``Action Resolution``() =
 
   [<Fact>]
   member _.``Spell casting applies damage, costs MP, and can kill target``() =
-    let state = GameState.create'(fun () -> 0.5)
+    let state = TestHelpers.create(fun () -> 0.5)
     let casterId = 10<EntityId>
     let victimId = 11<EntityId>
     let spell = 2<AbilityId>
@@ -253,7 +311,7 @@ type ``Action Resolution``() =
   member _.``Melee ability stamina cost reduces stamina and emits ResourceChanged``
     ()
     =
-    let state = GameState.create()
+    let state = TestHelpers.create(fun _ -> 0.5)
     let attackerId = 100<EntityId>
     let targetId = 200<EntityId>
     let melee = 1<AbilityId>
@@ -292,7 +350,7 @@ type ``Action Resolution``() =
 
   [<Fact>]
   member _.``Cooldown prevents immediate reuse``() =
-    let state = GameState.create()
+    let state = TestHelpers.create(fun _ -> 0.5)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
@@ -342,7 +400,7 @@ type ``Action Resolution``() =
 
   [<Fact>]
   member _.``Action puts ability on cooldown``() =
-    let state = GameState.create()
+    let state = TestHelpers.create(fun _ -> 0.5)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
@@ -371,7 +429,7 @@ type ``Action Resolution``() =
 
   [<Fact>]
   member _.``Ability is usable again after cooldown expires``() =
-    let state = GameState.create()
+    let state = TestHelpers.create(fun _ -> 0.5)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
