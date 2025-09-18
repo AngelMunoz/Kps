@@ -635,8 +635,6 @@ module Resolution =
         let! gameTime = rparams.gameTime
         let rng = rparams.services.rng
 
-        // Spells can either do direct damage, apply effects, or both.
-        // We'll calculate damage and then decide whether to apply it.
         let damageResult =
           Combat.calculateMagicalDamage
             Attributes.Element.Neutral
@@ -644,26 +642,7 @@ module Resolution =
             targetStats
             rng
 
-        // Spells should apply direct damage unless they only have periodic effects (DoT/HoT)
-        let shouldApplyDirectDamage =
-          let isOverTime =
-            abilityDef.Effects
-            |> List.forall(fun effectId ->
-              let effectDef = rparams.services.effectStore.tryFind effectId
-
-              match effectDef with
-              | None -> false
-              | Some effectDef ->
-
-                match effectDef.Kind with
-                | Effects.EffectKind.DamageOverTime _ -> true
-                | Effects.EffectKind.HealOverTime _ -> true
-                | _ -> false)
-
-          not isOverTime
-
-        let initialDamage =
-          if shouldApplyDirectDamage then damageResult.Amount else 0
+        let initialDamage = damageResult.Amount
 
         let damageEvent =
           if initialDamage > 0 then

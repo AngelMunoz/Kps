@@ -683,28 +683,29 @@ type ``Phase3 - Effect Stacking``() =
     // Act
     applySpell()
     let hpAfterApply = hp()
-    Assert.Equal(initialHp, hpAfterApply) // No initial damage
+    // Caster SpellPower=8, rng=0.5 -> 8 damage (mitigation is not applied)
+    Assert.Equal(initialHp - 8, hpAfterApply)
 
     // Tick forward to trigger DoT
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
     Gameplay.GameState.applyTick state advance // 1st tick
     let hpAfterTick1 = hp()
-    Assert.Equal(initialHp - 5, hpAfterTick1)
+    Assert.Equal(initialHp - 8 - 5, hpAfterTick1)
 
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
     Gameplay.GameState.applyTick state advance // 2nd tick
     let hpAfterTick2 = hp()
-    Assert.Equal(initialHp - 10, hpAfterTick2)
+    Assert.Equal(initialHp - 8 - 10, hpAfterTick2)
 
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
     Gameplay.GameState.applyTick state advance // 3rd tick
     let hpAfterTick3 = hp()
-    Assert.Equal(initialHp - 15, hpAfterTick3)
+    Assert.Equal(initialHp - 8 - 15, hpAfterTick3)
 
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
     Gameplay.GameState.applyTick state advance // 4th tick
     let hpAfterTick4 = hp()
-    Assert.Equal(initialHp - 20, hpAfterTick4)
+    Assert.Equal(initialHp - 8 - 20, hpAfterTick4)
 
     // Effect should have expired now (8000L<ticks> total duration)
     let effects = state.entities.[targetId].Effects |> AList.force
@@ -744,28 +745,30 @@ type ``Phase3 - Effect Stacking``() =
     // Act
     applySpell()
     let hpAfterApply = hp()
-    Assert.Equal(initialHp, hpAfterApply) // No initial healing
+    // Per engine rules, all spells calculate initial damage.
+    // Caster SpellPower=8, rng=0.5 -> 8 damage (mitigation is not applied)
+    Assert.Equal(initialHp - 8, hpAfterApply)
 
     // Tick forward to trigger HoT
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
     Gameplay.GameState.applyTick state advance // 1st tick
     let hpAfterTick1 = hp()
-    Assert.Equal(initialHp + 5, hpAfterTick1)
+    Assert.Equal(initialHp - 8 + 5, hpAfterTick1)
 
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
     Gameplay.GameState.applyTick state advance // 2nd tick
     let hpAfterTick2 = hp()
-    Assert.Equal(initialHp + 10, hpAfterTick2)
+    Assert.Equal(initialHp - 8 + 10, hpAfterTick2)
 
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
     Gameplay.GameState.applyTick state advance // 3rd tick
     let hpAfterTick3 = hp()
-    Assert.Equal(initialHp + 15, hpAfterTick3)
+    Assert.Equal(initialHp - 8 + 15, hpAfterTick3)
 
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
     Gameplay.GameState.applyTick state advance // 4th tick
     let hpAfterTick4 = hp()
-    Assert.Equal(initialHp + 20, hpAfterTick4)
+    Assert.Equal(initialHp - 8 + 20, hpAfterTick4)
 
     // Effect should have expired now (8000L<ticks> total duration)
     let effects = state.entities.[targetId].Effects |> AList.force
