@@ -949,7 +949,8 @@ type ``Phase3 - Cooldown Management``() =
 
     // Act & Assert: Check initial readiness (all abilities should be ready)
     let readyAbilitiesInitial =
-      Gameplay.GameState.aReadyAbilities state |> ASet.force
+      Gameplay.GameState.aReadyAbilities state.entities state.gameTime
+      |> ASet.force
 
     let attackerAbilitiesInitial =
       readyAbilitiesInitial
@@ -974,7 +975,9 @@ type ``Phase3 - Cooldown Management``() =
     Resolution.apply state meleeChange
 
     // Check that melee is no longer ready, but spell still is
-    let readyAfterMelee = Gameplay.GameState.aReadyAbilities state |> ASet.force
+    let readyAfterMelee =
+      Gameplay.GameState.aReadyAbilities state.entities state.gameTime
+      |> ASet.force
 
     let attackerAbilitiesAfterMelee =
       readyAfterMelee
@@ -991,7 +994,8 @@ type ``Phase3 - Cooldown Management``() =
 
     // Check that melee is ready again
     let readyAfterCooldown =
-      Gameplay.GameState.aReadyAbilities state |> ASet.force
+      Gameplay.GameState.aReadyAbilities state.entities state.gameTime
+      |> ASet.force
 
     let attackerAbilitiesAfterCooldown =
       readyAfterCooldown
@@ -1016,7 +1020,9 @@ type ``Phase3 - Cooldown Management``() =
     Resolution.apply state spellChange
 
     // Check that spell is no longer ready, but melee still is
-    let readyAfterSpell = Gameplay.GameState.aReadyAbilities state |> ASet.force
+    let readyAfterSpell =
+      Gameplay.GameState.aReadyAbilities state.entities state.gameTime
+      |> ASet.force
 
     let attackerAbilitiesAfterSpell =
       readyAfterSpell
@@ -1033,7 +1039,8 @@ type ``Phase3 - Cooldown Management``() =
 
     // Check that both abilities are ready again
     let readyAfterBothCooldowns =
-      Gameplay.GameState.aReadyAbilities state |> ASet.force
+      Gameplay.GameState.aReadyAbilities state.entities state.gameTime
+      |> ASet.force
 
     let attackerAbilitiesAfterBoth =
       readyAfterBothCooldowns

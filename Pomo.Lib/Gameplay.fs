@@ -289,26 +289,27 @@ module GameState =
       for entityId, updatedComponents in change.entities do
         state.entities[entityId] <- updatedComponents)
 
-  let aAlive(state: GameState) : aset<int<EntityId>> =
-    state.entities
-    |> AMap.filter(fun _ c -> c.Resources.Status = Attributes.Status.Alive)
+  let aAlive(entities) : aset<int<EntityId>> =
+    entities
     |> AMap.toASet
+    |> ASet.filter(fun (_, c) -> c.Resources.Status = Attributes.Status.Alive)
     |> ASet.map(fun (id, _) -> id)
 
   let aReadyAbilities
-    (state: GameState)
+    entities
+    gameTime
     : aset<(int<EntityId> * int<AbilityId>)> =
     let allCoolDowns =
-      state.entities
+      entities
       |> AMap.toASet
       |> ASet.collect(fun (id, c) ->
         c.AbilityCooldowns
-        |> AMap.map(fun abilityId readyTick -> (id, abilityId, readyTick))
-        |> AMap.toASet)
+        |> AMap.toASet
+        |> ASet.map(fun (abilityId, readyTick) -> id, abilityId, readyTick))
 
     allCoolDowns
-    |> ASet.filterA(fun (_, (_, _, readyTick)) -> adaptive {
-      let! gameTime = state.gameTime
+    |> ASet.filterA(fun (_, _, readyTick) -> adaptive {
+      let! gameTime = gameTime
       return readyTick <= gameTime
     })
-    |> ASet.map(fun (_, (id, abilityId, _)) -> (id, abilityId))
+    |> ASet.map(fun (id, abilityId, _) -> id, abilityId)
