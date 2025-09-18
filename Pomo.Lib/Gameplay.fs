@@ -173,6 +173,9 @@ module GameState =
             member _.tryFind effectId =
               Pomo.Lib.Content.EffectStore.definitions |> Map.tryFind effectId
 
+            member _.find effectId =
+              Pomo.Lib.Content.EffectStore.definitions |> Map.find effectId
+
             member _.asAMap = effMap
 
             member _.asAList = effList
@@ -186,6 +189,9 @@ module GameState =
         { new Services.IAbilityStore with
             member _.tryFind abilityId =
               Pomo.Lib.Content.AbilityStore.definitions |> Map.tryFind abilityId
+
+            member _.find abilityId =
+              Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
 
             member _.asAMap = abilMap
 
@@ -211,72 +217,66 @@ module GameState =
     events: GameEvent IndexList
   }
 
-  let tick (state: GameState) (time: int64<Tick>) : aval<StateChange> =
-    let allEffects =
-      Pomo.Lib.Content.EffectStore.definitions
-      |> HashMap.ofMap
-      |> AMap.ofHashMap
+  let tick (state: GameState) (time: int64<Tick>) : aval<StateChange> = adaptive {
+    let! currentTime = state.gameTime
+    let newTime = currentTime + time
 
-    adaptive {
-      let! currentTime = state.gameTime
-      let newTime = currentTime + time
+    let! allEntityChanges =
+      state.entities
+      |> AMap.mapA(fun entityId components -> adaptive {
+        let! updatedEffects, generatedEvents, tickResult =
+          StatusEffects.tickEffects
+            state.services.effectStore
+            components.Effects
+            time
+            entityId
 
-      let! allEntityChanges =
-        state.entities
-        |> AMap.mapA(fun entityId components -> adaptive {
-          let! updatedEffects, generatedEvents, tickResult =
-            StatusEffects.tickEffects
-              components.Effects
-              allEffects
-              time
-              entityId
+        let! derivedStats = getDerivedStats state |> AMap.tryFind entityId
 
-          let! derivedStats = getDerivedStats state |> AMap.tryFind entityId
+        let maxHp =
+          match derivedStats with
+          | Some stats -> stats.MaxHP
+          | None -> components.Resources.HP
 
-          let maxHp =
-            match derivedStats with
-            | Some stats -> stats.MaxHP
-            | None -> components.Resources.HP
+        let currentHp = components.Resources.HP
+        let newHp = min maxHp (currentHp + tickResult.Healing)
+        let finalHp = max 0 (newHp - tickResult.Damage)
 
-          let currentHp = components.Resources.HP
-          let newHp = min maxHp (currentHp + tickResult.Healing)
-          let finalHp = max 0 (newHp - tickResult.Damage)
+        let updatedResources = {
+          components.Resources with
+              HP = finalHp
+        }
 
-          let updatedResources = {
-            components.Resources with
-                HP = finalHp
-          }
+        let updatedComponents = {
+          components with
+              Effects = updatedEffects |> AList.ofIndexList
+              Resources = updatedResources
+        }
 
-          let updatedComponents = {
-            components with
-                Effects = updatedEffects |> AList.ofIndexList
-                Resources = updatedResources
-          }
-
-          return {
-            components = updatedComponents
-            events = generatedEvents
-          }
-        })
-        |> AMap.toAVal
+        return {
+          components = updatedComponents
+          events = generatedEvents
+        }
+      })
+      |> AMap.toAVal
 
 
-      let events =
-        IndexList.ofList [
-          for _, change in allEntityChanges do
-            yield! change.events
-        ]
+    let events =
+      IndexList.ofList [
+        for _, change in allEntityChanges do
+          yield! change.events
+      ]
 
-      let entities =
-        allEntityChanges |> HashMap.map(fun _ change -> change.components)
+    let entities =
+      allEntityChanges |> HashMap.map(fun _ change -> change.components)
 
 
-      return {
-        entities = entities
-        events = events
-        gameTime = ValueSome newTime
-      }
+    return {
+      entities = entities
+      events = events
+      gameTime = ValueSome newTime
     }
+  }
 
   let applyTick (state: GameState) (change: StateChange) =
     transact(fun _ ->
@@ -289,7 +289,7 @@ module GameState =
       for entityId, updatedComponents in change.entities do
         state.entities[entityId] <- updatedComponents)
 
-  let aAlive(entities) : aset<int<EntityId>> =
+  let aAlive entities : aset<int<EntityId>> =
     entities
     |> AMap.toASet
     |> ASet.filter(fun (_, c) -> c.Resources.Status = Attributes.Status.Alive)

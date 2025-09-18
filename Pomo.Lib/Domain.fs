@@ -249,12 +249,14 @@ module Services =
 
   type IAbilityStore =
     abstract member tryFind: int<AbilityId> -> AbilityDefinition option
+    abstract member find: int<AbilityId> -> AbilityDefinition
     abstract member asList: list<AbilityDefinition>
     abstract member asAList: alist<AbilityDefinition>
     abstract member asAMap: amap<int<AbilityId>, AbilityDefinition>
 
   type IEffectStore =
     abstract member tryFind: int<EffectId> -> EffectDefinition option
+    abstract member find: int<EffectId> -> EffectDefinition
     abstract member asList: list<EffectDefinition>
     abstract member asAList: alist<EffectDefinition>
     abstract member asAMap: amap<int<EffectId>, EffectDefinition>

@@ -44,6 +44,9 @@ module private Phase3Helpers =
             member _.tryFind effectId =
               Pomo.Lib.Content.EffectStore.definitions |> Map.tryFind effectId
 
+            member _.find effectId =
+              Pomo.Lib.Content.EffectStore.definitions |> Map.find effectId
+
             member _.asAMap = effMap
 
             member _.asAList = effList
@@ -57,6 +60,9 @@ module private Phase3Helpers =
         { new Services.IAbilityStore with
             member _.tryFind abilityId =
               Pomo.Lib.Content.AbilityStore.definitions |> Map.tryFind abilityId
+
+            member _.find abilityId =
+              Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
 
             member _.asAMap = abilMap
 

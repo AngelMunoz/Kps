@@ -12,17 +12,6 @@ module StatusEffects =
     (sourceId: int<EntityId>)
     =
 
-    let getDuration(d: Duration) =
-      match d with
-      | Timed t -> t
-      | Instant -> 0L<Tick>
-      | Loop(_, total) -> total
-
-    let getInterval(d: Duration) =
-      match d with
-      | Loop(interval, _) -> interval
-      | _ -> 0L<Tick>
-
     adaptive {
       let! existing =
         targetEffects
@@ -32,16 +21,16 @@ module StatusEffects =
 
       let! effects = targetEffects |> AList.toAVal
 
-
-
       match existing with
       | None ->
         // Effect not present, add it.
         let newEffect = {
           EffectId = effectToApply.Id
           SourceId = sourceId
-          RemainingTicks = getDuration effectToApply.Duration
-          NextTickIn = getInterval effectToApply.Duration
+          RemainingTicks =
+            effectToApply.Duration.Duration |> Option.defaultValue 0L<Tick>
+          NextTickIn =
+            effectToApply.Duration.Interval |> Option.defaultValue 0L<Tick>
           Stacks = 1
         }
 
@@ -58,35 +47,42 @@ module StatusEffects =
                 | NoStack -> e // Do nothing
                 | RefreshDuration -> {
                     e with
-                        RemainingTicks = getDuration effectToApply.Duration
-                        NextTickIn = getInterval effectToApply.Duration
+                        RemainingTicks =
+                          effectToApply.Duration.Duration
+                          |> Option.defaultValue 0L<Tick>
+                        NextTickIn =
+                          effectToApply.Duration.Interval
+                          |> Option.defaultValue 0L<Tick>
                   }
                 | AddStack maxStacks ->
                     {
                       e with
                           Stacks = min maxStacks (e.Stacks + 1)
-                          RemainingTicks = getDuration effectToApply.Duration
-                          NextTickIn = getInterval effectToApply.Duration
+                          RemainingTicks =
+                            effectToApply.Duration.Duration
+                            |> Option.defaultValue 0L<Tick>
+                          NextTickIn =
+                            effectToApply.Duration.Interval
+                            |> Option.defaultValue 0L<Tick>
                     })
             effects
     }
     |> AList.ofAVal
 
   let tickEffects
-    (activeEffects: ActiveEffect alist)
-    allEffects
-    (ticksElapsed: int64<Tick>)
-    (target: int<EntityId>)
+    (effectStore: Services.IEffectStore)
+    activeEffects
+    ticksElapsed
+    target
     =
     adaptive {
       let! effects = activeEffects |> AList.toAVal
-      let! effectDefs = allEffects |> AMap.toAVal
 
       let remaining, expired =
         effects
         |> IndexList.partition(fun effect ->
           let newRemaining = effect.RemainingTicks - ticksElapsed
-          let effectDef = effectDefs[effect.EffectId]
+          let effectDef = effectStore.find effect.EffectId
 
           match effectDef.Duration with
           | Loop(_, _) ->
@@ -115,7 +111,7 @@ module StatusEffects =
 
             let newRemainingTicks = effect.RemainingTicks - ticksElapsed
             let newNextTickIn = effect.NextTickIn - ticksElapsed
-            let effectDef = effectDefs[effect.EffectId]
+            let effectDef = effectStore.find effect.EffectId
 
             let updatedEffect, newEvents, result =
               match effectDef.Duration with
