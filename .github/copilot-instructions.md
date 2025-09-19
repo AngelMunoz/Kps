@@ -24,7 +24,7 @@ The architecture is based on a shared core and platform-specific heads. The core
   ```shell
   dotnet run --project Pomo.DesktopGL
   ```
-- **Running tests**: The tests are located in the `Pomo.Lib.Tests` project. You can run them using the `dotnet test` command.
+- **Running tests**: The tests are located in the `Pomo.Lib.Tests` project. You can run them using the `dotnet test --project ./Pomo.Lib.Tests/Pomo.Lib.Tests.fsproj` command.
 
 ## Architectural and Coding Principles
 
@@ -42,14 +42,9 @@ This project uses a reactive architecture with FSharp.Data.Adaptive (FDA) for it
   - Use `adaptive { ... }` computation expressions to compose multiple adaptive values.
   - When transforming adaptive collections, prefer efficient mapping functions like `AList.mapA` to avoid unnecessary conversions.
 
-### Dependency Injection via Handles
-
-- **Decouple Logic and Effects**: Core game logic should be pure and separated from side-effecting services like logging or content loading.
-- **Service Handle**: Define abstractions for services (e.g., `IContentService`) and pass them into the core logic via a single `IGameServices` handle. This makes dependencies explicit and enhances testability.
-- **Composition Root**: The application's entry point (e.g., in `PomoGame.fs`) is responsible for creating concrete service implementations and assembling the `IGameServices` handle.
-
 ### Testing Strategy
 
-- **Unit Tests with Fakes**: Test core logic modules in isolation by providing fake implementations of the `IGameServices` interfaces.
+- **Unit Tests with Fakes**: Test core logic modules in isolation by providing fake implementations of the `EngineServices` interfaces.
 - **Property-Based Tests**: Use libraries like FsCheck to verify the mathematical correctness of rules, such as stat composition and effect stacking.
 - **Deterministic Simulation**: Leverage the deterministic nature of the core logic by using a fixed seed for the random number generator in tests to reproduce complex scenarios.
+- **FsCheck**: We need to ensure that we're using the right features of the library besides just property testing.
