@@ -67,38 +67,39 @@ module GameState =
                 currentBase with
                     Strength = currentBase.Strength + v
               }
-            | Effects.Stat.Agility -> {
+            | Effects.Stat.Magic -> {
                 currentBase with
-                    Agility = currentBase.Agility + v
+                    Magic = currentBase.Magic + v
               }
-            | Effects.Stat.Intellect -> {
+            | Effects.Stat.Sense -> {
                 currentBase with
-                    Intellect = currentBase.Intellect + v
+                    Sense = currentBase.Sense + v
               }
-            | Effects.Stat.Vitality -> {
+            | Effects.Stat.Charm -> {
                 currentBase with
-                    Vitality = currentBase.Vitality + v
-              }
-            | Effects.Stat.Willpower -> {
-                currentBase with
-                    Willpower = currentBase.Willpower + v
-              }
-            | Effects.Stat.Luck -> {
-                currentBase with
-                    Luck = currentBase.Luck + v
+                    Charm = currentBase.Charm + v
               }
             | _ -> currentBase)
           baseStats
 
       // 2. Calculate initial derived stats from modified base stats
       let initialDerived = {
-        MaxHP = modifiedBase.Vitality * 10
-        MaxMP = modifiedBase.Willpower * 10
+        // Strength derived stats
         AttackPower = modifiedBase.Strength * 2
-        SpellPower = modifiedBase.Intellect * 2
-        Armor = modifiedBase.Agility
-        Evasion = float modifiedBase.Agility / 100.0
-        CritChance = float modifiedBase.Luck / 100.0
+        Accuracy = float modifiedBase.Strength / 100.0
+        Dexterity = modifiedBase.Strength
+        // Magic derived stats
+        MagicPotential = modifiedBase.Magic * 5
+        MagicAttack = modifiedBase.Magic * 2
+        MagicDefense = modifiedBase.Magic
+        // Sense derived stats
+        DetectAbility = modifiedBase.Sense
+        WillPower = modifiedBase.Sense
+        Luck = modifiedBase.Sense
+        // Charm derived stats
+        HealthPoints = modifiedBase.Charm * 10
+        DefensePotential = modifiedBase.Charm / 2
+        Hevasion = float modifiedBase.Charm / 100.0
         Resistances = Map.empty // Placeholder
       }
 
@@ -111,25 +112,53 @@ module GameState =
             let v = value
 
             match stat with
-            | Effects.Stat.MaxHP -> {
+            | Effects.Stat.HealthPoints -> {
                 currentDerived with
-                    MaxHP = currentDerived.MaxHP + v
+                    HealthPoints = currentDerived.HealthPoints + v
               }
-            | Effects.Stat.MaxMP -> {
+            | Effects.Stat.MagicPotential -> {
                 currentDerived with
-                    MaxMP = currentDerived.MaxMP + v
+                    MagicPotential = currentDerived.MagicPotential + v
               }
             | Effects.Stat.AttackPower -> {
                 currentDerived with
                     AttackPower = currentDerived.AttackPower + v
               }
-            | Effects.Stat.SpellPower -> {
+            | Effects.Stat.MagicAttack -> {
                 currentDerived with
-                    SpellPower = currentDerived.SpellPower + v
+                    MagicAttack = currentDerived.MagicAttack + v
               }
-            | Effects.Stat.Armor -> {
+            | Effects.Stat.MagicDefense -> {
                 currentDerived with
-                    Armor = currentDerived.Armor + v
+                    MagicDefense = currentDerived.MagicDefense + v
+              }
+            | Effects.Stat.DetectAbility -> {
+                currentDerived with
+                    DetectAbility = currentDerived.DetectAbility + v
+              }
+            | Effects.Stat.Dexterity -> {
+                currentDerived with
+                    Dexterity = currentDerived.Dexterity + v
+              }
+            | Effects.Stat.WillPower -> {
+                currentDerived with
+                    WillPower = currentDerived.WillPower + v
+              }
+            | Effects.Stat.Luck -> {
+                currentDerived with
+                    Luck = currentDerived.Luck + v
+              }
+            | Effects.Stat.DefensePotential -> {
+                currentDerived with
+                    DefensePotential = currentDerived.DefensePotential + v
+              }
+            | Effects.Stat.Accuracy -> {
+                currentDerived with
+                    Accuracy = currentDerived.Accuracy + float v
+              }
+            | Effects.Stat.Hevasion -> {
+                currentDerived with
+                    Hevasion = currentDerived.Hevasion + float v
               }
             | _ -> currentDerived)
           initialDerived
@@ -235,7 +264,7 @@ module GameState =
 
         let maxHp =
           match derivedStats with
-          | Some stats -> stats.MaxHP
+          | Some stats -> stats.HealthPoints
           | None -> components.Resources.HP
 
         let currentHp = components.Resources.HP

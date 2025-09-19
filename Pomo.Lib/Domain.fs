@@ -50,21 +50,29 @@ module Attributes =
 
   type BaseAttributes = {
     Strength: int
-    Agility: int
-    Intellect: int
-    Vitality: int
-    Willpower: int
-    Luck: int
+    Magic: int
+    Sense: int
+    Charm: int
   }
 
   type DerivedStats = {
-    MaxHP: int
-    MaxMP: int
+    // Strength derived stats
     AttackPower: int
-    SpellPower: int
-    Armor: int
-    Evasion: float
-    CritChance: float
+    Accuracy: float
+    Dexterity: int
+    // Magic derived stats
+    MagicPotential: int
+    MagicAttack: int
+    MagicDefense: int
+    // Sense derived stats
+    DetectAbility: int
+    WillPower: int
+    Luck: int
+    // Charm derived stats
+    HealthPoints: int
+    DefensePotential: int
+    Hevasion: float
+
     Resistances: Map<Element, float>
   }
 
@@ -124,16 +132,21 @@ module Effects =
 
   type Stat =
     | Strength
-    | Agility
-    | Intellect
-    | Vitality
-    | Willpower
-    | Luck
-    | MaxHP
-    | MaxMP
+    | Magic
+    | Sense
+    | Charm
+    | HealthPoints
+    | MagicPotential
     | AttackPower
-    | SpellPower
-    | Armor
+    | Accuracy
+    | Dexterity
+    | MagicAttack
+    | MagicDefense
+    | DetectAbility
+    | WillPower
+    | Luck
+    | DefensePotential
+    | Hevasion
 
   type StatModifier =
     | Additive of Stat * int

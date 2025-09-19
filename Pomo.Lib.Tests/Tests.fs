@@ -22,19 +22,15 @@ module private Generators =
 
   let baseAttributesGen = gen {
     let! str = Gen.choose(1, 100)
-    let! agi = Gen.choose(1, 100)
-    let! intl = Gen.choose(1, 100)
-    let! vit = Gen.choose(1, 100)
-    let! wil = Gen.choose(1, 100)
-    let! luck = Gen.choose(1, 100)
+    let! mag = Gen.choose(1, 100)
+    let! sen = Gen.choose(1, 100)
+    let! charm = Gen.choose(1, 100)
 
     return {
       Strength = str
-      Agility = agi
-      Intellect = intl
-      Vitality = vit
-      Willpower = wil
-      Luck = luck
+      Magic = mag
+      Sense = sen
+      Charm = charm
     }
   }
 
@@ -162,16 +158,16 @@ type ``Derived Stats``() =
     TestHelpers.addEntity state id entity
     let derived = TestHelpers.derivedOf state id
     let expectedAttack = baseAttrs.Strength * 2
-    let expectedSpell = baseAttrs.Intellect * 2
-    let expectedMaxHp = baseAttrs.Vitality * 10
-    let expectedMaxMp = baseAttrs.Willpower * 10
-    let expectedCrit = float baseAttrs.Luck / 100.0
+    let expectedMagicAttack = baseAttrs.Magic * 2
+    let expectedHealthPoints = baseAttrs.Charm * 10
+    let expectedMagicPotential = baseAttrs.Magic * 5
+    let expectedAccuracy = float baseAttrs.Sense / 100.0
 
     expectedAttack = derived.AttackPower
-    && expectedSpell = derived.SpellPower
-    && expectedMaxHp = derived.MaxHP
-    && expectedMaxMp = derived.MaxMP
-    && expectedCrit = derived.CritChance
+    && expectedMagicAttack = derived.MagicAttack
+    && expectedHealthPoints = derived.HealthPoints
+    && expectedMagicPotential = derived.MagicPotential
+    && expectedAccuracy = derived.Accuracy
 
 // --------------------------------------------------
 // Phase 2 Action Resolution Tests
@@ -179,20 +175,16 @@ type ``Derived Stats``() =
 type ``Action Resolution``() =
   let baseA = {
     Strength = 10
-    Agility = 5
-    Intellect = 5
-    Vitality = 10
-    Willpower = 5
-    Luck = 5
+    Magic = 5
+    Sense = 10
+    Charm = 10
   }
 
   let baseB = {
     Strength = 4
-    Agility = 3
-    Intellect = 3
-    Vitality = 8
-    Willpower = 3
-    Luck = 2
+    Magic = 3
+    Sense = 8
+    Charm = 8
   }
 
   [<Fact>]
@@ -218,7 +210,7 @@ type ``Action Resolution``() =
     Resolution.apply state change
 
     let targetAfter = state.entities.[targetId]
-    Assert.Equal(63, targetAfter.Resources.HP)
+    Assert.Equal(64, targetAfter.Resources.HP)
 
     let damageEventExists =
       state.gameEvents
@@ -230,7 +222,7 @@ type ``Action Resolution``() =
       |> AVal.force
       |> Option.get
 
-    Assert.Equal(17, damageEventExists.amount)
+    Assert.Equal(16, damageEventExists.amount)
 
   [<Fact>]
   member _.``Spell casting applies damage, costs MP, and can kill target``() =
@@ -241,20 +233,16 @@ type ``Action Resolution``() =
 
     let casterBase = {
       Strength = 2
-      Agility = 2
-      Intellect = 20
-      Vitality = 5
-      Willpower = 10
-      Luck = 5
+      Magic = 20
+      Sense = 5
+      Charm = 5
     }
 
     let victimBase = {
       Strength = 1
-      Agility = 1
-      Intellect = 1
-      Vitality = 5
-      Willpower = 1
-      Luck = 1
+      Magic = 1
+      Sense = 5
+      Charm = 5
     }
 
     let caster = TestHelpers.makeEntity casterId casterBase 100 100 50 [ spell ]

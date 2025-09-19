@@ -638,7 +638,7 @@ module Resolution =
         let damageResult =
           Combat.calculateMagicalDamage
             Attributes.Element.Neutral
-            actorStats.SpellPower
+            actorStats.MagicAttack
             targetStats
             rng
 

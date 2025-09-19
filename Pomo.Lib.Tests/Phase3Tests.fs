@@ -78,11 +78,9 @@ module private Phase3Helpers =
 
   let baseStats = {
     Strength = 12
-    Agility = 5
-    Intellect = 4
-    Vitality = 10
-    Willpower = 4
-    Luck = 3
+    Magic = 4
+    Sense = 10
+    Charm = 10
   }
 
   let makeEntity

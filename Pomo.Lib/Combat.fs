@@ -18,19 +18,19 @@ module Combat =
     // 1. Check for evasion
     let evasionRoll = rng()
 
-    if evasionRoll < defenderStats.Evasion then
+    if evasionRoll < defenderStats.Hevasion then
       {
         Amount = 0
         IsCritical = false
         IsEvaded = true
       }
-    else
-      // 2. Calculate base damage
-      let baseDamage = max 0 (attackerStats.AttackPower - defenderStats.Armor)
+    else // 2. Calculate base damage
+      let baseDamage =
+        max 0 (attackerStats.AttackPower - defenderStats.DefensePotential)
 
       // 3. Check for critical hit
       let critRoll = rng()
-      let isCritical = critRoll < attackerStats.CritChance
+      let isCritical = critRoll < attackerStats.Accuracy
       let damageMultiplier = if isCritical then 2.0 else 1.0
 
       // 4. Add variance

@@ -23,7 +23,7 @@ module EffectStore =
         Kind = EffectKind.Debuff
         Duration = Timed(20000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = [ StatModifier.Additive(Stat.Armor, -5) ]
+        Modifiers = [ StatModifier.Additive(Stat.DefensePotential, -5) ]
       }
       // Phase 3 Effect Kinds for testing
       100<EffectId>,
