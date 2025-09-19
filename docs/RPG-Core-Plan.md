@@ -35,16 +35,17 @@ Good luck to us — and let’s move methodically.
      - `Stage`: First, Second, Third
      - `Profession`: A record combining `Family` and `Stage`.
    - Elemental Types (`Element` type):
-     - Fire, Earth, Water, Air, Light, Dark, Neutral.   - Stats model:
+     - Fire, Earth, Water, Air, Light, Dark, Neutral.
+   - Stats model:
      - `BaseAttributes` record: Strength, Magic, Sense, Charm
-     - `DerivedStats` record: 
-       - Strength derived: AttackPower, Accuracy, Dexterity
-       - Magic derived: MagicPotential, MagicAttack, MagicDefense
-       - Sense derived: DetectAbility, WillPower, Luck
-       - Charm derived: HealthPoints, DefensePotential, Hevasion
-       - Resistances (`Map<Element, float>`)
+     - `DerivedStats` record:
+     - Strength derived: AttackPower, Accuracy, Dexterity
+     - Magic derived: MagicPotential, MagicAttack, MagicDefense
+     - Sense derived: DetectAbility, WillPower, Luck
+     - Charm derived: HealthPoints, DefensePotential, Hevasion
+     - Resistances (`Map<Element, float>`)
    - Resources (`Resources` record):
-     - HP, MP, Stamina
+     - HP, MP
      - `Status` flag: Alive, Dead, Disabled
    - Inventory and Equipment slots (`Slot` type):
      - Head, Chest, Legs, Hands, Weapon1, Weapon2, Accessory
@@ -64,7 +65,7 @@ Deliverable: types with minimal constructors; no gameplay loop yet.
 
 1. Entity Registry
 
-   - Use an `amap<EntityId, Components>` as the central store for entities. This allows for incremental updates when entities are added, removed, or modified.
+   - Use an `cmap<EntityId, Components>` as the central store for entities. This allows for incremental updates when entities are added, removed, or modified.
    - Component set (start with immutable records):
      - Identity: name, tags, faction, profession
      - Stats: base + modifiers
@@ -223,6 +224,7 @@ Deliverable: play an action or two through keyboard choices; rendering minimal.
 ## Current Implementation Status
 
 ### Completed Features
+
 - **Domain Types**: All core types defined (EntityId, Tick, EffectId, AbilityId, etc.)
 - **Classification System**: Faction, Tag, Family, Stage, Profession
 - **Attributes System**: BaseAttributes and DerivedStats with proper stat derivation
@@ -239,6 +241,7 @@ Deliverable: play an action or two through keyboard choices; rendering minimal.
 - **Event System**: Comprehensive GameEvent types with proper emission
 
 ### Test Coverage
+
 - **Phase 3 Tests**: 12 comprehensive test scenarios covering:
   - Shield absorption and depletion
   - Stun preventing all actions
@@ -250,10 +253,12 @@ Deliverable: play an action or two through keyboard choices; rendering minimal.
   - Cooldown management and ability readiness
 
 ### Content Definitions
+
 - **Effects**: 7 effect definitions including buffs, debuffs, stun, silence, shield, taunt, poison, regeneration
 - **Abilities**: 7 ability definitions including melee attack, fireball, various spells with different mechanics
 
 ### Architecture Highlights
+
 - **Reactive Core**: Uses FSharp.Data.Adaptive for incremental updates
 - **Pure Functions**: Combat calculations and effect processing are deterministic
 - **Dependency Injection**: Services abstracted through interfaces for testability
@@ -316,6 +321,7 @@ let apply (state: GameState) (cmd:Command) =
 ```
 
 ## Minimal Milestones Checklist
+
 - Phase 0: Types and RNG ✓
 - Phase 1: Entity store + FDA projections ✓
 - Phase 2: Commands + resolution + events (MeleeAttack + simple spell) ✓
