@@ -14,7 +14,7 @@ module EffectStore =
         Kind = EffectKind.Buff
         Duration = Timed(30000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = FSharp.Data.Adaptive.IndexList.ofList [ StatModifier.Additive(Stat.Strength, 5) ]
+        Modifiers = FSharp.Data.Adaptive.IndexList.ofList [ StatModifier.Additive(Stat.Power, 5) ]
       }
       2<EffectId>,
       {
@@ -23,7 +23,7 @@ module EffectStore =
         Kind = EffectKind.Debuff
         Duration = Timed(20000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = FSharp.Data.Adaptive.IndexList.ofList [ StatModifier.Additive(Stat.DefensePotential, -5) ]
+        Modifiers = FSharp.Data.Adaptive.IndexList.ofList [ StatModifier.Additive(Stat.DP, -5) ]
       }
       // Phase 3 Effect Kinds for testing
       100<EffectId>,

@@ -30,6 +30,9 @@ The architecture is based on a shared core and platform-specific heads. The core
 
 ### 🤖 AI AGENT NOTICE: PROGRAMMING PARADIGM HIERARCHY 🤖
 
+- Do not add extra comments to the code.
+- Follow the coding style and conventions used in the existing codebase.
+
 **MANDATORY PARADIGM ORDER - STRICTLY ENFORCE:**
 
 1. **PRIMARY: Data Oriented Programming (DOP)** - Default programming style

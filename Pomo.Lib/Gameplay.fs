@@ -63,9 +63,9 @@ module GameState =
             let v = value
 
             match stat with
-            | Effects.Stat.Strength -> {
+            | Effects.Stat.Power -> {
                 currentBase with
-                    Strength = currentBase.Strength + v
+                    Power = currentBase.Power + v
               }
             | Effects.Stat.Magic -> {
                 currentBase with
@@ -84,22 +84,22 @@ module GameState =
 
       // 2. Calculate initial derived stats from modified base stats
       let initialDerived = {
-        // Strength derived stats
-        AttackPower = modifiedBase.Strength * 2
-        Accuracy = float modifiedBase.Strength / 100.0
-        Dexterity = modifiedBase.Strength
+        // Power derived stats
+        AP = modifiedBase.Power * 2
+        AC = float modifiedBase.Power / 100.0
+        DX = modifiedBase.Power
         // Magic derived stats
-        MagicPotential = modifiedBase.Magic * 5
-        MagicAttack = modifiedBase.Magic * 2
-        MagicDefense = modifiedBase.Magic
+        MP = modifiedBase.Magic * 5
+        MA = modifiedBase.Magic * 2
+        MD = modifiedBase.Magic
         // Sense derived stats
-        DetectAbility = modifiedBase.Sense
-        WillPower = modifiedBase.Sense
-        Luck = modifiedBase.Sense
+        WT = modifiedBase.Sense
+        DA = modifiedBase.Sense
+        LK = modifiedBase.Sense
         // Charm derived stats
-        HealthPoints = modifiedBase.Charm * 10
-        DefensePotential = modifiedBase.Charm / 2
-        Hevasion = float modifiedBase.Charm / 100.0
+        HP = modifiedBase.Charm * 10
+        DP = modifiedBase.Charm / 2
+        HV = float modifiedBase.Charm / 100.0
         Resistances = FSharp.Data.Adaptive.HashMap.empty // Placeholder
       }
 
@@ -108,57 +108,57 @@ module GameState =
         additiveModifiers
         |> AMap.fold
           (fun acc stat value ->
-            let currentDerived = acc
+            let currentDerived: DerivedStats = acc
             let v = value
 
             match stat with
-            | Effects.Stat.HealthPoints -> {
+            | Effects.Stat.HealthPool -> {
                 currentDerived with
-                    HealthPoints = currentDerived.HealthPoints + v
+                    HP = currentDerived.HP + v
               }
-            | Effects.Stat.MagicPotential -> {
+            | Effects.Stat.ManaPool -> {
                 currentDerived with
-                    MagicPotential = currentDerived.MagicPotential + v
+                    MP = currentDerived.MP + v
               }
-            | Effects.Stat.AttackPower -> {
+            | Effects.Stat.AP -> {
                 currentDerived with
-                    AttackPower = currentDerived.AttackPower + v
+                    AP = currentDerived.AP + v
               }
-            | Effects.Stat.MagicAttack -> {
+            | Effects.Stat.MA -> {
                 currentDerived with
-                    MagicAttack = currentDerived.MagicAttack + v
+                    MA = currentDerived.MA + v
               }
-            | Effects.Stat.MagicDefense -> {
+            | Effects.Stat.MD -> {
                 currentDerived with
-                    MagicDefense = currentDerived.MagicDefense + v
+                    MD = currentDerived.MD + v
               }
-            | Effects.Stat.DetectAbility -> {
+            | Effects.Stat.DA -> {
                 currentDerived with
-                    DetectAbility = currentDerived.DetectAbility + v
+                    DA = currentDerived.DA + v
               }
-            | Effects.Stat.Dexterity -> {
+            | Effects.Stat.DX -> {
                 currentDerived with
-                    Dexterity = currentDerived.Dexterity + v
+                    DX = currentDerived.DX + v
               }
-            | Effects.Stat.WillPower -> {
+            | Effects.Stat.WT -> {
                 currentDerived with
-                    WillPower = currentDerived.WillPower + v
+                    WT = currentDerived.WT + v
               }
-            | Effects.Stat.Luck -> {
+            | Effects.Stat.LK -> {
                 currentDerived with
-                    Luck = currentDerived.Luck + v
+                    LK = currentDerived.LK + v
               }
-            | Effects.Stat.DefensePotential -> {
+            | Effects.Stat.DP -> {
                 currentDerived with
-                    DefensePotential = currentDerived.DefensePotential + v
+                    DP = currentDerived.DP + v
               }
-            | Effects.Stat.Accuracy -> {
+            | Effects.Stat.AC -> {
                 currentDerived with
-                    Accuracy = currentDerived.Accuracy + float v
+                    AC = currentDerived.AC + float v
               }
-            | Effects.Stat.Hevasion -> {
+            | Effects.Stat.HV -> {
                 currentDerived with
-                    Hevasion = currentDerived.Hevasion + float v
+                    HV = currentDerived.HV + float v
               }
             | _ -> currentDerived)
           initialDerived
@@ -200,7 +200,9 @@ module GameState =
       effectStore =
         { new Services.IEffectStore with
             member _.tryFind effectId =
-              Pomo.Lib.Content.EffectStore.definitions |> Map.tryFind effectId |> ValueOption.ofOption
+              Pomo.Lib.Content.EffectStore.definitions
+              |> Map.tryFind effectId
+              |> ValueOption.ofOption
 
             member _.find effectId =
               Pomo.Lib.Content.EffectStore.definitions |> Map.find effectId
@@ -210,13 +212,18 @@ module GameState =
             member _.asAList = effList
 
             member _.asList =
-              [ for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions -> v ]
+              [
+                for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions ->
+                  v
+              ]
               |> FSharp.Data.Adaptive.IndexList.ofList
         }
       abilityStore =
         { new Services.IAbilityStore with
             member _.tryFind abilityId =
-              Pomo.Lib.Content.AbilityStore.definitions |> Map.tryFind abilityId |> ValueOption.ofOption
+              Pomo.Lib.Content.AbilityStore.definitions
+              |> Map.tryFind abilityId
+              |> ValueOption.ofOption
 
             member _.find abilityId =
               Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
@@ -226,7 +233,10 @@ module GameState =
             member _.asAList = abilList
 
             member _.asList =
-              [ for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions -> v ]
+              [
+                for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions ->
+                  v
+              ]
               |> FSharp.Data.Adaptive.IndexList.ofList
         }
       rng = fun () -> System.Random().NextDouble()
@@ -263,7 +273,7 @@ module GameState =
 
         let maxHp =
           match derivedStats with
-          | Some stats -> stats.HealthPoints
+          | Some stats -> stats.HP
           | None -> components.Resources.HP
 
         let currentHp = components.Resources.HP

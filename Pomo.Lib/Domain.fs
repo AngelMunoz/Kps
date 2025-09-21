@@ -57,7 +57,7 @@ module Attributes =
 
   [<Struct>]
   type BaseAttributes = {
-    Strength: int
+    Power: int
     Magic: int
     Sense: int
     Charm: int
@@ -65,22 +65,22 @@ module Attributes =
 
   [<Struct>]
   type DerivedStats = {
-    // Strength derived stats
-    AttackPower: int
-    Accuracy: float
-    Dexterity: int
+    // Power derived stats
+    AP: int
+    AC: float
+    DX: int
     // Magic derived stats
-    MagicPotential: int
-    MagicAttack: int
-    MagicDefense: int
+    MP: int
+    MA: int
+    MD: int
     // Sense derived stats
-    DetectAbility: int
-    WillPower: int
-    Luck: int
+    WT: int
+    DA: int
+    LK: int
     // Charm derived stats
-    HealthPoints: int
-    DefensePotential: int
-    Hevasion: float
+    HP: int
+    DP: int
+    HV: float
 
     Resistances: FSharp.Data.Adaptive.HashMap<Element, float>
   }
@@ -147,22 +147,24 @@ module Effects =
 
   [<Struct>]
   type Stat =
-    | Strength
+    // Base attributes
+    | Power
     | Magic
     | Sense
     | Charm
-    | HealthPoints
-    | MagicPotential
-    | AttackPower
-    | Accuracy
-    | Dexterity
-    | MagicAttack
-    | MagicDefense
-    | DetectAbility
-    | WillPower
-    | Luck
-    | DefensePotential
-    | Hevasion
+    // Derived stats (using game definition names)
+    | AP // Attack Power
+    | AC // Accuracy
+    | DX // Dexterity
+    | ManaPool // MP (Mana Pool)
+    | MA // Magic Attack
+    | MD // Magic Defense
+    | WT // Weight
+    | DA // Detect Ability
+    | LK // Luck
+    | HealthPool // HP (Health Pool)
+    | DP // Defense Points
+    | HV // Evasion
 
   [<Struct>]
   type StatModifier =

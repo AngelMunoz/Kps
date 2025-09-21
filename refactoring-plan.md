@@ -90,12 +90,12 @@ Before proceeding to Phase 4, we need to align the current implementation with t
 - [x] Update content definitions
 
 #### Step 3: Stat System Refactoring (Most Complex)
-- [ ] Create new DerivedStats record with correct names
-- [ ] Handle MP/HP naming conflicts (keep as resources, use different derived stat names)
-- [ ] Add WT (Weight) stat derived from Sense
-- [ ] Update stat calculation formulas
-- [ ] Migrate Effects.Stat enum
-- [ ] Update all stat references in combat and effects
+- [x] Create new DerivedStats record with correct names
+- [x] Handle MP/HP naming conflicts (keep as resources, use different derived stat names)
+- [x] Add WT (Weight) stat derived from Sense
+- [x] Update stat calculation formulas
+- [x] Migrate Effects.Stat enum
+- [x] Update all stat references in combat and effects
 
 #### Step 4: Targeting System Implementation (Critical for Resolution)
 - [ ] Define targeting types (Self, SingleTarget, MultiTarget)

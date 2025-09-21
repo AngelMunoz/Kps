@@ -27,7 +27,7 @@ module private Generators =
     let! charm = Gen.choose(1, 100)
 
     return {
-      Strength = str
+      Power = str
       Magic = mag
       Sense = sen
       Charm = charm
@@ -165,31 +165,31 @@ type ``Derived Stats``() =
     let entity = TestHelpers.makeEntity id baseAttrs 100 100 100 []
     TestHelpers.addEntity state id entity
     let derived = TestHelpers.derivedOf state id
-    let expectedAttack = baseAttrs.Strength * 2
+    let expectedAttack = baseAttrs.Power * 2
     let expectedMagicAttack = baseAttrs.Magic * 2
     let expectedHealthPoints = baseAttrs.Charm * 10
     let expectedMagicPotential = baseAttrs.Magic * 5
-    let expectedAccuracy = float baseAttrs.Sense / 100.0
+    let expectedAccuracy = float baseAttrs.Power / 100.0
 
-    expectedAttack = derived.AttackPower
-    && expectedMagicAttack = derived.MagicAttack
-    && expectedHealthPoints = derived.HealthPoints
-    && expectedMagicPotential = derived.MagicPotential
-    && expectedAccuracy = derived.Accuracy
+    expectedAttack = derived.AP
+    && expectedMagicAttack = derived.MA
+    && expectedHealthPoints = derived.HP
+    && expectedMagicPotential = derived.MP
+    && expectedAccuracy = derived.AC
 
 // --------------------------------------------------
 // Phase 2 Action Resolution Tests
 // --------------------------------------------------
 type ``Action Resolution``() =
   let baseA = {
-    Strength = 10
+    Power = 10
     Magic = 5
     Sense = 10
     Charm = 10
   }
 
   let baseB = {
-    Strength = 4
+    Power = 4
     Magic = 3
     Sense = 8
     Charm = 8
@@ -241,14 +241,14 @@ type ``Action Resolution``() =
     let spell = 2<AbilityId>
 
     let casterBase = {
-      Strength = 2
+      Power = 2
       Magic = 20
       Sense = 5
       Charm = 5
     }
 
     let victimBase = {
-      Strength = 1
+      Power = 1
       Magic = 1
       Sense = 5
       Charm = 5

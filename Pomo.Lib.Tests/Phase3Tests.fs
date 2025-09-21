@@ -75,7 +75,7 @@ module private Phase3Helpers =
     }
 
   let baseStats = {
-    Strength = 12
+    Power = 12
     Magic = 4
     Sense = 10
     Charm = 10
