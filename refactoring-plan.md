@@ -43,7 +43,20 @@ Before proceeding to Phase 4, we need to align the current implementation with t
 **Impact:** Medium - affects combat system and content definitions
 **Files to update:** Domain.fs, Combat.fs, Content.fs
 
-### 4. Damage Calculation System (Combat.fs)
+### 4. Targeting System (Resolution.fs)
+**Current:** Single target only (actor → target)
+**Required:** Multi-target capabilities per game definitions
+
+**Missing implementation:**
+- Single Target (Self, Ally, Enemy)
+- Multi Target (defined amount of allies, enemies, both, or self)
+- Target validation and selection logic
+- Resolution system updates to handle multiple targets
+
+**Impact:** High - core ability system architecture
+**Files to update:** Domain.fs (new targeting types), Resolution.fs, Abilities module
+
+### 5. Damage Calculation System (Combat.fs)
 **Current:** Basic physical/magical damage  
 **Required:** 4-step process with elemental damage integration
 
@@ -84,14 +97,22 @@ Before proceeding to Phase 4, we need to align the current implementation with t
 - [ ] Migrate Effects.Stat enum
 - [ ] Update all stat references in combat and effects
 
-#### Step 4: Implement Elemental Damage System
+#### Step 4: Targeting System Implementation (Critical for Resolution)
+- [ ] Define targeting types (Self, SingleTarget, MultiTarget)
+- [ ] Add targeting validation logic
+- [ ] Update AbilityDefinition to include targeting information
+- [ ] Refactor Resolution system to handle multiple targets
+- [ ] Update Command types to support target lists
+
+#### Step 5: Implement Elemental Damage System
 - [ ] Create elemental damage calculation module
 - [ ] Integrate with existing combat system
 - [ ] Implement 4-step damage process from game definitions
 - [ ] Update ability definitions to include elemental types
 
-#### Step 5: Update Tests and Content
+#### Step 6: Update Tests and Content
 - [ ] Migrate all test cases to new stat names
+- [ ] Add tests for multi-target abilities
 - [ ] Update content definitions
 - [ ] Add tests for elemental damage system
 - [ ] Verify all Phase 3 functionality still works
@@ -100,7 +121,8 @@ Before proceeding to Phase 4, we need to align the current implementation with t
 
 ### High Risk Changes:
 1. **Stat system refactoring** - touches every module
-2. **Damage calculation changes** - core game mechanic
+2. **Targeting system changes** - affects resolution architecture and command handling
+3. **Damage calculation changes** - core game mechanic
 
 ### Mitigation:
 - Maintain comprehensive test coverage
