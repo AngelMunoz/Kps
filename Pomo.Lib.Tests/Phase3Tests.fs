@@ -110,7 +110,7 @@ module private Phase3Helpers =
 
     {
       Identity = {
-        Family = Classification.Family.Strength
+        Family = Classification.Family.Power
         Stage = Classification.Stage.First
       }
       BaseStats = baseStats

@@ -221,49 +221,58 @@ Deliverable: simple loop: fight -> reward -> progress.
 
 Deliverable: play an action or two through keyboard choices; rendering minimal.
 
-## Current Implementation Status
+## Current Implementation Status (Updated)
 
-### Completed Features
+### ✅ COMPLETED - Phase 0-3 (Ready for Phase 4)
 
-- **Domain Types**: All core types defined (EntityId, Tick, EffectId, AbilityId, etc.)
-- **Classification System**: Faction, Tag, Family, Stage, Profession
-- **Attributes System**: BaseAttributes and DerivedStats with proper stat derivation
-- **Effects Framework**: Complete with EffectKind, StackingRule, Duration, StatModifier
-- **Abilities System**: AbilityDefinition with costs, cooldowns, and effects
-- **Entity Component System**: All component with Identity, BaseStats, Resources, Effects, Abilities, AbilityCooldowns
-- **Services Architecture**: IAbilityStore, IEffectStore, EngineServices with dependency injection
-- **Game State Management**: Reactive GameState with FDA (FSharp.Data.Adaptive)
-- **Combat System**: Physical and magical damage calculation with variance, crits, evasion
-- **Status Effects**: Complete implementation with stacking, duration, periodic effects (DoT/HoT)
-- **Action Resolution**: MeleeAttack and CastSpell with validation, costs, cooldowns
-- **Effect Processing**: Shield absorption, Stun, Silence, Taunt mechanics
-- **Time Management**: Tick-based system with cooldown tracking
-- **Event System**: Comprehensive GameEvent types with proper emission
+**Core Foundation:**
+- ✅ Domain Types: EntityId, Tick, EffectId, AbilityId with proper UMX measures
+- ✅ Classification System: Faction, Tag, Family (Strength/Magic/Sense/Charm), Stage, Profession
+- ✅ Base Attributes: Strength, Magic, Sense, Charm with derived stat calculations
+- ✅ Derived Stats: All 12 stats properly calculated from base attributes
+- ✅ Element System: Fire, Earth, Water, Air, Light, Dark, Neutral
 
-### Test Coverage
+**Effects & Abilities:**
+- ✅ Effect Framework: Complete with 8 effect kinds (Buff, Debuff, DoT, HoT, Stun, Silence, Taunt, Shield)
+- ✅ Stacking Rules: NoStack, RefreshDuration, AddStack with proper mechanics
+- ✅ Duration System: Instant, Timed, Loop (periodic) with tick management
+- ✅ Ability System: Costs (HP/MP/Stamina), cooldowns, effect application
+- ✅ Stat Modifiers: Additive and multiplicative stat modifications
 
-- **Phase 3 Tests**: 12 comprehensive test scenarios covering:
-  - Shield absorption and depletion
-  - Stun preventing all actions
-  - Silence blocking spells but allowing melee
-  - Taunt redirection mechanics
-  - Effect stacking rules (NoStack, RefreshDuration, AddStack)
-  - DoT/HoT periodic damage and healing
-  - Deterministic RNG for reproducible results
-  - Cooldown management and ability readiness
+**Combat & Resolution:**
+- ✅ Physical Combat: AttackPower vs DefensePotential with evasion and crits
+- ✅ Magical Combat: MagicAttack with elemental resistance
+- ✅ Action Validation: Resource costs, cooldowns, status effect restrictions
+- ✅ Shield Mechanics: Damage absorption with stack-based depletion
+- ✅ Status Effects: Stun (blocks all), Silence (blocks spells), Taunt (redirects target)
 
-### Content Definitions
+**Reactive Architecture:**
+- ✅ FDA Integration: Full FSharp.Data.Adaptive reactive state management
+- ✅ GameState: Centralized state with entities, events, time, services
+- ✅ Derived Views: Alive entities, ready abilities, derived stats as adaptive projections
+- ✅ Event System: Comprehensive GameEvent types with proper emission
+- ✅ Services: IAbilityStore, IEffectStore with dependency injection
 
-- **Effects**: 7 effect definitions including buffs, debuffs, stun, silence, shield, taunt, poison, regeneration
-- **Abilities**: 7 ability definitions including melee attack, fireball, various spells with different mechanics
+**Testing & Quality:**
+- ✅ Phase 3 Tests: 12 comprehensive scenarios covering all major mechanics
+- ✅ Deterministic RNG: Reproducible combat and effect outcomes
+- ✅ Property Testing: Ready for FsCheck integration
+- ✅ Content Definitions: 7 effects + 7 abilities for testing
 
-### Architecture Highlights
+### 📋 READY FOR PHASE 4 - Ability/Spell System Enhancement
 
-- **Reactive Core**: Uses FSharp.Data.Adaptive for incremental updates
-- **Pure Functions**: Combat calculations and effect processing are deterministic
-- **Dependency Injection**: Services abstracted through interfaces for testability
-- **Immutable State**: All state changes go through controlled transactions
-- **Event Sourcing**: All game actions produce events for debugging and replay
+**Current Capabilities:**
+- Basic single-target abilities (MeleeAttack, CastSpell)
+- Effect application and management
+- Resource costs and cooldown tracking
+- Status effect interactions
+
+**Phase 4 Goals:**
+- Enhanced targeting system (Self, Multi-target, AoE)
+- Data-driven ability definitions with formulas
+- Elemental damage integration
+- Advanced ability mechanics (charges, cast time, interruption)
+- Expanded content library
 
 ## Reactive Core Sketch (F# + FDA)
 
@@ -320,13 +329,18 @@ let apply (state: GameState) (cmd:Command) =
     state.gameEvents.AddMany(newEvents))
 ```
 
-## Minimal Milestones Checklist
+## Milestones Checklist
 
-- Phase 0: Types and RNG ✓
-- Phase 1: Entity store + FDA projections ✓
-- Phase 2: Commands + resolution + events (MeleeAttack + simple spell) ✓
-- Phase 3: Combat maths and effects (formulas, status framework, resources/costs) ✓
-- Phase 3.5: Architectural Refinement (DI) ✓
+- ✅ Phase 0: Types and RNG
+- ✅ Phase 1: Entity store + FDA projections  
+- ✅ Phase 2: Commands + resolution + events (MeleeAttack + simple spell)
+- ✅ Phase 3: Combat maths and effects (formulas, status framework, resources/costs)
+- ✅ Phase 3.5: Architectural Refinement (DI)
+- 🎯 **CURRENT**: Phase 4 Preparation - Refactoring and alignment
+- ⏳ Phase 4: Enhanced Ability/Spell System
+- ⏳ Phase 5: Save/Load and Determinism
+- ⏳ Phase 6: Content and Progression
+- ⏳ Phase 7: MonoGame Integration
 
 ## How to Integrate Into PomoGame (later)
 

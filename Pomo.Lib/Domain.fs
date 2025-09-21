@@ -29,10 +29,10 @@ module Classification =
 
   [<Struct>]
   type Family =
-    | Strength
+    | Power
     | Magic
     | Charm
-    | Sensory
+    | Sense
 
   [<Struct>]
   type Stage =
