@@ -4,6 +4,7 @@ open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Attributes
 
 module Combat =
+  [<Struct>]
   type DamageResult = {
     Amount: int
     IsCritical: bool
@@ -51,8 +52,11 @@ module Combat =
     =
     // 1. Get resistance for the element
     let resistance =
-      Map.tryFind spellElement defenderStats.Resistances
-      |> Option.defaultValue 0.0
+      FSharp.Data.Adaptive.HashMap.tryFind
+        spellElement
+        defenderStats.Resistances
+      |> Option.toValueOption
+      |> ValueOption.defaultValue 0.0
 
     // 2. Calculate damage reduction from resistance
     let damageReduction = 1.0 - resistance

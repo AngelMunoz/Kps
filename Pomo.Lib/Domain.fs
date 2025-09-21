@@ -15,30 +15,36 @@ type EffectId
 type AbilityId
 
 module Classification =
+  [<Struct>]
   type Faction =
     | Player
     | Enemy
     | Neutral
 
+  [<Struct>]
   type Tag =
     | Biological
     | Artificial
     | Undead
 
+  [<Struct>]
   type Family =
     | Strength
     | Magic
     | Charm
     | Sensory
 
+  [<Struct>]
   type Stage =
     | First
     | Second
     | Third
 
+  [<Struct>]
   type Profession = { Family: Family; Stage: Stage }
 
 module Attributes =
+  [<Struct>]
   type Element =
     | Fire
     | Earth
@@ -48,6 +54,7 @@ module Attributes =
     | Dark
     | Neutral
 
+  [<Struct>]
   type BaseAttributes = {
     Strength: int
     Magic: int
@@ -55,6 +62,7 @@ module Attributes =
     Charm: int
   }
 
+  [<Struct>]
   type DerivedStats = {
     // Strength derived stats
     AttackPower: int
@@ -73,14 +81,16 @@ module Attributes =
     DefensePotential: int
     Hevasion: float
 
-    Resistances: Map<Element, float>
+    Resistances: FSharp.Data.Adaptive.HashMap<Element, float>
   }
 
+  [<Struct>]
   type Status =
     | Alive
     | Dead
     | Disabled
 
+  [<Struct>]
   type Resources = {
     HP: int
     MP: int
@@ -89,6 +99,7 @@ module Attributes =
   }
 
 module Inventory =
+  [<Struct>]
   type Slot =
     | Head
     | Chest
@@ -99,6 +110,7 @@ module Inventory =
     | Accessory
 
 module Effects =
+  [<Struct>]
   type EffectKind =
     | Buff
     | Debuff
@@ -109,11 +121,13 @@ module Effects =
     | Taunt
     | Shield of int
 
+  [<Struct>]
   type StackingRule =
     | NoStack
     | RefreshDuration
     | AddStack of int // max stacks
 
+  [<Struct>]
   type Duration =
     | Instant
     | Timed of int64<Tick>
@@ -121,15 +135,16 @@ module Effects =
 
     member this.Duration =
       match this with
-      | Instant -> None
-      | Timed d -> Some d
-      | Loop(_, d) -> Some d
+      | Instant -> ValueNone
+      | Timed d -> ValueSome d
+      | Loop(_, d) -> ValueSome d
 
     member this.Interval =
       match this with
-      | Loop(i, _) -> Some i
-      | _ -> None
+      | Loop(i, _) -> ValueSome i
+      | _ -> ValueNone
 
+  [<Struct>]
   type Stat =
     | Strength
     | Magic
@@ -148,19 +163,22 @@ module Effects =
     | DefensePotential
     | Hevasion
 
+  [<Struct>]
   type StatModifier =
-    | Additive of Stat * int
-    | Multiplicative of Stat * float
+    | Additive of addStat: Stat * adStatValue: int
+    | Multiplicative of mulStat: Stat * mulStatValue: float
 
+  [<Struct>]
   type EffectDefinition = {
     Id: int<EffectId>
     Name: string
     Kind: EffectKind
     Stacking: StackingRule
     Duration: Duration
-    Modifiers: StatModifier list
+    Modifiers: FSharp.Data.Adaptive.IndexList<StatModifier>
   }
 
+  [<Struct>]
   type ActiveEffect = {
     EffectId: int<EffectId> // Corresponds to a definition
     SourceId: int<EntityId>
@@ -172,74 +190,88 @@ module Effects =
 module Abilities =
   open Effects
 
+  [<Struct>]
   type ResourceType =
     | HP
     | MP
     | Stamina
 
+  [<Struct>]
   type ResourceCost = { Type: ResourceType; Amount: int }
 
+  [<Struct>]
   type AbilityDefinition = {
     Id: int<AbilityId>
     Name: string
     Cooldown: int64<Tick>
-    Cost: ResourceCost option
-    Effects: int<EffectId> list
+    Cost: ResourceCost voption
+    Effects: FSharp.Data.Adaptive.IndexList<int<EffectId>>
   }
 
 module AggregatedEffects =
+  [<Struct>]
   type TickResult = { Damage: int; Healing: int }
 
   let empty = { Damage = 0; Healing = 0 }
 
 module GameEvent =
+  [<Struct>]
   type DamageAppliedEvent = { target: int<EntityId>; amount: int }
 
+  [<Struct>]
   type HealedEvent = { target: int<EntityId>; amount: int }
 
+  [<Struct>]
   type ResourceChangedEvent = {
     target: int<EntityId>
     resource: string
     newValue: int
   }
 
+  [<Struct>]
   type EffectAppliedEvent = {
     target: int<EntityId>
     effectId: int<EffectId>
     source: int<EntityId>
   }
 
+  [<Struct>]
   type EffectExpiredEvent = {
     target: int<EntityId>
     effectId: int<EffectId>
   }
 
+  [<Struct>]
   type EntityDiedEvent = { entityId: int<EntityId> }
 
+  [<Struct>]
   type GameEvent =
-    | DamageApplied of DamageAppliedEvent
-    | Healed of HealedEvent
-    | ResourceChanged of ResourceChangedEvent
-    | EffectApplied of EffectAppliedEvent
-    | EffectExpired of EffectExpiredEvent
-    | EntityDied of EntityDiedEvent
+    | DamageApplied of dmgAE: DamageAppliedEvent
+    | Healed of healE: HealedEvent
+    | ResourceChanged of resCE: ResourceChangedEvent
+    | EffectApplied of effAE: EffectAppliedEvent
+    | EffectExpired of effEE: EffectExpiredEvent
+    | EntityDied of entDieDE: EntityDiedEvent
 
 module Rules =
+  [<Struct>]
   type MeleeAttackAction = {
     actor: int<EntityId>
     target: int<EntityId>
     abilityId: int<AbilityId>
   }
 
+  [<Struct>]
   type CastSpellAction = {
     actor: int<EntityId>
     target: int<EntityId>
     abilityId: int<AbilityId>
   }
 
+  [<Struct>]
   type Command =
-    | MeleeAttack of MeleeAttackAction
-    | CastSpell of CastSpellAction
+    | MeleeAttack of mAction: MeleeAttackAction
+    | CastSpell of cSpell: CastSpellAction
 
 
 module Components =
@@ -261,16 +293,16 @@ module Services =
   open Effects
 
   type IAbilityStore =
-    abstract member tryFind: int<AbilityId> -> AbilityDefinition option
+    abstract member tryFind: int<AbilityId> -> AbilityDefinition voption
     abstract member find: int<AbilityId> -> AbilityDefinition
-    abstract member asList: list<AbilityDefinition>
+    abstract member asList: FSharp.Data.Adaptive.IndexList<AbilityDefinition>
     abstract member asAList: alist<AbilityDefinition>
     abstract member asAMap: amap<int<AbilityId>, AbilityDefinition>
 
   type IEffectStore =
-    abstract member tryFind: int<EffectId> -> EffectDefinition option
+    abstract member tryFind: int<EffectId> -> EffectDefinition voption
     abstract member find: int<EffectId> -> EffectDefinition
-    abstract member asList: list<EffectDefinition>
+    abstract member asList: FSharp.Data.Adaptive.IndexList<EffectDefinition>
     abstract member asAList: alist<EffectDefinition>
     abstract member asAMap: amap<int<EffectId>, EffectDefinition>
 
@@ -285,8 +317,9 @@ module State =
   open Components
   open GameEvent
 
+  [<Struct>]
   type StateChange = {
-    entities: HashMap<int<EntityId>, All>
-    events: GameEvent IndexList
+    entities: FSharp.Data.Adaptive.HashMap<int<EntityId>, All>
+    events: FSharp.Data.Adaptive.IndexList<GameEvent>
     gameTime: int64<Tick> voption
   }

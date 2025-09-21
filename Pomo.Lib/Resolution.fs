@@ -36,13 +36,13 @@ module Resolution =
           let effectDef = effectStore.tryFind effect.EffectId
 
           match effectDef with
-          | None -> false
-          | Some effectDef -> effectDef.Kind = Effects.EffectKind.Taunt)
+          | ValueNone -> false
+          | ValueSome effectDef -> effectDef.Kind = Effects.EffectKind.Taunt)
 
       let! isEmpty = AList.isEmpty tauntEffects
 
       if isEmpty then
-        return None // No taunt, use intended target
+        return ValueNone // No taunt, use intended target
       else
         // If taunted, must target the source of the most recent taunt effect
         let! mostRecentTaunt =
@@ -59,8 +59,8 @@ module Resolution =
             None
 
         match mostRecentTaunt with
-        | Some taunt -> return Some taunt.SourceId
-        | None -> return None // Fallback, should not happen
+        | Some taunt -> return ValueSome taunt.SourceId
+        | None -> return ValueNone // Fallback, should not happen
     }
 
 
@@ -73,8 +73,8 @@ module Resolution =
         let def = effectStore.tryFind e.EffectId
 
         match def with
-        | None -> false
-        | Some def -> def.Kind = Effects.EffectKind.Stun)
+        | ValueNone -> false
+        | ValueSome def -> def.Kind = Effects.EffectKind.Stun)
 
     let checkSilence
       (effectStore: IEffectStore)
@@ -88,13 +88,13 @@ module Resolution =
             let def = effectStore.tryFind e.EffectId
 
             match def with
-            | None -> false
-            | Some def -> def.Kind = Effects.EffectKind.Silence)
+            | ValueNone -> false
+            | ValueSome def -> def.Kind = Effects.EffectKind.Silence)
 
         let isSpellAbility =
           match abilityDef.Cost with
-          | Some cost -> cost.Type = Abilities.ResourceType.MP
-          | None -> false
+          | ValueSome cost -> cost.Type = Abilities.ResourceType.MP
+          | ValueNone -> false
 
         return hasSilence && isSpellAbility
       }
@@ -119,7 +119,7 @@ module Resolution =
       (abilityDef: Abilities.AbilityDefinition)
       =
       match abilityDef.Cost with
-      | Some c ->
+      | ValueSome c ->
         let hasEnough =
           match c.Type with
           | Abilities.ResourceType.HP -> actor.Resources.HP >= c.Amount
@@ -127,8 +127,8 @@ module Resolution =
           | Abilities.ResourceType.Stamina ->
             actor.Resources.Stamina >= c.Amount
 
-        hasEnough, Some c
-      | None -> true, None
+        hasEnough, ValueSome c
+      | ValueNone -> true, ValueNone
 
     let resolveTaunt
       (rparams: ResolverParams)
@@ -145,8 +145,8 @@ module Resolution =
             checkTauntTarget rparams.services.effectStore actor.Effects
 
           match forcedTargetId with
-          | None -> return ractors.target, initialTarget
-          | Some targetId ->
+          | ValueNone -> return ractors.target, initialTarget
+          | ValueSome targetId ->
             let! newTarget = rparams.entities |> AMap.tryFind targetId
 
             return
@@ -157,16 +157,16 @@ module Resolution =
 
   module Shared =
     let private determineNewEffect
-      (effectDef: Effects.EffectDefinition option)
+      (effectDef: Effects.EffectDefinition voption)
       (existingEffect: Effects.ActiveEffect option)
       (actorId: int<EntityId>)
       (effectId: int<EffectId>)
       =
-      let stacking = effectDef |> Option.map _.Stacking
+      let stacking = effectDef |> ValueOption.map _.Stacking
 
       match existingEffect, stacking with
-      | Some _, Some Effects.StackingRule.NoStack -> None // Do not apply
-      | Some e, Some Effects.StackingRule.RefreshDuration ->
+      | Some _, ValueSome Effects.StackingRule.NoStack -> ValueNone // Do not apply
+      | Some e, ValueSome Effects.StackingRule.RefreshDuration ->
         let duration =
           match effectDef.Value.Duration with
           | Effects.Duration.Timed d -> d
@@ -178,12 +178,12 @@ module Resolution =
           | Effects.Duration.Loop(i, _) -> i
           | _ -> 0L<Tick>
 
-        Some {
+        ValueSome {
           e with
               RemainingTicks = duration
               NextTickIn = interval
         }
-      | Some e, Some(Effects.StackingRule.AddStack maxStacks) ->
+      | Some e, ValueSome(Effects.StackingRule.AddStack maxStacks) ->
         let newStacks = min maxStacks (e.Stacks + 1)
 
         let duration =
@@ -197,27 +197,27 @@ module Resolution =
           | Effects.Duration.Loop(i, _) -> i
           | _ -> 0L<Tick>
 
-        Some {
+        ValueSome {
           e with
               Stacks = newStacks
               RemainingTicks = duration
               NextTickIn = interval
         }
-      | _, None
+      | _, ValueNone
       | None, _ ->
         let duration =
           effectDef
-          |> Option.map _.Duration.Duration
-          |> Option.flatten
-          |> Option.defaultValue 0L<Tick>
+          |> ValueOption.map _.Duration.Duration
+          |> ValueOption.flatten
+          |> ValueOption.defaultValue 0L<Tick>
 
         let interval =
           effectDef
-          |> Option.map _.Duration.Interval
-          |> Option.flatten
-          |> Option.defaultValue 0L<Tick>
+          |> ValueOption.map _.Duration.Interval
+          |> ValueOption.flatten
+          |> ValueOption.defaultValue 0L<Tick>
 
-        Some {
+        ValueSome {
           EffectId = effectId
           SourceId = actorId
           RemainingTicks = duration
@@ -246,7 +246,7 @@ module Resolution =
 
         let event =
           newEffect
-          |> Option.map(fun _ ->
+          |> ValueOption.map(fun _ ->
             EffectApplied {
               target = targetId
               effectId = effectId
@@ -278,7 +278,7 @@ module Resolution =
       adaptive {
         let! results =
           abilityDef.Effects
-          |> AList.ofList
+          |> AList.ofIndexList
           |> AList.mapA(
             processEffect effectStore targetComponents actorId targetId
           )
@@ -288,7 +288,8 @@ module Resolution =
           results
           |> IndexList.unzip
           |> (fun (e, ef) ->
-            e |> IndexList.choose id, ef |> IndexList.choose id)
+            e |> IndexList.choose(id >> ValueOption.toOption),
+            ef |> IndexList.choose(id >> ValueOption.toOption))
 
 
         let newEffectsMap =
@@ -340,12 +341,12 @@ module Resolution =
         }
 
     let applyResourceCost
-      (costOpt: Abilities.ResourceCost option)
+      (costOpt: Abilities.ResourceCost voption)
       (actorComponents: All)
       (actorId: int<EntityId>)
       =
       match costOpt with
-      | Some cost ->
+      | ValueSome cost ->
         let amount, updatedResources =
           match cost.Type with
           | Abilities.ResourceType.HP ->
@@ -385,7 +386,7 @@ module Resolution =
           actorComponents with
               Resources = updatedResources
         }
-      | None -> Array.empty, actorComponents
+      | ValueNone -> Array.empty, actorComponents
 
     let updateCooldowns
       (actorComponents: All)
@@ -414,8 +415,8 @@ module Resolution =
             let effectDef = effectStore.tryFind effect.EffectId
 
             match effectDef with
-            | None -> None
-            | Some effectDef ->
+            | ValueNone -> None
+            | ValueSome effectDef ->
 
             match effectDef.Kind with
             | Effects.EffectKind.Shield _ -> Some effect
@@ -427,8 +428,8 @@ module Resolution =
             let effectDef = effectStore.tryFind effect.EffectId
 
             match effectDef with
-            | None -> return effect, 0
-            | Some effectDef ->
+            | ValueNone -> return effect, 0
+            | ValueSome effectDef ->
 
             let value =
               match effectDef.Kind with
@@ -500,8 +501,8 @@ module Resolution =
       let abilityDef = rparams.services.abilityStore.tryFind abilityId
 
       match abilityDef with
-      | None -> return None // Invalid ability, cannot proceed
-      | Some abilityDef ->
+      | ValueNone -> return None // Invalid ability, cannot proceed
+      | ValueSome abilityDef ->
 
       match actor, target with
       | Some actor, Some target when

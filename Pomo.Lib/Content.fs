@@ -14,7 +14,7 @@ module EffectStore =
         Kind = EffectKind.Buff
         Duration = Timed(30000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = [ StatModifier.Additive(Stat.Strength, 5) ]
+        Modifiers = FSharp.Data.Adaptive.IndexList.ofList [ StatModifier.Additive(Stat.Strength, 5) ]
       }
       2<EffectId>,
       {
@@ -23,7 +23,7 @@ module EffectStore =
         Kind = EffectKind.Debuff
         Duration = Timed(20000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = [ StatModifier.Additive(Stat.DefensePotential, -5) ]
+        Modifiers = FSharp.Data.Adaptive.IndexList.ofList [ StatModifier.Additive(Stat.DefensePotential, -5) ]
       }
       // Phase 3 Effect Kinds for testing
       100<EffectId>,
@@ -33,7 +33,7 @@ module EffectStore =
         Kind = EffectKind.Stun
         Duration = Timed(5000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = []
+        Modifiers = FSharp.Data.Adaptive.IndexList.empty
       }
       101<EffectId>,
       {
@@ -42,7 +42,7 @@ module EffectStore =
         Kind = EffectKind.Silence
         Duration = Timed(8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = []
+        Modifiers = FSharp.Data.Adaptive.IndexList.empty
       }
       102<EffectId>,
       {
@@ -51,7 +51,7 @@ module EffectStore =
         Kind = EffectKind.Shield 10
         Duration = Timed(15000L<Tick>)
         Stacking = StackingRule.AddStack(5) // Max 5 stacks
-        Modifiers = []
+        Modifiers = FSharp.Data.Adaptive.IndexList.empty
       }
       103<EffectId>,
       {
@@ -60,7 +60,7 @@ module EffectStore =
         Kind = EffectKind.Taunt
         Duration = Timed(3000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = []
+        Modifiers = FSharp.Data.Adaptive.IndexList.empty
       }
       104<EffectId>,
       {
@@ -69,7 +69,7 @@ module EffectStore =
         Kind = EffectKind.Debuff
         Duration = Timed(10000L<Tick>)
         Stacking = StackingRule.NoStack
-        Modifiers = []
+        Modifiers = FSharp.Data.Adaptive.IndexList.empty
       }
       105<EffectId>,
       {
@@ -78,7 +78,7 @@ module EffectStore =
         Kind = EffectKind.DamageOverTime 5
         Duration = Loop(2000L<Tick>, 8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = []
+        Modifiers = FSharp.Data.Adaptive.IndexList.empty
       }
       106<EffectId>,
       {
@@ -87,7 +87,7 @@ module EffectStore =
         Kind = EffectKind.HealOverTime 5
         Duration = Loop(2000L<Tick>, 8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = []
+        Modifiers = FSharp.Data.Adaptive.IndexList.empty
       }
     ]
 
@@ -101,59 +101,59 @@ module AbilityStore =
         Id = 1<AbilityId>
         Name = "Melee Attack"
         Cost =
-          Some {
+          ValueSome {
             Type = ResourceType.Stamina
             Amount = 10
           }
         Cooldown = 2000L<Tick> // 2 seconds
-        Effects = []
+        Effects = FSharp.Data.Adaptive.IndexList.empty
       }
       2<AbilityId>,
       {
         Id = 2<AbilityId>
         Name = "Fireball"
-        Cost = Some { Type = ResourceType.MP; Amount = 20 }
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 20 }
         Cooldown = 5000L<Tick> // 5 seconds
-        Effects = [ 2<EffectId> ]
+        Effects = FSharp.Data.Adaptive.IndexList.ofList [ 2<EffectId> ]
       }
       3<AbilityId>,
       {
         Id = 3<AbilityId>
         Name = "No-Stack Spell"
-        Cost = Some { Type = ResourceType.MP; Amount = 10 }
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
-        Effects = [ 104<EffectId> ]
+        Effects = FSharp.Data.Adaptive.IndexList.ofList [ 104<EffectId> ]
       }
       4<AbilityId>,
       {
         Id = 4<AbilityId>
         Name = "Buff Spell"
-        Cost = Some { Type = ResourceType.MP; Amount = 10 }
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
-        Effects = [ 1<EffectId> ] // RefreshDuration effect
+        Effects = FSharp.Data.Adaptive.IndexList.ofList [ 1<EffectId> ] // RefreshDuration effect
       }
       5<AbilityId>,
       {
         Id = 5<AbilityId>
         Name = "Shield Spell"
-        Cost = Some { Type = ResourceType.MP; Amount = 15 }
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
         Cooldown = 1000L<Tick>
-        Effects = [ 102<EffectId> ] // AddStack effect
+        Effects = FSharp.Data.Adaptive.IndexList.ofList [ 102<EffectId> ] // AddStack effect
       }
       6<AbilityId>,
       {
         Id = 6<AbilityId>
         Name = "Poison Spell"
-        Cost = Some { Type = ResourceType.MP; Amount = 10 }
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
-        Effects = [ 105<EffectId> ] // DoT effect
+        Effects = FSharp.Data.Adaptive.IndexList.ofList [ 105<EffectId> ] // DoT effect
       }
       7<AbilityId>,
       {
         Id = 7<AbilityId>
         Name = "Regen Spell"
-        Cost = Some { Type = ResourceType.MP; Amount = 10 }
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
-        Effects = [ 106<EffectId> ] // HoT effect
+        Effects = FSharp.Data.Adaptive.IndexList.ofList [ 106<EffectId> ] // HoT effect
       }
     ]

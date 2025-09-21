@@ -24,8 +24,8 @@ module GameState =
     let effect = effectStore.tryFind effectId
 
     match effect with
-    | Some e -> e.Modifiers |> IndexList.ofList
-    | None -> IndexList.empty
+    | ValueSome e -> e.Modifiers
+    | ValueNone -> FSharp.Data.Adaptive.IndexList.empty
     |> AList.ofIndexList
 
   let getAdditiveModifiers(effects: StatModifier alist) =
@@ -100,7 +100,7 @@ module GameState =
         HealthPoints = modifiedBase.Charm * 10
         DefensePotential = modifiedBase.Charm / 2
         Hevasion = float modifiedBase.Charm / 100.0
-        Resistances = Map.empty // Placeholder
+        Resistances = FSharp.Data.Adaptive.HashMap.empty // Placeholder
       }
 
       // 3. Apply derived stat modifiers
@@ -200,7 +200,7 @@ module GameState =
       effectStore =
         { new Services.IEffectStore with
             member _.tryFind effectId =
-              Pomo.Lib.Content.EffectStore.definitions |> Map.tryFind effectId
+              Pomo.Lib.Content.EffectStore.definitions |> Map.tryFind effectId |> ValueOption.ofOption
 
             member _.find effectId =
               Pomo.Lib.Content.EffectStore.definitions |> Map.find effectId
@@ -209,15 +209,14 @@ module GameState =
 
             member _.asAList = effList
 
-            member _.asList = [
-              for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions ->
-                v
-            ]
+            member _.asList =
+              [ for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions -> v ]
+              |> FSharp.Data.Adaptive.IndexList.ofList
         }
       abilityStore =
         { new Services.IAbilityStore with
             member _.tryFind abilityId =
-              Pomo.Lib.Content.AbilityStore.definitions |> Map.tryFind abilityId
+              Pomo.Lib.Content.AbilityStore.definitions |> Map.tryFind abilityId |> ValueOption.ofOption
 
             member _.find abilityId =
               Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
@@ -226,10 +225,9 @@ module GameState =
 
             member _.asAList = abilList
 
-            member _.asList = [
-              for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions ->
-                v
-            ]
+            member _.asList =
+              [ for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions -> v ]
+              |> FSharp.Data.Adaptive.IndexList.ofList
         }
       rng = fun () -> System.Random().NextDouble()
     }
@@ -241,9 +239,10 @@ module GameState =
     |> AMap.mapA(fun _ c ->
       applyModifiers state.services.effectStore c.BaseStats c.Effects)
 
+  [<Struct>]
   type EntityChange = {
     components: All
-    events: GameEvent IndexList
+    events: FSharp.Data.Adaptive.IndexList<GameEvent>
   }
 
   let tick (state: GameState) (time: int64<Tick>) : aval<StateChange> = adaptive {

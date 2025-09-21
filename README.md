@@ -95,6 +95,7 @@ This project uses a reactive architecture with FSharp.Data.Adaptive (FDA) for it
 **Pomo.Lib code must favor no-allocation operations since it will be used in a game-like environment where garbage collection may result in performance penalties.**
 
 - **Domain and value-like types must be decorated as a struct**
+- **Discriminated unions that represent domain concepts must be decorated as a struct DU**
 - **Value tuples** (`struct(v1,v2)`) are favored over Reference tuples
 - **ValueOption** is favored over Option unless necessary (convert `Option.toValueOption` or `ValueOption.ofOption` when necessary as some libraries do not provide value options)
 

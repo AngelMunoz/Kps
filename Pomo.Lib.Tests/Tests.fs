@@ -71,7 +71,9 @@ module private TestHelpers =
       effectStore =
         { new Services.IEffectStore with
             member _.tryFind effectId =
-              Pomo.Lib.Content.EffectStore.definitions |> Map.tryFind effectId
+              Pomo.Lib.Content.EffectStore.definitions
+              |> Map.tryFind effectId
+              |> ValueOption.ofOption
 
             member _.find effectId =
               Pomo.Lib.Content.EffectStore.definitions |> Map.find effectId
@@ -80,15 +82,19 @@ module private TestHelpers =
 
             member _.asAList = effList
 
-            member _.asList = [
-              for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions ->
-                v
-            ]
+            member _.asList =
+              [
+                for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions ->
+                  v
+              ]
+              |> FSharp.Data.Adaptive.IndexList.ofList
         }
       abilityStore =
         { new Services.IAbilityStore with
             member _.tryFind abilityId =
-              Pomo.Lib.Content.AbilityStore.definitions |> Map.tryFind abilityId
+              Pomo.Lib.Content.AbilityStore.definitions
+              |> Map.tryFind abilityId
+              |> ValueOption.ofOption
 
             member _.find abilityId =
               Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
@@ -97,10 +103,12 @@ module private TestHelpers =
 
             member _.asAList = abilList
 
-            member _.asList = [
-              for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions ->
-                v
-            ]
+            member _.asList =
+              [
+                for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions ->
+                  v
+              ]
+              |> FSharp.Data.Adaptive.IndexList.ofList
         }
       rng = rng
     }
@@ -220,7 +228,8 @@ type ``Action Resolution``() =
         | _ -> None)
       |> AList.tryFirst
       |> AVal.force
-      |> Option.get
+      |> Option.toValueOption
+      |> ValueOption.get
 
     Assert.Equal(16, damageEventExists.amount)
 
@@ -269,7 +278,8 @@ type ``Action Resolution``() =
         | _ -> None)
       |> AList.tryFirst
       |> AVal.force
-      |> Option.get
+      |> Option.toValueOption
+      |> ValueOption.get
 
     Assert.Equal(40, damageAppliedCorrectly.amount)
 
@@ -314,7 +324,7 @@ type ``Action Resolution``() =
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
     let before = attacker.Resources.Stamina
-    let cost = (AbilityStore.definitions.[melee].Cost |> Option.get).Amount
+    let cost = (AbilityStore.definitions.[melee].Cost |> ValueOption.get).Amount
 
     let action =
       (MeleeAttack {

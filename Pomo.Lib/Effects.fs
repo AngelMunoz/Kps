@@ -28,9 +28,9 @@ module StatusEffects =
           EffectId = effectToApply.Id
           SourceId = sourceId
           RemainingTicks =
-            effectToApply.Duration.Duration |> Option.defaultValue 0L<Tick>
+            effectToApply.Duration.Duration |> ValueOption.defaultValue 0L<Tick>
           NextTickIn =
-            effectToApply.Duration.Interval |> Option.defaultValue 0L<Tick>
+            effectToApply.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
           Stacks = 1
         }
 
@@ -49,10 +49,10 @@ module StatusEffects =
                     e with
                         RemainingTicks =
                           effectToApply.Duration.Duration
-                          |> Option.defaultValue 0L<Tick>
+                          |> ValueOption.defaultValue 0L<Tick>
                         NextTickIn =
                           effectToApply.Duration.Interval
-                          |> Option.defaultValue 0L<Tick>
+                          |> ValueOption.defaultValue 0L<Tick>
                   }
                 | AddStack maxStacks ->
                     {
@@ -60,10 +60,10 @@ module StatusEffects =
                           Stacks = min maxStacks (e.Stacks + 1)
                           RemainingTicks =
                             effectToApply.Duration.Duration
-                            |> Option.defaultValue 0L<Tick>
+                            |> ValueOption.defaultValue 0L<Tick>
                           NextTickIn =
                             effectToApply.Duration.Interval
-                            |> Option.defaultValue 0L<Tick>
+                            |> ValueOption.defaultValue 0L<Tick>
                     })
             effects
     }

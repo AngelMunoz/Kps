@@ -42,7 +42,7 @@ module private Phase3Helpers =
       effectStore =
         { new Services.IEffectStore with
             member _.tryFind effectId =
-              Pomo.Lib.Content.EffectStore.definitions |> Map.tryFind effectId
+              Pomo.Lib.Content.EffectStore.definitions |> Map.tryFind effectId |> ValueOption.ofOption
 
             member _.find effectId =
               Pomo.Lib.Content.EffectStore.definitions |> Map.find effectId
@@ -51,15 +51,14 @@ module private Phase3Helpers =
 
             member _.asAList = effList
 
-            member _.asList = [
-              for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions ->
-                v
-            ]
+            member _.asList =
+              [ for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions -> v ]
+              |> FSharp.Data.Adaptive.IndexList.ofList
         }
       abilityStore =
         { new Services.IAbilityStore with
             member _.tryFind abilityId =
-              Pomo.Lib.Content.AbilityStore.definitions |> Map.tryFind abilityId
+              Pomo.Lib.Content.AbilityStore.definitions |> Map.tryFind abilityId |> ValueOption.ofOption
 
             member _.find abilityId =
               Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
@@ -68,10 +67,9 @@ module private Phase3Helpers =
 
             member _.asAList = abilList
 
-            member _.asList = [
-              for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions ->
-                v
-            ]
+            member _.asList =
+              [ for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions -> v ]
+              |> FSharp.Data.Adaptive.IndexList.ofList
         }
       rng = rng
     }
