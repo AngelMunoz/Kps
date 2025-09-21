@@ -166,9 +166,9 @@ type ``Phase3 - Shield``() =
       let delta =
         Resolution.step
           state
-          (MeleeAttack {
+          (UseAbility {
             actor = attackerId
-            target = targetId
+            targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
             abilityId = melee
           })
 
@@ -258,9 +258,9 @@ type ``Phase3 - Stun``() =
 
     // Act
     let action =
-      MeleeAttack {
+      UseAbility {
         actor = attackerId
-        target = targetId
+        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
         abilityId = melee
       }
 
@@ -319,9 +319,9 @@ type ``Phase3 - Silence``() =
 
     // Act 1: Attempt to cast a spell (should fail)
     let spellAction =
-      CastSpell {
+      UseAbility {
         actor = attackerId
-        target = targetId
+        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
         abilityId = spell
       }
 
@@ -347,9 +347,9 @@ type ``Phase3 - Silence``() =
 
     // Act 2: Perform a melee attack (should succeed)
     let meleeAction =
-      MeleeAttack {
+      UseAbility {
         actor = attackerId
-        target = targetId
+        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
         abilityId = melee
       }
 
@@ -427,9 +427,9 @@ type ``Phase3 - Taunt``() =
 
     // Act
     let action =
-      MeleeAttack {
+      UseAbility {
         actor = attackerId
-        target = intendedTargetId
+        targets = FSharp.Data.Adaptive.IndexList.ofList [intendedTargetId]
         abilityId = melee
       }
 
@@ -481,9 +481,9 @@ type ``Phase3 - Effect Stacking``() =
       let delta =
         Resolution.step
           state
-          (CastSpell {
+          (UseAbility {
             actor = casterId
-            target = targetId
+            targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
             abilityId = spellId
           })
 
@@ -536,9 +536,9 @@ type ``Phase3 - Effect Stacking``() =
       let delta =
         Resolution.step
           state
-          (CastSpell {
+          (UseAbility {
             actor = casterId
-            target = targetId
+            targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
             abilityId = spellId
           })
 
@@ -600,9 +600,9 @@ type ``Phase3 - Effect Stacking``() =
       let delta =
         Resolution.step
           state
-          (CastSpell {
+          (UseAbility {
             actor = casterId
-            target = targetId
+            targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
             abilityId = spellId
           })
 
@@ -664,9 +664,9 @@ type ``Phase3 - Effect Stacking``() =
       let delta =
         Resolution.step
           state
-          (CastSpell {
+          (UseAbility {
             actor = casterId
-            target = targetId
+            targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
             abilityId = spellId
           })
 
@@ -726,9 +726,9 @@ type ``Phase3 - Effect Stacking``() =
       let delta =
         Resolution.step
           state
-          (CastSpell {
+          (UseAbility {
             actor = casterId
-            target = targetId
+            targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
             abilityId = spellId
           })
 
@@ -799,9 +799,9 @@ type ``Phase3 - Shield Extended``() =
       let delta =
         Resolution.step
           state
-          (MeleeAttack {
+          (UseAbility {
             actor = attackerId
-            target = targetId
+            targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
             abilityId = melee
           })
 
@@ -886,9 +886,9 @@ type ``Phase3 - Determinism``() =
       let delta =
         Resolution.step
           state
-          (MeleeAttack {
+          (UseAbility {
             actor = attackerId
-            target = targetId
+            targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
             abilityId = melee
           })
 
@@ -970,9 +970,9 @@ type ``Phase3 - Cooldown Management``() =
     let meleeDelta =
       Resolution.step
         state
-        (MeleeAttack {
+        (UseAbility {
           actor = attackerId
-          target = targetId
+          targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
           abilityId = melee
         })
 
@@ -1015,9 +1015,9 @@ type ``Phase3 - Cooldown Management``() =
     let spellDelta =
       Resolution.step
         state
-        (CastSpell {
+        (UseAbility {
           actor = attackerId
-          target = targetId
+          targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
           abilityId = spell
         })
 

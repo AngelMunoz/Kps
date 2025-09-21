@@ -112,11 +112,11 @@ module GameState =
             let v = value
 
             match stat with
-            | Effects.Stat.HealthPool -> {
+            | Effects.Stat.HP -> {
                 currentDerived with
                     HP = currentDerived.HP + v
               }
-            | Effects.Stat.ManaPool -> {
+            | Effects.Stat.MP -> {
                 currentDerived with
                     MP = currentDerived.MP + v
               }

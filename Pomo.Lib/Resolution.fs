@@ -532,8 +532,8 @@ module Resolution =
       | _ -> return None
     }
 
-  /// Resolves a MeleeAttack command, calculating damage and generating events.
-  let resolveMeleeAttack(abilityId: int<AbilityId>) : ResolverFn =
+  /// Resolves an ability command, calculating damage and generating events.
+  let resolveAbility(abilityId: int<AbilityId>) : ResolverFn =
     fun (rparams, ractors) -> adaptive {
       let { actor = actorId } = ractors
       let! validationResult = validateAction rparams ractors abilityId
@@ -552,8 +552,29 @@ module Resolution =
         let! gameTime = rparams.gameTime
         let rng = rparams.services.rng
 
+        // 1. Check for hit/miss based on damage type
+        let hitRoll = rng()
+        let hitChance = 
+          match abilityDef.DamageType with
+          | Abilities.DamageType.Physical -> 
+            // AC vs HV for physical attacks
+            float actorStats.AC / (float actorStats.AC + float targetStats.HV)
+          | Abilities.DamageType.Magical
+          | Abilities.DamageType.Elemental _ -> 
+            // LK vs LK for magical/elemental attacks
+            float actorStats.LK / (float actorStats.LK + float targetStats.LK)
+        
+        let isHit = hitRoll < hitChance
+
         let damageResult =
-          Combat.calculatePhysicalDamage actorStats targetStats rng
+          if not isHit then
+            {
+              Amount = 0
+              IsCritical = false
+              IsEvaded = true
+            }
+          else
+            Combat.calculateDamage abilityDef.DamageType actorStats targetStats rng
 
         let! updatedTarget, shieldDamage =
           MeleeAttack.applyShields
@@ -618,91 +639,77 @@ module Resolution =
         }
     }
 
-  let resolveCastSpell(abilityId: int<AbilityId>) : ResolverFn =
-    fun (rparams, ractors) -> adaptive {
-      let { actor = actorId } = ractors
-      let! validationResult = validateAction rparams ractors abilityId
 
-      match validationResult with
-      | None ->
+
+  let resolveUseAbility
+    (action: UseAbilityAction)
+    (rparams: ResolverParams)
+    : aval<StateChange> =
+    adaptive {
+      let abilityDef = rparams.services.abilityStore.tryFind action.abilityId
+
+      match abilityDef with
+      | ValueNone ->
         return {
           entities = HashMap.empty
           events = IndexList.empty
           gameTime = ValueNone
         }
-      | Some(actorComponents, (targetId, targetComponents), costOpt, abilityDef) ->
-        let! actorStats = rparams.derivedStats |> AMap.find actorId
-        let! targetStats = rparams.derivedStats |> AMap.find targetId
-        let! gameTime = rparams.gameTime
-        let rng = rparams.services.rng
+      | ValueSome abilityDef ->
 
-        let damageResult =
-          Combat.calculateMagicalDamage
-            Attributes.Element.Neutral
-            actorStats.MA
-            targetStats
-            rng
+        // Determine actual targets based on ability targeting constraints
+        let actualTargets =
+          match abilityDef.Targeting with
+          | Abilities.TargetType.Self -> IndexList.ofList [ action.actor ]
+          | Abilities.TargetType.SingleAlly
+          | Abilities.TargetType.SingleEnemy ->
+            action.targets
+            |> IndexList.isEmpty
+            |> function
+              | true -> IndexList.empty
+              | false -> action.targets |> IndexList.take 1
+          | Abilities.TargetType.MultiTarget maxTargets ->
+            action.targets |> IndexList.take maxTargets
 
-        let initialDamage = damageResult.Amount
-
-        let damageEvent =
-          if initialDamage > 0 then
-            Some(
-              DamageApplied {
+        if IndexList.isEmpty actualTargets then
+          return {
+            entities = HashMap.empty
+            events = IndexList.empty
+            gameTime = ValueNone
+          }
+        else
+          // Process each target
+          let! targetResults =
+            actualTargets
+            |> AList.ofIndexList
+            |> AList.mapA(fun targetId ->
+              let ractors = {
+                actor = action.actor
                 target = targetId
-                amount = initialDamage
               }
-            )
-          else
-            None
 
-        let costEvents, actorWithCost =
-          Shared.applyResourceCost costOpt actorComponents actorId
+              // Use unified resolver for all ability types
+              resolveAbility action.abilityId (rparams, ractors))
+            |> AList.toAVal
 
-        let updatedActor =
-          Shared.updateCooldowns actorWithCost abilityId gameTime abilityDef
+          // Combine all results
+          let allEntities =
+            targetResults
+            |> IndexList.fold
+              (fun acc result -> HashMap.union acc result.entities)
+              HashMap.empty
 
-        let targetHpAfter =
-          max 0 (targetComponents.Resources.HP - initialDamage)
+          let allEvents =
+            targetResults
+            |> IndexList.fold
+              (fun acc result -> IndexList.append acc result.events)
+              IndexList.empty
 
-        let deathEvent, finalTargetResources =
-          Shared.checkForDeath targetHpAfter targetComponents targetId
-
-        let updatedTarget = {
-          targetComponents with
-              Resources = {
-                finalTargetResources with
-                    HP = targetHpAfter
-              }
-        }
-
-        let! effectEvents, finalTarget =
-          Shared.applyAbilityEffects
-            rparams.services.effectStore
-            abilityDef
-            actorId
-            targetId
-            updatedTarget
-
-        let changes =
-          HashMap.ofList [ actorId, updatedActor; targetId, finalTarget ]
-
-        let allEvents =
-          [|
-            if damageEvent.IsSome then
-              damageEvent.Value
-            yield! costEvents
-            yield! effectEvents
-            if deathEvent.IsSome then
-              deathEvent.Value
-          |]
-          |> IndexList.ofArray
-
-        return {
-          entities = changes
-          events = allEvents
-          gameTime = ValueNone
-        }
+          return {
+            entities = allEntities
+            events = allEvents
+            gameTime = ValueNone
+          }
     }
 
   let step (state: GameState) (cmd: Command) : aval<StateChange> =
@@ -716,22 +723,7 @@ module Resolution =
     }
 
     match cmd with
-    | MeleeAttack action ->
-      resolveMeleeAttack
-        action.abilityId
-        (resolverParams,
-         {
-           actor = action.actor
-           target = action.target
-         })
-    | CastSpell action ->
-      resolveCastSpell
-        action.abilityId
-        (resolverParams,
-         {
-           actor = action.actor
-           target = action.target
-         })
+    | UseAbility action -> resolveUseAbility action resolverParams
 
   let apply (state: GameState) (change: StateChange) =
     transact(fun _ ->

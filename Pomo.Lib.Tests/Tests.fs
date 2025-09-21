@@ -207,9 +207,9 @@ type ``Action Resolution``() =
     TestHelpers.addEntity state targetId target
 
     let action =
-      (MeleeAttack {
+      (UseAbility {
         actor = attackerId
-        target = targetId
+        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
         abilityId = melee
       })
 
@@ -260,9 +260,9 @@ type ``Action Resolution``() =
     TestHelpers.addEntity state victimId victim
 
     let action =
-      (CastSpell {
+      (UseAbility {
         actor = casterId
-        target = victimId
+        targets = FSharp.Data.Adaptive.IndexList.ofList [victimId]
         abilityId = spell
       })
 
@@ -327,9 +327,9 @@ type ``Action Resolution``() =
     let cost = (AbilityStore.definitions.[melee].Cost |> ValueOption.get).Amount
 
     let action =
-      (MeleeAttack {
+      (UseAbility {
         actor = attackerId
-        target = targetId
+        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
         abilityId = melee
       })
 
@@ -365,9 +365,9 @@ type ``Action Resolution``() =
 
     // First attack, should succeed and apply cooldown
     let action1 =
-      (MeleeAttack {
+      (UseAbility {
         actor = attackerId
-        target = targetId
+        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
         abilityId = melee
       })
 
@@ -380,9 +380,9 @@ type ``Action Resolution``() =
 
     // Second attack, should be ignored due to cooldown
     let action2 =
-      (MeleeAttack {
+      (UseAbility {
         actor = attackerId
-        target = targetId
+        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
         abilityId = melee
       })
 
@@ -414,9 +414,9 @@ type ``Action Resolution``() =
     TestHelpers.addEntity state targetId target
 
     let action =
-      (MeleeAttack {
+      (UseAbility {
         actor = attackerId
-        target = targetId
+        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
         abilityId = melee
       })
 
@@ -444,9 +444,9 @@ type ``Action Resolution``() =
 
     // First attack
     let action1 =
-      (MeleeAttack {
+      (UseAbility {
         actor = attackerId
-        target = targetId
+        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
         abilityId = melee
       })
 
@@ -461,9 +461,9 @@ type ``Action Resolution``() =
 
     // Second attack, should succeed now
     let action2 =
-      (MeleeAttack {
+      (UseAbility {
         actor = attackerId
-        target = targetId
+        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
         abilityId = melee
       })
 

@@ -156,13 +156,13 @@ module Effects =
     | AP // Attack Power
     | AC // Accuracy
     | DX // Dexterity
-    | ManaPool // MP (Mana Pool)
+    | MP // Mana Pool
     | MA // Magic Attack
     | MD // Magic Defense
     | WT // Weight
     | DA // Detect Ability
     | LK // Luck
-    | HealthPool // HP (Health Pool)
+    | HP // Health Pool
     | DP // Defense Points
     | HV // Evasion
 
@@ -203,11 +203,26 @@ module Abilities =
   type ResourceCost = { Type: ResourceType; Amount: int }
 
   [<Struct>]
+  type TargetType =
+    | Self
+    | SingleAlly
+    | SingleEnemy
+    | MultiTarget of int // number of targets
+
+  [<Struct>]
+  type DamageType =
+    | Physical
+    | Magical
+    | Elemental of Attributes.Element
+
+  [<Struct>]
   type AbilityDefinition = {
     Id: int<AbilityId>
     Name: string
     Cooldown: int64<Tick>
     Cost: ResourceCost voption
+    Targeting: TargetType
+    DamageType: DamageType
     Effects: FSharp.Data.Adaptive.IndexList<int<EffectId>>
   }
 
@@ -258,23 +273,15 @@ module GameEvent =
 
 module Rules =
   [<Struct>]
-  type MeleeAttackAction = {
+  type UseAbilityAction = {
     actor: int<EntityId>
-    target: int<EntityId>
-    abilityId: int<AbilityId>
-  }
-
-  [<Struct>]
-  type CastSpellAction = {
-    actor: int<EntityId>
-    target: int<EntityId>
+    targets: FSharp.Data.Adaptive.IndexList<int<EntityId>>
     abilityId: int<AbilityId>
   }
 
   [<Struct>]
   type Command =
-    | MeleeAttack of mAction: MeleeAttackAction
-    | CastSpell of cSpell: CastSpellAction
+    | UseAbility of action: UseAbilityAction
 
 
 module Components =

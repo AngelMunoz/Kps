@@ -106,6 +106,8 @@ module AbilityStore =
             Amount = 10
           }
         Cooldown = 2000L<Tick> // 2 seconds
+        Targeting = TargetType.SingleEnemy
+        DamageType = DamageType.Physical
         Effects = FSharp.Data.Adaptive.IndexList.empty
       }
       2<AbilityId>,
@@ -114,6 +116,8 @@ module AbilityStore =
         Name = "Fireball"
         Cost = ValueSome { Type = ResourceType.MP; Amount = 20 }
         Cooldown = 5000L<Tick> // 5 seconds
+        Targeting = TargetType.SingleEnemy
+        DamageType = DamageType.Elemental(Attributes.Element.Fire)
         Effects = FSharp.Data.Adaptive.IndexList.ofList [ 2<EffectId> ]
       }
       3<AbilityId>,
@@ -122,6 +126,8 @@ module AbilityStore =
         Name = "No-Stack Spell"
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
+        Targeting = TargetType.SingleEnemy
+        DamageType = DamageType.Magical
         Effects = FSharp.Data.Adaptive.IndexList.ofList [ 104<EffectId> ]
       }
       4<AbilityId>,
@@ -130,6 +136,8 @@ module AbilityStore =
         Name = "Buff Spell"
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
+        Targeting = TargetType.Self
+        DamageType = DamageType.Magical
         Effects = FSharp.Data.Adaptive.IndexList.ofList [ 1<EffectId> ] // RefreshDuration effect
       }
       5<AbilityId>,
@@ -138,6 +146,8 @@ module AbilityStore =
         Name = "Shield Spell"
         Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
         Cooldown = 1000L<Tick>
+        Targeting = TargetType.SingleAlly
+        DamageType = DamageType.Magical
         Effects = FSharp.Data.Adaptive.IndexList.ofList [ 102<EffectId> ] // AddStack effect
       }
       6<AbilityId>,
@@ -146,6 +156,8 @@ module AbilityStore =
         Name = "Poison Spell"
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
+        Targeting = TargetType.SingleEnemy
+        DamageType = DamageType.Elemental(Attributes.Element.Dark)
         Effects = FSharp.Data.Adaptive.IndexList.ofList [ 105<EffectId> ] // DoT effect
       }
       7<AbilityId>,
@@ -154,6 +166,8 @@ module AbilityStore =
         Name = "Regen Spell"
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
+        Targeting = TargetType.SingleAlly
+        DamageType = DamageType.Elemental(Attributes.Element.Light)
         Effects = FSharp.Data.Adaptive.IndexList.ofList [ 106<EffectId> ] // HoT effect
       }
     ]

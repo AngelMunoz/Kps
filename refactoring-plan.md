@@ -98,17 +98,20 @@ Before proceeding to Phase 4, we need to align the current implementation with t
 - [x] Update all stat references in combat and effects
 
 #### Step 4: Targeting System Implementation (Critical for Resolution)
-- [ ] Define targeting types (Self, SingleTarget, MultiTarget)
-- [ ] Add targeting validation logic
-- [ ] Update AbilityDefinition to include targeting information
-- [ ] Refactor Resolution system to handle multiple targets
-- [ ] Update Command types to support target lists
+- [x] Define targeting types (Self, SingleAlly, SingleEnemy, MultiTarget)
+- [x] Add targeting validation logic
+- [x] Update AbilityDefinition to include targeting information
+- [x] Refactor Resolution system to handle multiple targets
+- [x] Update Command types to support target lists (IndexList)
+- [x] Implement proper multi-target resolution with result combining
 
 #### Step 5: Implement Elemental Damage System
-- [ ] Create elemental damage calculation module
-- [ ] Integrate with existing combat system
-- [ ] Implement 4-step damage process from game definitions
-- [ ] Update ability definitions to include elemental types
+- [x] Create elemental damage calculation module
+- [x] Integrate with existing combat system
+- [x] Implement 4-step damage process from game definitions
+- [x] Update ability definitions to include elemental types
+- [x] Add DamageType enum (Physical, Magical, Elemental)
+- [x] Update all ability definitions with damage types
 
 #### Step 6: Update Tests and Content
 - [ ] Migrate all test cases to new stat names
