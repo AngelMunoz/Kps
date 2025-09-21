@@ -67,14 +67,14 @@ Before proceeding to Phase 4, we need to align the current implementation with t
 ### Step-by-Step Plan
 
 #### Step 1: Update Classification System
-- [ ] Rename Family values: Strength→Power, Sensory→Sense
-- [ ] Update all references in tests and content
-- [ ] Verify no breaking changes
+- [x] Rename Family values: Strength→Power, Sensory→Sense
+- [x] Update all references in tests and content
+- [x] Verify no breaking changes
 
 #### Step 2: Extend Elemental System  
-- [ ] Add Lightning element
-- [ ] Update resistance maps
-- [ ] Update content definitions
+- [x] Add Lightning element
+- [x] Update resistance maps
+- [x] Update content definitions
 
 #### Step 3: Stat System Refactoring (Most Complex)
 - [ ] Create new DerivedStats record with correct names

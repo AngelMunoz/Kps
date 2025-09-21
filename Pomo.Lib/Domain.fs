@@ -47,9 +47,10 @@ module Attributes =
   [<Struct>]
   type Element =
     | Fire
-    | Earth
     | Water
+    | Earth
     | Air
+    | Lightning
     | Light
     | Dark
     | Neutral
