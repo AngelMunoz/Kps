@@ -90,6 +90,14 @@ This project uses a reactive architecture with FSharp.Data.Adaptive (FDA) for it
   - When transforming adaptive collections, prefer efficient mapping functions like `AList.mapA` to avoid unnecessary conversions
   - Using `AVal.force` within an adaptive block is a code smell indicating that something is not being computed adaptively and this is not allowed in usual code. AVal.force is reserved to `transact` blocks for the majority of times.
 
+### Performance Guidelines
+
+**Pomo.Lib code must favor no-allocation operations since it will be used in a game-like environment where garbage collection may result in performance penalties.**
+
+- **Domain and value-like types must be decorated as a struct**
+- **Value tuples** (`struct(v1,v2)`) are favored over Reference tuples
+- **ValueOption** is favored over Option unless necessary (convert `Option.toValueOption` or `ValueOption.ofOption` when necessary as some libraries do not provide value options)
+
 ### Testing Strategy
 
 - **Unit Tests with Fakes**: Test core logic modules in isolation by providing fake implementations of the `EngineServices` interfaces.
