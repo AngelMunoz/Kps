@@ -94,12 +94,7 @@ module Attributes =
     | Disabled
 
   [<Struct>]
-  type Resources = {
-    HP: int
-    MP: int
-    Stamina: int
-    Status: Status
-  }
+  type Resources = { HP: int; MP: int; Status: Status }
 
 module Inventory =
   [<Struct>]
@@ -113,16 +108,38 @@ module Inventory =
     | Accessory
 
 module Effects =
+  open FSharp.Data.Adaptive
+
+  [<Struct>]
+  type Stat =
+    // Base attributes
+    | Power
+    | Magic
+    | Sense
+    | Charm
+    // Derived stats (using game definition names)
+    | AP // Attack Power
+    | AC // Accuracy
+    | DX // Dexterity
+    | MP // Mana Pool
+    | MA // Magic Attack
+    | MD // Magic Defense
+    | WT // Weight
+    | DA // Detect Ability
+    | LK // Luck
+    | HP // Health Pool
+    | DP // Defense Points
+    | HV // Evasion
+
   [<Struct>]
   type EffectKind =
     | Buff
     | Debuff
-    | DamageOverTime of int
-    | HealOverTime of int
+    | DamageOverTime
+    | HealOverTime
     | Stun
     | Silence
     | Taunt
-    | Shield of int
 
   [<Struct>]
   type StackingRule =
@@ -148,30 +165,11 @@ module Effects =
       | _ -> ValueNone
 
   [<Struct>]
-  type Stat =
-    // Base attributes
-    | Power
-    | Magic
-    | Sense
-    | Charm
-    // Derived stats (using game definition names)
-    | AP // Attack Power
-    | AC // Accuracy
-    | DX // Dexterity
-    | MP // Mana Pool
-    | MA // Magic Attack
-    | MD // Magic Defense
-    | WT // Weight
-    | DA // Detect Ability
-    | LK // Luck
-    | HP // Health Pool
-    | DP // Defense Points
-    | HV // Evasion
-
-  [<Struct>]
   type StatModifier =
     | Additive of addStat: Stat * adStatValue: int
+    | Subtractive of subStat: Stat * subStatValue: int
     | Multiplicative of mulStat: Stat * mulStatValue: float
+    | Divisive of divStat: Stat * divStatValue: float
 
   [<Struct>]
   type EffectDefinition = {
@@ -180,7 +178,7 @@ module Effects =
     Kind: EffectKind
     Stacking: StackingRule
     Duration: Duration
-    Modifiers: FSharp.Data.Adaptive.IndexList<StatModifier>
+    Modifiers: IndexList<StatModifier>
   }
 
   [<Struct>]
@@ -260,6 +258,8 @@ module AggregatedEffects =
   let empty = { Damage = 0; Healing = 0 }
 
 module GameEvent =
+  open FSharp.Data.Adaptive
+
   [<Struct>]
   type DamageAppliedEvent = { target: int<EntityId>; amount: int }
 
@@ -290,6 +290,14 @@ module GameEvent =
   type EntityDiedEvent = { entityId: int<EntityId> }
 
   [<Struct>]
+  type EffectRealizationEvent = {
+    actor: int<EntityId>
+    targets: IndexList<int<EntityId>>
+    abilityId: int<AbilityId>
+    RealizedEffect: Effects.EffectKind
+  }
+
+  [<Struct>]
   type GameEvent =
     | DamageApplied of dmgAE: DamageAppliedEvent
     | Healed of healE: HealedEvent
@@ -297,6 +305,7 @@ module GameEvent =
     | EffectApplied of effAE: EffectAppliedEvent
     | EffectExpired of effEE: EffectExpiredEvent
     | EntityDied of entDieDE: EntityDiedEvent
+    | EffectRealization of effRealE: EffectRealizationEvent
 
 module Rules =
   [<Struct>]

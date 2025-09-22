@@ -127,7 +127,20 @@ module StatusEffects =
                 // Process DoT/HoT damage/healing based on effect kind
                 let tickDamage, tickHealing, damageOrHealEvent =
                   match effectDef.Kind with
-                  | EffectKind.DamageOverTime amount ->
+                  | EffectKind.DamageOverTime ->
+                    let amount =
+                      effectDef.Modifiers
+                      |> IndexList.fold
+                        (fun acc modif ->
+                          match modif with
+                          | StatModifier.Subtractive(Stat.HP, v) -> acc + v
+                          | StatModifier.Additive(Stat.HP, v) -> acc + v
+                          | StatModifier.Multiplicative(Stat.HP, v) ->
+                            acc + int v
+                          | StatModifier.Divisive(Stat.HP, v) -> acc + int v
+                          | _ -> acc)
+                        0
+
                     // Apply damage per stack
                     let totalDamage = amount * effect.Stacks
 
@@ -140,7 +153,19 @@ module StatusEffects =
                       )
 
                     totalDamage, 0, event
-                  | EffectKind.HealOverTime amount ->
+                  | EffectKind.HealOverTime ->
+                    let amount =
+                      effectDef.Modifiers
+                      |> IndexList.fold
+                        (fun acc modif ->
+                          match modif with
+                          | StatModifier.Additive(Stat.HP, v) -> acc + v
+                          | StatModifier.Subtractive(Stat.HP, v) -> acc + v
+                          | StatModifier.Multiplicative(Stat.HP, v) ->
+                            acc + int v
+                          | StatModifier.Divisive(Stat.HP, v) -> acc + int v
+                          | _ -> acc)
+                        0
                     // Apply healing per stack
                     let totalHealing = amount * effect.Stacks
 

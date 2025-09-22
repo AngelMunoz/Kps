@@ -179,8 +179,8 @@ module Resolution =
 
         let isSpellAbility =
           match abilityDef.Cost with
-          | ValueSome cost -> cost.Type = Abilities.ResourceType.MP
-          | ValueNone -> false
+          | ValueSome c when c.Type = Abilities.ResourceType.MP -> true
+          | _ -> false
 
         return hasSilence && isSpellAbility
       }
@@ -211,8 +211,8 @@ module Resolution =
           | Abilities.ResourceType.HP -> actor.Resources.HP >= c.Amount
           | Abilities.ResourceType.MP -> actor.Resources.MP >= c.Amount
 
-        hasEnough, ValueSome c
-      | ValueNone -> true, ValueNone
+        struct (hasEnough, ValueSome c)
+      | ValueNone -> struct (true, ValueNone)
 
     let resolveTaunt
       (rparams: ResolverParams)
@@ -223,20 +223,20 @@ module Resolution =
         let! actor = rparams.entities |> AMap.tryFind ractors.actor
 
         match actor with
-        | None -> return ractors.target, initialTarget
+        | None -> return struct (ractors.target, initialTarget)
         | Some actor ->
           let! forcedTargetId =
             checkTauntTarget rparams.services.effectStore actor.Effects
 
           match forcedTargetId with
-          | ValueNone -> return ractors.target, initialTarget
+          | ValueNone -> return struct (ractors.target, initialTarget)
           | ValueSome targetId ->
             let! newTarget = rparams.entities |> AMap.tryFind targetId
 
             return
               match newTarget with
-              | Some t -> targetId, t
-              | None -> ractors.target, initialTarget
+              | Some t -> struct (targetId, t)
+              | None -> struct (ractors.target, initialTarget)
       }
 
   module Shared =
@@ -490,7 +490,7 @@ module Resolution =
       let abilityDef = rparams.services.abilityStore.tryFind abilityId
 
       match abilityDef with
-      | ValueNone -> return None // Invalid ability, cannot proceed
+      | ValueNone -> return ValueNone // Invalid ability, cannot proceed
       | ValueSome abilityDef ->
 
       match actor, target with
@@ -509,16 +509,16 @@ module Resolution =
         let! isOnCooldown =
           ValidateAction.checkCooldown actor abilityId rparams.gameTime
 
-        let hasEnoughResource, cost =
+        let struct (hasEnoughResource, cost) =
           ValidateAction.checkResourceCost actor abilityDef
 
         if isStunned || isSilenced || isOnCooldown || not hasEnoughResource then
-          return None
+          return ValueNone
         else
           let! finalTarget = ValidateAction.resolveTaunt rparams ractors target
 
-          return Some(actor, finalTarget, cost, abilityDef)
-      | _ -> return None
+          return ValueSome struct (actor, finalTarget, cost, abilityDef)
+      | _ -> return ValueNone
     }
 
   /// Resolves an ability command, calculating damage and generating events.
@@ -528,13 +528,52 @@ module Resolution =
       let! validationResult = validateAction rparams ractors abilityId
 
       match validationResult with
-      | None ->
+      | ValueNone ->
+        // Determine why the action was blocked
+        let! actor = rparams.entities |> AMap.tryFind ractors.actor
+        let abilityDef = rparams.services.abilityStore.tryFind abilityId
+
+        let! blockingEffect =
+          match actor, abilityDef with
+          | Some actor, ValueSome abilityDef -> adaptive {
+              let! isStunned =
+                ValidateAction.checkStun rparams.services.effectStore actor
+
+              let! isSilenced =
+                ValidateAction.checkSilence
+                  rparams.services.effectStore
+                  actor
+                  abilityDef
+
+              if isStunned then
+                return ValueSome Effects.EffectKind.Stun
+              elif isSilenced then
+                return ValueSome Effects.EffectKind.Silence
+              else
+                return ValueNone
+            }
+          | _ -> AVal.constant ValueNone
+
+        let realizationEvent =
+          match blockingEffect with
+          | ValueNone -> []
+          | ValueSome blockingEffect ->
+              [
+                EffectRealization {
+                  actor = actorId
+                  targets = IndexList.single ractors.target
+                  abilityId = abilityId
+                  RealizedEffect = blockingEffect
+                }
+              ]
+
         return {
           entities = HashMap.empty
-          events = IndexList.empty
+          events = IndexList.ofList realizationEvent
           gameTime = ValueNone
         }
-      | Some(actorComponents, (targetId, targetComponents), costOpt, abilityDef) ->
+      | ValueSome struct (actorComponents, struct (targetId, targetComponents),
+                          costOpt, abilityDef) ->
 
         let! actorStats = rparams.derivedStats |> AMap.find actorId
         let! targetStats = rparams.derivedStats |> AMap.find targetId

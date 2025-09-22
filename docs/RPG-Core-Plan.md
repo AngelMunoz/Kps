@@ -150,7 +150,7 @@ Deliverable: end-to-end resolution for MeleeAttack and a simple spell.
 
 2. Status Effects Framework
 
-   - Effect kinds: Buff, Debuff, Stun, Silence, Taunt. Kinds that imply a magnitude will carry data directly (e.g., `DamageOverTime of int`, `HealOverTime of int`, `Shield of int`).
+   - Effect kinds: Buff, Debuff, Stun, Silence, Taunt. Kinds that imply a magnitude will have an external formula to calculate damage.
    - Stacking rules: none, refresh, add-stack up to cap
    - Durations:
      - `Instant`
@@ -159,7 +159,7 @@ Deliverable: end-to-end resolution for MeleeAttack and a simple spell.
    - Timers: duration in ticks, ticking each update; managed reactively
 
 3. Resources and Costs
-   - HP, MP, Stamina costs; cooldowns per ability
+   - HP, MP costs; cooldowns per ability
    - FDA: derived cooldown-ready aset of abilities
 
 Deliverable: two or three effects implemented and unit-tested.
@@ -168,7 +168,7 @@ Deliverable: two or three effects implemented and unit-tested.
 
 1. Data-Driven Definitions
 
-   - Ability record: Id, Name, Profession, `SkillType` (Passive/Active), School (Physical, Arcane, etc.), Targeting, Costs, Base Power, Coefficients, Effects, `Modifier` (elemental type)
+   - Ability record: Id, Name, Profession, `SkillType` (Passive/Active), Targeting, Costs, Effects, `FormulaId` reference if needed.
    - Authoring format (later): JSON/YAML; for now, hard-code some samples
 
 2. Targeting Rules
@@ -226,6 +226,7 @@ Deliverable: play an action or two through keyboard choices; rendering minimal.
 ### ✅ COMPLETED - Phase 0-3 (Ready for Phase 4)
 
 **Core Foundation:**
+
 - ✅ Domain Types: EntityId, Tick, EffectId, AbilityId with proper UMX measures
 - ✅ Classification System: Faction, Tag, Family (Strength/Magic/Sense/Charm), Stage, Profession
 - ✅ Base Attributes: Strength, Magic, Sense, Charm with derived stat calculations
@@ -233,13 +234,15 @@ Deliverable: play an action or two through keyboard choices; rendering minimal.
 - ✅ Element System: Fire, Earth, Water, Air, Light, Dark, Neutral
 
 **Effects & Abilities:**
-- ✅ Effect Framework: Complete with 8 effect kinds (Buff, Debuff, DoT, HoT, Stun, Silence, Taunt, Shield)
+
+- ✅ Effect Framework: Complete with 8 effect kinds (Buff, Debuff, DoT, HoT, Stun, Silence, Taunt)
 - ✅ Stacking Rules: NoStack, RefreshDuration, AddStack with proper mechanics
 - ✅ Duration System: Instant, Timed, Loop (periodic) with tick management
 - ✅ Ability System: Costs (HP/MP/Stamina), cooldowns, effect application
 - ✅ Stat Modifiers: Additive and multiplicative stat modifications
 
 **Combat & Resolution:**
+
 - ✅ Physical Combat: AttackPower vs DefensePotential with evasion and crits
 - ✅ Magical Combat: MagicAttack with elemental resistance
 - ✅ Action Validation: Resource costs, cooldowns, status effect restrictions
@@ -247,6 +250,7 @@ Deliverable: play an action or two through keyboard choices; rendering minimal.
 - ✅ Status Effects: Stun (blocks all), Silence (blocks spells), Taunt (redirects target)
 
 **Reactive Architecture:**
+
 - ✅ FDA Integration: Full FSharp.Data.Adaptive reactive state management
 - ✅ GameState: Centralized state with entities, events, time, services
 - ✅ Derived Views: Alive entities, ready abilities, derived stats as adaptive projections
@@ -254,6 +258,7 @@ Deliverable: play an action or two through keyboard choices; rendering minimal.
 - ✅ Services: IAbilityStore, IEffectStore with dependency injection
 
 **Testing & Quality:**
+
 - ✅ Phase 3 Tests: 12 comprehensive scenarios covering all major mechanics
 - ✅ Deterministic RNG: Reproducible combat and effect outcomes
 - ✅ Property Testing: Ready for FsCheck integration
@@ -262,12 +267,14 @@ Deliverable: play an action or two through keyboard choices; rendering minimal.
 ### 📋 READY FOR PHASE 4 - Ability/Spell System Enhancement
 
 **Current Capabilities:**
+
 - Basic single-target abilities (MeleeAttack, CastSpell)
 - Effect application and management
 - Resource costs and cooldown tracking
 - Status effect interactions
 
 **Phase 4 Goals:**
+
 - Enhanced targeting system (Self, Multi-target, AoE)
 - Data-driven ability definitions with formulas
 - Elemental damage integration
@@ -332,7 +339,7 @@ let apply (state: GameState) (cmd:Command) =
 ## Milestones Checklist
 
 - ✅ Phase 0: Types and RNG
-- ✅ Phase 1: Entity store + FDA projections  
+- ✅ Phase 1: Entity store + FDA projections
 - ✅ Phase 2: Commands + resolution + events (MeleeAttack + simple spell)
 - ✅ Phase 3: Combat maths and effects (formulas, status framework, resources/costs)
 - ✅ Phase 3.5: Architectural Refinement (DI)

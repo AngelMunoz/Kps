@@ -45,15 +45,6 @@ module EffectStore =
         Stacking = StackingRule.RefreshDuration
         Modifiers = IndexList.empty
       }
-      102<EffectId>,
-      {
-        Id = 102<EffectId>
-        Name = "Shield"
-        Kind = EffectKind.Shield 10
-        Duration = Timed(15000L<Tick>)
-        Stacking = StackingRule.AddStack(5) // Max 5 stacks
-        Modifiers = IndexList.empty
-      }
       103<EffectId>,
       {
         Id = 103<EffectId>
@@ -70,25 +61,25 @@ module EffectStore =
         Kind = EffectKind.Debuff
         Duration = Timed(10000L<Tick>)
         Stacking = StackingRule.NoStack
-        Modifiers = IndexList.empty
+        Modifiers = IndexList.ofList [ StatModifier.Subtractive(Stat.DX, 2) ]
       }
       105<EffectId>,
       {
         Id = 105<EffectId>
         Name = "Poison"
-        Kind = EffectKind.DamageOverTime 5
+        Kind = EffectKind.DamageOverTime
         Duration = Loop(2000L<Tick>, 8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = IndexList.empty
+        Modifiers = IndexList.ofList [ StatModifier.Subtractive(Stat.HP, 5) ]
       }
       106<EffectId>,
       {
         Id = 106<EffectId>
         Name = "Regeneration"
-        Kind = EffectKind.HealOverTime 5
+        Kind = EffectKind.HealOverTime
         Duration = Loop(2000L<Tick>, 8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = IndexList.empty
+        Modifiers = IndexList.ofList [ StatModifier.Additive(Stat.HP, 5) ]
       }
     ]
 
@@ -235,5 +226,25 @@ module AbilityStore =
         Targeting = TargetType.SingleAlly
         FormulaId = ValueNone
         Effects = IndexList.ofList [ 106<EffectId> ] // HoT effect
+      }
+      8<AbilityId>,
+      {
+        Id = 8<AbilityId>
+        Name = "Basic Melee Attack No Cost"
+        Cost = ValueNone
+        Cooldown = 1000L<Tick>
+        Targeting = TargetType.SingleEnemy
+        FormulaId = ValueSome 4<FormulaId>
+        Effects = IndexList.empty
+      }
+      9<AbilityId>,
+      {
+        Id = 9<AbilityId>
+        Name = "Silence Spell"
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 25 }
+        Cooldown = 10000L<Tick> // 10 seconds
+        Targeting = TargetType.SingleEnemy
+        FormulaId = ValueNone
+        Effects = IndexList.ofList [ 101<EffectId> ] // Silence effect
       }
     ]

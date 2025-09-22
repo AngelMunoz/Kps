@@ -77,17 +77,6 @@ module private TestHelpers =
 
             member _.find effectId =
               Pomo.Lib.Content.EffectStore.definitions |> Map.find effectId
-
-            member _.asAMap = effMap
-
-            member _.asAList = effList
-
-            member _.asList =
-              [
-                for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions ->
-                  v
-              ]
-              |> FSharp.Data.Adaptive.IndexList.ofList
         }
       abilityStore =
         { new Services.IAbilityStore with
@@ -98,20 +87,21 @@ module private TestHelpers =
 
             member _.find abilityId =
               Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
+        }
+      formulaStore =
+        { new Services.IFormulaStore with
+            member _.tryFind formulaId =
+              Pomo.Lib.Content.FormulaStore.definitions
+              |> Map.tryFind formulaId
+              |> ValueOption.ofOption
 
-            member _.asAMap = abilMap
-
-            member _.asAList = abilList
-
-            member _.asList =
-              [
-                for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions ->
-                  v
-              ]
-              |> FSharp.Data.Adaptive.IndexList.ofList
+            member _.find formulaId =
+              Pomo.Lib.Content.FormulaStore.definitions |> Map.find formulaId
         }
       rng = rng
     }
+
+
 
 
   let makeEntity
@@ -119,7 +109,6 @@ module private TestHelpers =
     (baseStats: BaseAttributes)
     hp
     mp
-    stamina
     (abilities: int<AbilityId> list)
     : Components.All =
     let emptySeq: seq<int<AbilityId> * int64<Tick>> = Seq.empty
@@ -138,7 +127,6 @@ module private TestHelpers =
       Resources = {
         HP = hp
         MP = mp
-        Stamina = stamina
         Status = Status.Alive
       }
       Effects = (clist [] :> alist<_>)
@@ -162,7 +150,7 @@ type ``Derived Stats``() =
     =
     let state = TestHelpers.create(fun _ -> 0.5)
     let id = 1<EntityId>
-    let entity = TestHelpers.makeEntity id baseAttrs 100 100 100 []
+    let entity = TestHelpers.makeEntity id baseAttrs 100 100 []
     TestHelpers.addEntity state id entity
     let derived = TestHelpers.derivedOf state id
     let expectedAttack = baseAttrs.Power * 2
@@ -201,15 +189,15 @@ type ``Action Resolution``() =
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
-    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 100 [ melee ]
-    let target = TestHelpers.makeEntity targetId baseB 80 30 50 []
+    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 [ melee ]
+    let target = TestHelpers.makeEntity targetId baseB 80 30 []
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
 
     let action =
       (UseAbility {
         actor = attackerId
-        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
+        targets = FSharp.Data.Adaptive.IndexList.ofList [ targetId ]
         abilityId = melee
       })
 
@@ -218,7 +206,7 @@ type ``Action Resolution``() =
     Resolution.apply state change
 
     let targetAfter = state.entities.[targetId]
-    Assert.Equal(64, targetAfter.Resources.HP)
+    Assert.Equal(40, targetAfter.Resources.HP) // 80 - 40 = 40
 
     let damageEventExists =
       state.gameEvents
@@ -231,7 +219,7 @@ type ``Action Resolution``() =
       |> Option.toValueOption
       |> ValueOption.get
 
-    Assert.Equal(16, damageEventExists.amount)
+    Assert.Equal(40, damageEventExists.amount) // Physical: AP*2 = 20*2 = 40
 
   [<Fact>]
   member _.``Spell casting applies damage, costs MP, and can kill target``() =
@@ -243,26 +231,26 @@ type ``Action Resolution``() =
     let casterBase = {
       Power = 2
       Magic = 20
-      Sense = 5
+      Sense = 50 // High LK to guarantee hit
       Charm = 5
     }
 
     let victimBase = {
       Power = 1
       Magic = 1
-      Sense = 5
+      Sense = 1 // Low LK
       Charm = 5
     }
 
-    let caster = TestHelpers.makeEntity casterId casterBase 100 100 50 [ spell ]
-    let victim = TestHelpers.makeEntity victimId victimBase 30 10 20 []
+    let caster = TestHelpers.makeEntity casterId casterBase 100 100 [ spell ]
+    let victim = TestHelpers.makeEntity victimId victimBase 30 10 []
     TestHelpers.addEntity state casterId caster
     TestHelpers.addEntity state victimId victim
 
     let action =
       (UseAbility {
         actor = casterId
-        targets = FSharp.Data.Adaptive.IndexList.ofList [victimId]
+        targets = FSharp.Data.Adaptive.IndexList.ofList [ victimId ]
         abilityId = spell
       })
 
@@ -281,7 +269,7 @@ type ``Action Resolution``() =
       |> Option.toValueOption
       |> ValueOption.get
 
-    Assert.Equal(40, damageAppliedCorrectly.amount)
+    Assert.Equal(80, damageAppliedCorrectly.amount) // Fireball uses formula 2: MA*2 + elemental = 20*2 + 40 = 80
 
     let mpChanged =
       state.gameEvents
@@ -319,17 +307,17 @@ type ``Action Resolution``() =
     let attackerId = 100<EntityId>
     let targetId = 200<EntityId>
     let melee = 1<AbilityId>
-    let attacker = TestHelpers.makeEntity attackerId baseA 100 40 100 [ melee ]
-    let target = TestHelpers.makeEntity targetId baseB 40 10 20 []
+    let attacker = TestHelpers.makeEntity attackerId baseA 100 40 [ melee ]
+    let target = TestHelpers.makeEntity targetId baseB 40 10 []
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
-    let before = attacker.Resources.Stamina
+    let before = attacker.Resources.MP
     let cost = (AbilityStore.definitions.[melee].Cost |> ValueOption.get).Amount
 
     let action =
       (UseAbility {
         actor = attackerId
-        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
+        targets = FSharp.Data.Adaptive.IndexList.ofList [ targetId ]
         abilityId = melee
       })
 
@@ -338,19 +326,19 @@ type ``Action Resolution``() =
     Resolution.apply state change
 
     let attackerAfter = state.entities.[attackerId]
-    Assert.Equal(before - cost, attackerAfter.Resources.Stamina)
+    Assert.Equal(before - cost, attackerAfter.Resources.MP)
 
-    let staminaChanged =
+    let mpChanged =
       state.gameEvents
       |> AList.exists(fun ev ->
         match ev with
         | GameEvent.ResourceChanged rc when
-          rc.target = attackerId && rc.resource.Contains("Stamina")
+          rc.target = attackerId && rc.resource.Contains("MP")
           ->
           true
         | _ -> false)
 
-    Assert.True(AVal.force staminaChanged)
+    Assert.True(AVal.force mpChanged)
 
   [<Fact>]
   member _.``Cooldown prevents immediate reuse``() =
@@ -358,8 +346,8 @@ type ``Action Resolution``() =
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
-    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 100 [ melee ]
-    let target = TestHelpers.makeEntity targetId baseB 80 30 50 []
+    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 [ melee ]
+    let target = TestHelpers.makeEntity targetId baseB 80 30 []
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
 
@@ -367,7 +355,7 @@ type ``Action Resolution``() =
     let action1 =
       (UseAbility {
         actor = attackerId
-        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
+        targets = FSharp.Data.Adaptive.IndexList.ofList [ targetId ]
         abilityId = melee
       })
 
@@ -382,7 +370,7 @@ type ``Action Resolution``() =
     let action2 =
       (UseAbility {
         actor = attackerId
-        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
+        targets = FSharp.Data.Adaptive.IndexList.ofList [ targetId ]
         abilityId = melee
       })
 
@@ -408,15 +396,15 @@ type ``Action Resolution``() =
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
-    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 100 [ melee ]
-    let target = TestHelpers.makeEntity targetId baseB 80 30 50 []
+    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 [ melee ]
+    let target = TestHelpers.makeEntity targetId baseB 80 30 []
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
 
     let action =
       (UseAbility {
         actor = attackerId
-        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
+        targets = FSharp.Data.Adaptive.IndexList.ofList [ targetId ]
         abilityId = melee
       })
 
@@ -437,8 +425,8 @@ type ``Action Resolution``() =
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
-    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 100 [ melee ]
-    let target = TestHelpers.makeEntity targetId baseB 80 30 50 []
+    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 [ melee ]
+    let target = TestHelpers.makeEntity targetId baseB 80 30 []
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
 
@@ -446,7 +434,7 @@ type ``Action Resolution``() =
     let action1 =
       (UseAbility {
         actor = attackerId
-        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
+        targets = FSharp.Data.Adaptive.IndexList.ofList [ targetId ]
         abilityId = melee
       })
 
@@ -463,7 +451,7 @@ type ``Action Resolution``() =
     let action2 =
       (UseAbility {
         actor = attackerId
-        targets = FSharp.Data.Adaptive.IndexList.ofList [targetId]
+        targets = FSharp.Data.Adaptive.IndexList.ofList [ targetId ]
         abilityId = melee
       })
 
