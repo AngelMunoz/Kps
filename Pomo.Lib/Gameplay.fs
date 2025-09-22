@@ -100,7 +100,10 @@ module GameState =
         HP = modifiedBase.Charm * 10
         DP = modifiedBase.Charm / 2
         HV = float modifiedBase.Charm / 100.0
-        Resistances = FSharp.Data.Adaptive.HashMap.empty // Placeholder
+
+        // TODO: Grab elements from equipment, buffs, etc.
+        ElementAttributes = FSharp.Data.Adaptive.HashMap.empty
+        ElementResistances = FSharp.Data.Adaptive.HashMap.empty
       }
 
       // 3. Apply derived stat modifiers
@@ -206,17 +209,6 @@ module GameState =
 
             member _.find effectId =
               Pomo.Lib.Content.EffectStore.definitions |> Map.find effectId
-
-            member _.asAMap = effMap
-
-            member _.asAList = effList
-
-            member _.asList =
-              [
-                for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions ->
-                  v
-              ]
-              |> FSharp.Data.Adaptive.IndexList.ofList
         }
       abilityStore =
         { new Services.IAbilityStore with
@@ -227,17 +219,16 @@ module GameState =
 
             member _.find abilityId =
               Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
+        }
+      formulaStore =
+        { new Services.IFormulaStore with
+            member _.tryFind formulaId =
+              Pomo.Lib.Content.FormulaStore.definitions
+              |> Map.tryFind formulaId
+              |> ValueOption.ofOption
 
-            member _.asAMap = abilMap
-
-            member _.asAList = abilList
-
-            member _.asList =
-              [
-                for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions ->
-                  v
-              ]
-              |> FSharp.Data.Adaptive.IndexList.ofList
+            member _.find formulaId =
+              Pomo.Lib.Content.FormulaStore.definitions |> Map.find formulaId
         }
       rng = fun () -> System.Random().NextDouble()
     }

@@ -2,11 +2,11 @@
 
 Pomo.Lib main goal is to an adaptive library for real time rpg games.
 
-It should provide a way to define characters, skills, items and provide game systems to easily integrate with different game engines like MonoGame, Godot, etc.
+It should provide a way to define characters, abilities, items and provide game systems to easily integrate with different game engines like MonoGame, Godot, etc.
 
 ## Damage Types
 
-There are three damage types the engine:
+There are two primary damage types in the engine:
 
 - Physical
 
@@ -16,11 +16,7 @@ There are three damage types the engine:
 
   Magical damage is dealt by spells, magic weapons, etc.
 
-- Elemental
-
-  Elemental damage is an additive damage type that can be applied to both physical and magical damage.
-
-Damage Calculation will be done by first calculating the base damage (Physical or Magical) and then applying any Elemental modifiers.
+Elemental damage is calculated as additional damage that can be applied to both physical and magical attacks through formulas. Each formula returns both base damage and elemental damage components.
 
 ### Elemental Types
 
@@ -31,6 +27,7 @@ Damage Calculation will be done by first calculating the base damage (Physical o
 - Lightning
 - Light
 - Dark
+- Neutral
 
 ## Character related Definitions
 
@@ -141,82 +138,89 @@ Effects may be:
 
 Skills are defined as actions that a character can perform.
 
-Skills may:
+Abilities may:
 
 - Deal Damage
-- Heal
 - Apply Effects
-- Remove Effects
-- Active
-- Passive
-- Be Interruptible
+- Target Self, Allies, or Enemies
 
-Skills may have:
+Abilities have:
 
-- Cooldown
-- Resource Cost
-- Range
-- Targeting Type
-  - Single Target (Self, Ally, Enemy)
-  - Multi Target (A defined amount of allies, enemies, both or self)
-- Cast Time
-- Charges (A skill may have a limited amount of uses before going on cooldown)
+- Cooldown (in ticks)
+- Resource Cost (HP or MP)
+- Targeting Type:
+  - Self
+  - SingleAlly
+  - SingleEnemy
+  - MultiTarget (with max target count)
+- FormulaId (optional reference to damage calculation formula)
+- Effects (list of effect IDs to apply)
 
-Skills have their own formula calculation which may take into account the following parameters:
+### Formula System
 
-- Stats
-- Derived Stats
-- Elemental Type
+Damage calculation uses a separate formula system:
 
-Other parameters may be added in the future.
+- **FormulaDefinition**: Contains ID, name, and calculation function
+- **CalculationContext**: Provides invoker stats, elemental attributes, and target resistances
+- **DamageResult**: Returns base damage, elemental damage, element type, and damage type
 
-A note on skill damage calculation formula:
-
-calculation formula is defined in a separate type and is not attached or harddcoded to the skill itself.
+Formulas are referenced by abilities through FormulaId and are not hardcoded to abilities.
 
 ### Damage Calculation
 
 Damage calculation is done in 4 steps:
 
-1. Check for availability:
+1. **Validation & Hit/Miss Check**:
 
-- Has enough resources?
-- Is it on cooldown?
-- Is the entity able to perform the action?
-  - Stunned -> No actions
-  - Silenced -> No magic actions
-  - Bound -> No Physical actions
-- Is the target valid?
-- Hit or Miss calculation
-  - If magic skill, do a roll based on the invoker's LK stat and the target's LK stat.
-  - If physical skill, do a roll based on the invoker's AC stat and the target's HV stat.
+- Validate action availability:
+  - Has enough resources?
+  - Is it on cooldown?
+  - Is the entity able to perform the action?
+    - Stunned -> No actions
+    - Silenced -> No MP-based abilities
+  - Is the target valid?
+  - Is the actor alive?
+- Hit or Miss calculation:
+  - If Physical damage: AC vs HV (AC / (AC + HV))
+  - If Magical damage: LK vs LK (LK / (LK + LK))
 
-2. Calculate Base Damage:
+2. **Formula-Based Damage Calculation**:
 
-- Build calculation context which includes:
-  - Invoker stats
-  - Invoker derived stats
-  - Invoker Elemental attribute map
-- After building the context, invoke the skill's damage formula with the context.
-- The formula will return the base damage and elemental damage.
+- Build CalculationContext:
+  - InvokerStats (DerivedStats)
+  - InvokerElementalAttributes (HashMap<Element, float>)
+  - TargetElementalResistances (HashMap<Element, float>)
+- Invoke formula with context to get DamageResult:
+  - BaseDamage: int
+  - ElementalDamage: int
+  - Element: Element type
+  - DamageType: Physical or Magical
 
-3. Apply Damage Modifiers:
+3. **Apply Damage Modifiers**:
 
-- Calculate critical hit:
-  - Do a roll based on the invoker's LK stat and RNG of 5-10% crit chance and bonus damage.
-- Take off target's damage reduction:
-  - If physical skill, use target's DP stat.
-  - If magical skill, use target's MD stat.
-  - If elemental damage, use the target's elemental resistances and take off the amount from the elemental damage.
+- Critical Hit Calculation:
+  - Roll based on invoker's LK stat (LK \* 0.01 chance)
+  - Critical bonus: 10% of (BaseDamage + ElementalDamage)
+- Elemental Resistance:
+  - Apply target's elemental resistance to elemental damage
+  - FinalElementalDamage = ElementalDamage \* (1.0 - resistance)
+  - Neutral element ignores resistances
 
-4. Apply Damage:
+4. **Apply Final Damage**:
 
-- Subtract the final damage from the target's HP.
+- Calculate total damage: BaseDamage + FinalElementalDamage + CriticalBonus
+- Subtract remaining damage from target's HP
+- Check for death (HP <= 0)
 
-> Effects are applied to the target and are calculated in the same way as skills.
-> Meaning that effects may have their own calculation formula which is also not hardcoded to the effect itself.
-> Both effects and skills should use the same calculation context.
+### Resource System
+
+Entities have three resource types:
+
+- **HP**: Health Points (derived from Charm \* 10)
+- **MP**: Mana Points (derived from Magic \* 5)
+
+Resource costs are defined per ability and deducted when abilities are used.
 
 ### Equipment
 
-Equipment are items that can be equipped by a character to provide stat bonuses or other effects.
+Equipment system is defined but not yet implemented. Will provide stat bonuses and elemental attributes/resistances.

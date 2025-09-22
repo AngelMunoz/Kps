@@ -7,11 +7,97 @@ open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.GameEvent
 open Pomo.Lib.Domain.State
 open Pomo.Lib.Gameplay
-open Pomo.Lib.Rules.Combat
-open Pomo.Lib.Rules
+open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Services
+open Pomo.Lib.Domain.Abilities
 
 module Resolution =
+  [<Struct>]
+  type DamageResult = {
+    Amount: int
+    IsCritical: bool
+    IsEvaded: bool
+  }
+
+  let calculateDamage
+    (formulaStore: IFormulaStore)
+    (formulaId: int<FormulaId>)
+    (attackerStats: DerivedStats)
+    (defenderStats: DerivedStats)
+    (rng: unit -> float)
+    =
+
+    match formulaStore.tryFind formulaId with
+    | ValueSome formula ->
+      let context = {
+        InvokerStats = attackerStats
+        InvokerElementalAttributes = attackerStats.ElementAttributes
+        TargetElementalResistances = defenderStats.ElementResistances
+      }
+
+      let formulaResult = formula.Calculate context
+
+      // STEP 1: Hit/Miss calculation based on damage type
+      let hitRoll = rng()
+
+      let hitChance =
+        match formulaResult.DamageType with
+        | DamageType.Physical ->
+          // AC vs HV for physical attacks
+          float attackerStats.AC
+          / (float attackerStats.AC + float defenderStats.HV)
+        | DamageType.Magical ->
+          // LK vs LK for magical/elemental attacks
+          float attackerStats.LK
+          / (float attackerStats.LK + float defenderStats.LK)
+
+      let isHit = hitRoll < hitChance
+
+      if not isHit then
+        {
+          Amount = 0
+          IsCritical = false
+          IsEvaded = true
+        }
+      else
+        // STEP 2-4: Calculate damage (includes base damage, modifiers, and final damage)
+        // Apply critical hit (uses LK)
+        let critRoll = rng()
+        let isCritical = critRoll < float attackerStats.LK * 0.01
+
+        let damageMultiplier =
+          if isCritical then
+            float(formulaResult.BaseDamage + formulaResult.ElementalDamage)
+            * 0.10
+          else
+            0
+
+        let finalElementalDamage =
+          if formulaResult.ElementalDamage > 0 then
+            let elementRes =
+              defenderStats.ElementResistances.TryFindV formulaResult.Element
+              |> ValueOption.defaultValue 0.0
+
+            float formulaResult.ElementalDamage * (1.0 - elementRes) |> int
+          else
+            int 0.0
+
+        let totalDamage = formulaResult.BaseDamage + finalElementalDamage
+
+        let finalDamage = float totalDamage + damageMultiplier
+
+        {
+          Amount = int finalDamage
+          IsCritical = isCritical
+          IsEvaded = false
+        }
+    | ValueNone ->
+        {
+          Amount = 0
+          IsCritical = false
+          IsEvaded = false
+        }
+
   type ResolverParams = {
     entities: amap<int<EntityId>, All>
     derivedStats: amap<int<EntityId>, Attributes.DerivedStats>
@@ -124,8 +210,6 @@ module Resolution =
           match c.Type with
           | Abilities.ResourceType.HP -> actor.Resources.HP >= c.Amount
           | Abilities.ResourceType.MP -> actor.Resources.MP >= c.Amount
-          | Abilities.ResourceType.Stamina ->
-            actor.Resources.Stamina >= c.Amount
 
         hasEnough, ValueSome c
       | ValueNone -> true, ValueNone
@@ -365,14 +449,6 @@ module Resolution =
               actorComponents.Resources with
                   MP = newAmount
             }
-          | Abilities.ResourceType.Stamina ->
-            let newAmount = actorComponents.Resources.Stamina - cost.Amount
-
-            newAmount,
-            {
-              actorComponents.Resources with
-                  Stamina = newAmount
-            }
 
         let ev =
           ResourceChanged {
@@ -401,93 +477,6 @@ module Resolution =
               |> AMap.map(fun k v ->
                 if k = abilityId then gameTime + abilityDef.Cooldown else v)
       }
-
-  module MeleeAttack =
-    let applyShields
-      (effectStore: IEffectStore)
-      (targetComponents: All)
-      (damageResult: DamageResult)
-      =
-      adaptive {
-        let shieldEffects =
-          targetComponents.Effects
-          |> AList.choose(fun effect ->
-            let effectDef = effectStore.tryFind effect.EffectId
-
-            match effectDef with
-            | ValueNone -> None
-            | ValueSome effectDef ->
-
-            match effectDef.Kind with
-            | Effects.EffectKind.Shield _ -> Some effect
-            | _ -> None)
-
-        let! totalShieldValue, shieldEffectsWithValue =
-          shieldEffects
-          |> AList.mapA(fun effect -> adaptive {
-            let effectDef = effectStore.tryFind effect.EffectId
-
-            match effectDef with
-            | ValueNone -> return effect, 0
-            | ValueSome effectDef ->
-
-            let value =
-              match effectDef.Kind with
-              | Effects.EffectKind.Shield v -> v
-              | _ -> 0 // Should not happen
-
-            return effect, value
-          })
-          |> AList.fold
-            (fun (total, effects) (effect, value) ->
-              (total + effect.Stacks * value, (effect, value) :: effects))
-            (0, [])
-
-        let shieldDamage =
-          damageResult.Amount - max 0 (damageResult.Amount - totalShieldValue)
-
-        let updatedEffects =
-          if shieldDamage > 0 then
-            let _, updated =
-              shieldEffectsWithValue
-              |> List.fold
-                (fun (remainingDamage, acc) (effect, value) ->
-                  if remainingDamage <= 0 then
-                    (0, effect :: acc)
-                  else
-                    let damageToThisShield =
-                      min remainingDamage (effect.Stacks * value)
-
-                    let stacksLost = (damageToThisShield + value - 1) / value
-
-                    let updatedEffect = {
-                      effect with
-                          Stacks = max 0 (effect.Stacks - stacksLost)
-                    }
-
-                    (remainingDamage - damageToThisShield, updatedEffect :: acc))
-                (shieldDamage, [])
-
-            targetComponents.Effects
-            |> AList.mapA(fun e -> adaptive {
-              match
-                updated |> List.tryFind(fun ue -> ue.EffectId = e.EffectId)
-              with
-              | Some ue -> return ue
-              | None -> return e
-            })
-            |> AList.choose(fun e -> if e.Stacks > 0 then Some e else None)
-          else
-            targetComponents.Effects
-
-        return
-          {
-            targetComponents with
-                Effects = updatedEffects
-          },
-          shieldDamage
-      }
-
 
   /// A validation function that checks for the presence of actor and target, and the actor's status.
   let validateAction
@@ -552,37 +541,22 @@ module Resolution =
         let! gameTime = rparams.gameTime
         let rng = rparams.services.rng
 
-        // 1. Check for hit/miss based on damage type
-        let hitRoll = rng()
-        let hitChance = 
-          match abilityDef.DamageType with
-          | Abilities.DamageType.Physical -> 
-            // AC vs HV for physical attacks
-            float actorStats.AC / (float actorStats.AC + float targetStats.HV)
-          | Abilities.DamageType.Magical
-          | Abilities.DamageType.Elemental _ -> 
-            // LK vs LK for magical/elemental attacks
-            float actorStats.LK / (float actorStats.LK + float targetStats.LK)
-        
-        let isHit = hitRoll < hitChance
-
         let damageResult =
-          if not isHit then
-            {
+          match abilityDef.FormulaId with
+          | ValueNone -> {
               Amount = 0
               IsCritical = false
-              IsEvaded = true
+              IsEvaded = false
             }
-          else
-            Combat.calculateDamage abilityDef.DamageType actorStats targetStats rng
+          | ValueSome formulaId ->
+            calculateDamage
+              rparams.services.formulaStore
+              formulaId
+              actorStats
+              targetStats
+              rng
 
-        let! updatedTarget, shieldDamage =
-          MeleeAttack.applyShields
-            rparams.services.effectStore
-            targetComponents
-            damageResult
-
-        let actualDamage = max 0 (damageResult.Amount - shieldDamage)
+        let actualDamage = max 0 damageResult.Amount
 
         let damageEvent =
           DamageApplied {
@@ -590,11 +564,14 @@ module Resolution =
             amount = actualDamage
           }
 
-        let newHp = max 0 (updatedTarget.Resources.HP - actualDamage)
+        let newHp = max 0 (targetComponents.Resources.HP - actualDamage)
 
-        let updatedTargetAfterDamage = {
-          updatedTarget with
-              Resources.HP = newHp
+        let updatedTargetAfterDamage: All = {
+          targetComponents with
+              Resources = {
+                targetComponents.Resources with
+                    HP = newHp
+              }
         }
 
         let deathEvent, finalResources =

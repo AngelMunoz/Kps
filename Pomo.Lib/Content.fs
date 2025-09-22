@@ -1,5 +1,6 @@
 namespace Pomo.Lib.Content
 
+open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Abilities
 open Pomo.Lib.Domain.Effects
@@ -14,7 +15,7 @@ module EffectStore =
         Kind = EffectKind.Buff
         Duration = Timed(30000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = FSharp.Data.Adaptive.IndexList.ofList [ StatModifier.Additive(Stat.Power, 5) ]
+        Modifiers = IndexList.ofList [ StatModifier.Additive(Stat.Power, 5) ]
       }
       2<EffectId>,
       {
@@ -23,7 +24,7 @@ module EffectStore =
         Kind = EffectKind.Debuff
         Duration = Timed(20000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = FSharp.Data.Adaptive.IndexList.ofList [ StatModifier.Additive(Stat.DP, -5) ]
+        Modifiers = IndexList.ofList [ StatModifier.Additive(Stat.DP, -5) ]
       }
       // Phase 3 Effect Kinds for testing
       100<EffectId>,
@@ -33,7 +34,7 @@ module EffectStore =
         Kind = EffectKind.Stun
         Duration = Timed(5000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = FSharp.Data.Adaptive.IndexList.empty
+        Modifiers = IndexList.empty
       }
       101<EffectId>,
       {
@@ -42,7 +43,7 @@ module EffectStore =
         Kind = EffectKind.Silence
         Duration = Timed(8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = FSharp.Data.Adaptive.IndexList.empty
+        Modifiers = IndexList.empty
       }
       102<EffectId>,
       {
@@ -51,7 +52,7 @@ module EffectStore =
         Kind = EffectKind.Shield 10
         Duration = Timed(15000L<Tick>)
         Stacking = StackingRule.AddStack(5) // Max 5 stacks
-        Modifiers = FSharp.Data.Adaptive.IndexList.empty
+        Modifiers = IndexList.empty
       }
       103<EffectId>,
       {
@@ -60,7 +61,7 @@ module EffectStore =
         Kind = EffectKind.Taunt
         Duration = Timed(3000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = FSharp.Data.Adaptive.IndexList.empty
+        Modifiers = IndexList.empty
       }
       104<EffectId>,
       {
@@ -69,7 +70,7 @@ module EffectStore =
         Kind = EffectKind.Debuff
         Duration = Timed(10000L<Tick>)
         Stacking = StackingRule.NoStack
-        Modifiers = FSharp.Data.Adaptive.IndexList.empty
+        Modifiers = IndexList.empty
       }
       105<EffectId>,
       {
@@ -78,7 +79,7 @@ module EffectStore =
         Kind = EffectKind.DamageOverTime 5
         Duration = Loop(2000L<Tick>, 8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = FSharp.Data.Adaptive.IndexList.empty
+        Modifiers = IndexList.empty
       }
       106<EffectId>,
       {
@@ -87,9 +88,78 @@ module EffectStore =
         Kind = EffectKind.HealOverTime 5
         Duration = Loop(2000L<Tick>, 8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = FSharp.Data.Adaptive.IndexList.empty
+        Modifiers = IndexList.empty
       }
     ]
+
+
+module FormulaStore =
+  let definitions: Map<int<FormulaId>, FormulaDefinition> =
+    Map.ofList [
+      1<FormulaId>,
+      {
+        Id = 1<FormulaId>
+        Name = "Physical + Neutral Damage"
+        Calculate =
+          fun ctx -> {
+            BaseDamage = ctx.InvokerStats.AP * 2
+            ElementalDamage = 0
+            Element = Attributes.Neutral
+            DamageType = DamageType.Physical
+          }
+      }
+      2<FormulaId>,
+      {
+        Id = 2<FormulaId>
+        Name = "Fire + Magical Damage"
+        Calculate =
+          fun ctx ->
+            let fireAttr =
+              ctx.InvokerElementalAttributes.TryFindV Attributes.Fire
+              |> ValueOption.defaultValue 0.0
+
+            let fireDamage = fireAttr * (ctx.InvokerStats.MA * 2 |> float)
+
+            {
+              BaseDamage = ctx.InvokerStats.MA * 2
+              ElementalDamage = fireDamage |> int
+              Element = Attributes.Fire
+              DamageType = DamageType.Magical
+            }
+      }
+      3<FormulaId>,
+      {
+        Id = 3<FormulaId>
+        Name = "Magic + Neutral Damage"
+        Calculate =
+          fun ctx -> {
+            BaseDamage = ctx.InvokerStats.MA * 2
+            ElementalDamage = 0
+            Element = Attributes.Neutral
+            DamageType = DamageType.Magical
+          }
+      }
+      4<FormulaId>,
+      {
+        Id = 4<FormulaId>
+        Name = "Fire + Physical Damage"
+        Calculate =
+          fun ctx ->
+            let fireAttr =
+              ctx.InvokerElementalAttributes.TryFindV Attributes.Fire
+              |> ValueOption.defaultValue 0.0
+
+            let elementalDamage = fireAttr * (ctx.InvokerStats.AP * 2 |> float)
+
+            {
+              BaseDamage = ctx.InvokerStats.AP * 2
+              ElementalDamage = elementalDamage |> int
+              Element = Attributes.Fire
+              DamageType = DamageType.Physical
+            }
+      }
+    ]
+
 
 
 module AbilityStore =
@@ -100,15 +170,11 @@ module AbilityStore =
       {
         Id = 1<AbilityId>
         Name = "Melee Attack"
-        Cost =
-          ValueSome {
-            Type = ResourceType.Stamina
-            Amount = 10
-          }
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 2000L<Tick> // 2 seconds
         Targeting = TargetType.SingleEnemy
-        DamageType = DamageType.Physical
-        Effects = FSharp.Data.Adaptive.IndexList.empty
+        FormulaId = ValueSome 1<FormulaId>
+        Effects = IndexList.empty
       }
       2<AbilityId>,
       {
@@ -117,8 +183,8 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 20 }
         Cooldown = 5000L<Tick> // 5 seconds
         Targeting = TargetType.SingleEnemy
-        DamageType = DamageType.Elemental(Attributes.Element.Fire)
-        Effects = FSharp.Data.Adaptive.IndexList.ofList [ 2<EffectId> ]
+        FormulaId = ValueSome 2<FormulaId>
+        Effects = IndexList.ofList [ 2<EffectId> ]
       }
       3<AbilityId>,
       {
@@ -127,8 +193,8 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
         Targeting = TargetType.SingleEnemy
-        DamageType = DamageType.Magical
-        Effects = FSharp.Data.Adaptive.IndexList.ofList [ 104<EffectId> ]
+        FormulaId = ValueNone
+        Effects = IndexList.ofList [ 104<EffectId> ]
       }
       4<AbilityId>,
       {
@@ -137,8 +203,8 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
         Targeting = TargetType.Self
-        DamageType = DamageType.Magical
-        Effects = FSharp.Data.Adaptive.IndexList.ofList [ 1<EffectId> ] // RefreshDuration effect
+        FormulaId = ValueNone
+        Effects = IndexList.ofList [ 1<EffectId> ] // RefreshDuration effect
       }
       5<AbilityId>,
       {
@@ -147,8 +213,8 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
         Cooldown = 1000L<Tick>
         Targeting = TargetType.SingleAlly
-        DamageType = DamageType.Magical
-        Effects = FSharp.Data.Adaptive.IndexList.ofList [ 102<EffectId> ] // AddStack effect
+        FormulaId = ValueNone
+        Effects = IndexList.ofList [ 102<EffectId> ] // AddStack effect
       }
       6<AbilityId>,
       {
@@ -157,8 +223,8 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
         Targeting = TargetType.SingleEnemy
-        DamageType = DamageType.Elemental(Attributes.Element.Dark)
-        Effects = FSharp.Data.Adaptive.IndexList.ofList [ 105<EffectId> ] // DoT effect
+        FormulaId = ValueSome 3<FormulaId>
+        Effects = IndexList.ofList [ 105<EffectId> ] // DoT effect
       }
       7<AbilityId>,
       {
@@ -167,7 +233,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
         Targeting = TargetType.SingleAlly
-        DamageType = DamageType.Elemental(Attributes.Element.Light)
-        Effects = FSharp.Data.Adaptive.IndexList.ofList [ 106<EffectId> ] // HoT effect
+        FormulaId = ValueNone
+        Effects = IndexList.ofList [ 106<EffectId> ] // HoT effect
       }
     ]

@@ -82,7 +82,9 @@ module Attributes =
     DP: int
     HV: float
 
-    Resistances: FSharp.Data.Adaptive.HashMap<Element, float>
+    // Element % of attributes and resistances
+    ElementAttributes: FSharp.Data.Adaptive.HashMap<Element, float>
+    ElementResistances: FSharp.Data.Adaptive.HashMap<Element, float>
   }
 
   [<Struct>]
@@ -191,13 +193,44 @@ module Effects =
   }
 
 module Abilities =
-  open Effects
+  [<Struct>]
+  type DamageType =
+    | Physical
+    | Magical
+
+  [<Measure>]
+  type FormulaId
+
+  [<Struct>]
+  type DamageResult = {
+    BaseDamage: int
+    ElementalDamage: int
+    Element: Attributes.Element
+    DamageType: DamageType
+  }
+
+  [<Struct>]
+  type CalculationContext = {
+    InvokerStats: Attributes.DerivedStats
+    InvokerElementalAttributes:
+      FSharp.Data.Adaptive.HashMap<Attributes.Element, float>
+    TargetElementalResistances:
+      FSharp.Data.Adaptive.HashMap<Attributes.Element, float>
+  }
+
+  type FormulaFunction = CalculationContext -> DamageResult
+
+  [<Struct>]
+  type FormulaDefinition = {
+    Id: int<FormulaId>
+    Name: string
+    Calculate: FormulaFunction
+  }
 
   [<Struct>]
   type ResourceType =
     | HP
     | MP
-    | Stamina
 
   [<Struct>]
   type ResourceCost = { Type: ResourceType; Amount: int }
@@ -210,19 +243,13 @@ module Abilities =
     | MultiTarget of int // number of targets
 
   [<Struct>]
-  type DamageType =
-    | Physical
-    | Magical
-    | Elemental of Attributes.Element
-
-  [<Struct>]
   type AbilityDefinition = {
     Id: int<AbilityId>
     Name: string
     Cooldown: int64<Tick>
     Cost: ResourceCost voption
     Targeting: TargetType
-    DamageType: DamageType
+    FormulaId: int<FormulaId> voption
     Effects: FSharp.Data.Adaptive.IndexList<int<EffectId>>
   }
 
@@ -280,8 +307,7 @@ module Rules =
   }
 
   [<Struct>]
-  type Command =
-    | UseAbility of action: UseAbilityAction
+  type Command = UseAbility of action: UseAbilityAction
 
 
 module Components =
@@ -298,27 +324,25 @@ module Components =
   }
 
 module Services =
-  open FSharp.Data.Adaptive
   open Abilities
   open Effects
 
   type IAbilityStore =
     abstract member tryFind: int<AbilityId> -> AbilityDefinition voption
     abstract member find: int<AbilityId> -> AbilityDefinition
-    abstract member asList: FSharp.Data.Adaptive.IndexList<AbilityDefinition>
-    abstract member asAList: alist<AbilityDefinition>
-    abstract member asAMap: amap<int<AbilityId>, AbilityDefinition>
 
   type IEffectStore =
     abstract member tryFind: int<EffectId> -> EffectDefinition voption
     abstract member find: int<EffectId> -> EffectDefinition
-    abstract member asList: FSharp.Data.Adaptive.IndexList<EffectDefinition>
-    abstract member asAList: alist<EffectDefinition>
-    abstract member asAMap: amap<int<EffectId>, EffectDefinition>
+
+  type IFormulaStore =
+    abstract member tryFind: int<FormulaId> -> FormulaDefinition voption
+    abstract member find: int<FormulaId> -> FormulaDefinition
 
   type EngineServices = {
     abilityStore: IAbilityStore
     effectStore: IEffectStore
+    formulaStore: IFormulaStore
     rng: unit -> float
   }
 
@@ -329,7 +353,7 @@ module State =
 
   [<Struct>]
   type StateChange = {
-    entities: FSharp.Data.Adaptive.HashMap<int<EntityId>, All>
-    events: FSharp.Data.Adaptive.IndexList<GameEvent>
+    entities: HashMap<int<EntityId>, All>
+    events: IndexList<GameEvent>
     gameTime: int64<Tick> voption
   }
