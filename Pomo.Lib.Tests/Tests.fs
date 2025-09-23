@@ -101,9 +101,6 @@ module private TestHelpers =
       rng = rng
     }
 
-
-
-
   let makeEntity
     (id: int<EntityId>)
     (baseStats: BaseAttributes)
@@ -467,3 +464,219 @@ type ``Action Resolution``() =
       |> AList.force
 
     Assert.Equal(2, damageEvents.Count)
+
+// --------------------------------------------------
+// Combat Mechanics Property Tests
+// --------------------------------------------------
+type ``Combat Mechanics Properties``() =
+
+  [<Property(MaxTest = 50)>]
+  member _.``Physical hit chance follows AC vs HV formula``
+    (attackerPower: PositiveInt)
+    (defenderCharm: PositiveInt)
+    (rng: NormalFloat)
+    =
+    let power = float(attackerPower.Get % 50 + 10)
+    let charm = float(defenderCharm.Get % 50 + 10)
+    let rngValue = abs rng.Get % 1.0
+
+    let ac = power / 100.0 // AC formula from derived stats
+    let hv = charm / 100.0 // HV formula from derived stats
+    let expectedHitChance = ac / (ac + hv)
+    let shouldHit = rngValue < expectedHitChance
+
+    let state = TestHelpers.create(fun () -> rngValue)
+    let attackerId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let meleeId = 1<AbilityId>
+
+    let attackerStats = {
+      Power = int power
+      Magic = 4
+      Sense = 50
+      Charm = 10
+    }
+
+    let defenderStats = {
+      Power = 12
+      Magic = 4
+      Sense = 50
+      Charm = int charm
+    }
+
+    let attacker =
+      TestHelpers.makeEntity attackerId attackerStats 100 100 [ meleeId ]
+
+    let target = TestHelpers.makeEntity targetId defenderStats 100 100 []
+
+    TestHelpers.addEntity state attackerId attacker
+    TestHelpers.addEntity state targetId target
+
+    let initialHp = (state.entities |> AMap.force).[targetId].Resources.HP
+
+    let action =
+      Rules.UseAbility {
+        actor = attackerId
+        targets = IndexList.ofList [ targetId ]
+        abilityId = meleeId
+      }
+
+    let delta = Resolution.step state action
+    let change = delta |> AVal.force
+    Resolution.apply state change
+
+    let finalHp = (state.entities |> AMap.force).[targetId].Resources.HP
+    let actualHit = finalHp < initialHp
+
+    actualHit = shouldHit
+
+  [<Property(MaxTest = 50)>]
+  member _.``Magical hit chance follows LK vs LK formula``
+    (attackerSense: PositiveInt)
+    (defenderSense: PositiveInt)
+    (rng: NormalFloat)
+    =
+    let atkSense = float(attackerSense.Get % 50 + 10)
+    let defSense = float(defenderSense.Get % 50 + 10)
+    let rngValue = abs rng.Get % 1.0
+
+    let expectedHitChance = atkSense / (atkSense + defSense)
+    let shouldHit = rngValue < expectedHitChance
+
+    let state = TestHelpers.create(fun () -> rngValue)
+    let attackerId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let spellId = 6<AbilityId>
+
+    let attackerStats = {
+      Power = 12
+      Magic = 4
+      Sense = int atkSense
+      Charm = 10
+    }
+
+    let defenderStats = {
+      Power = 12
+      Magic = 4
+      Sense = int defSense
+      Charm = 10
+    }
+
+    let attacker =
+      TestHelpers.makeEntity attackerId attackerStats 100 100 [ spellId ]
+
+    let target = TestHelpers.makeEntity targetId defenderStats 100 100 []
+
+    TestHelpers.addEntity state attackerId attacker
+    TestHelpers.addEntity state targetId target
+
+    let initialHp = (state.entities |> AMap.force).[targetId].Resources.HP
+
+    let action =
+      Rules.UseAbility {
+        actor = attackerId
+        targets = IndexList.ofList [ targetId ]
+        abilityId = spellId
+      }
+
+    let delta = Resolution.step state action
+    let change = delta |> AVal.force
+    Resolution.apply state change
+
+    let finalHp = (state.entities |> AMap.force).[targetId].Resources.HP
+    let actualHit = finalHp < initialHp
+
+    actualHit = shouldHit
+
+  [<Property(MaxTest = 100)>]
+  member _.``Damage scales with attacker stats``
+    (attackerPower: PositiveInt)
+    (rngResult: NormalFloat)
+    =
+    let power = attackerPower.Get
+    let rngValue = abs rngResult.Get % 1.0
+
+    let stateLow = TestHelpers.create(fun () -> rngValue)
+    let stateHigh = TestHelpers.create(fun () -> rngValue)
+
+    let attackerIdLow = 1<EntityId>
+    let attackerIdHigh = 2<EntityId>
+    let targetId = 10<EntityId>
+    let meleeId = 1<AbilityId>
+
+    let lowStats = {
+      Power = power
+      Magic = 4
+      Sense = 50
+      Charm = 10
+    }
+
+    let highStats = {
+      Power = power + 10
+      Magic = 4
+      Sense = 50
+      Charm = 10
+    }
+
+    let targetStats = {
+      Power = 5
+      Magic = 4
+      Sense = 1
+      Charm = 10
+    }
+
+    let attackerLow =
+      TestHelpers.makeEntity attackerIdLow lowStats 100 100 [ meleeId ]
+
+    let attackerHigh =
+      TestHelpers.makeEntity attackerIdHigh highStats 100 100 [ meleeId ]
+
+    let targetLow = TestHelpers.makeEntity targetId targetStats 100 100 []
+    let targetHigh = TestHelpers.makeEntity targetId targetStats 100 100 []
+
+    TestHelpers.addEntity stateLow attackerIdLow attackerLow
+    TestHelpers.addEntity stateLow targetId targetLow
+    TestHelpers.addEntity stateHigh attackerIdHigh attackerHigh
+    TestHelpers.addEntity stateHigh targetId targetHigh
+
+    let actionLow =
+      Rules.UseAbility {
+        actor = attackerIdLow
+        targets = IndexList.ofList [ targetId ]
+        abilityId = meleeId
+      }
+
+    let deltaLow = Resolution.step stateLow actionLow |> AVal.force
+    Resolution.apply stateLow deltaLow
+
+    let damageLow =
+      stateLow.gameEvents
+      |> AList.choose (function
+        | GameEvent.DamageApplied e -> Some e
+        | _ -> None)
+      |> AList.tryFirst
+
+    let actionHigh =
+      Rules.UseAbility {
+        actor = attackerIdHigh
+        targets = IndexList.ofList [ targetId ]
+        abilityId = meleeId
+      }
+
+    let deltaHigh = Resolution.step stateHigh actionHigh |> AVal.force
+    Resolution.apply stateHigh deltaHigh
+
+    let damageHigh =
+      stateHigh.gameEvents
+      |> AList.choose (function
+        | GameEvent.DamageApplied e -> Some e
+        | _ -> None)
+      |> AList.tryLast
+
+    let damageHigh = damageHigh |> AVal.force
+    let damageLow = damageLow |> AVal.force
+
+    if damageHigh.Value.amount > 0 then
+      damageHigh.Value.amount > damageLow.Value.amount
+    else
+      true
