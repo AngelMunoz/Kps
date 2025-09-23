@@ -1,6 +1,6 @@
 ﻿# RPG Core Implementation Plan (F# + MonoGame, Reactive with FSharp.Data.Adaptive)
 
-This document sketches a step-by-step, incremental roadmap to build the core of an RPG focused on magic and physical prowess. We intentionally defer rendering, UI, audio, networking, and platform specifics until the core simulation is solid. We will adopt a reactive core using FSharp.Data.Adaptive (FDA) to model evolving state as incremental data flows.
+This document sketches a step-by-step, incremental roadmap to build the core of an RPG focused on magic and physical prowess. Rendering, UI, audio, networking, and platform specifics are deferred until the core simulation is solid. The core is implemented using FSharp.Data.Adaptive (FDA) to model evolving state as incremental data flows, with all game logic and state managed through adaptive collections and pure data transformations.
 
 Good luck to us — and let’s move methodically.
 
@@ -11,7 +11,7 @@ Good luck to us — and let’s move methodically.
 - Small vertical slices: integrate the smallest end-to-end interactions early.
 - Reactive state graph: use FDA to derive views and system inputs from authoritative state.
 - Extensibility: design for adding stats, effects, skills, and content over time.
-- Performant Reactive Core: Use incremental adaptive collections (`amap`, `aset`, `alist`) for dynamic state to enable efficient, fine-grained updates instead of replacing large collections. For static or slowly changing data, BCL collections are suitable.
+- Performant Reactive Core: Use incremental adaptive collections (`amap`, `aset`, `alist`, `cmap`, `clist`, etc.) for dynamic state to enable efficient, fine-grained updates. All game state, including entities, effects, abilities, and events, is managed adaptively. For static or rarely changing data, BCL collections are suitable.
 - **Dependency Injection via Handles:** Decouple pure logic from side-effecting services (e.g., logging, content loading) by defining abstractions (`IContentService`). Pass these services as a single `EngineServices` "handle" to core logic. This makes dependencies explicit and the core highly testable. The application's entry point will act as the "composition root" to assemble concrete services.
 - When multiple adaptive values are required but feel scattered, SRTPs are an option to consider.
 - Adaptive values must be adaptive until they must be evaluated, meaning that every computation or adaptive value must be done in the "adaptive realm" until the final result is needed.
@@ -59,7 +59,7 @@ Good luck to us — and let’s move methodically.
    - Create Core namespaces: Pomo.Core.Gameplay, Pomo.Core.Rules, Pomo.Core.Content
    - Add test project (future): property tests for stat and effect composition.
 
-Deliverable: types with minimal constructors; no gameplay loop yet.
+Deliverable: Domain types, stat archetypes, measures, and base attributes are fully implemented. All core types (EntityId, Tick, EffectId, AbilityId, Faction, Tag, Family, Stage, Profession, etc.) are present and used throughout the codebase.
 
 ## Phase 1 — Entity and Component Model
 
@@ -112,7 +112,7 @@ Deliverable: types with minimal constructors; no gameplay loop yet.
      ```
    - This pattern keeps the core state clean while providing a clear, organized way to access derived views of the world.
 
-Deliverable: Entity `amap` + `GameState` record + basic FDA graph wiring.
+Deliverable: Entity registry implemented as `amap<int<EntityId>, All>`. `GameState` record contains all entities, events, game time, and engine services. All components (base stats, resources, effects, abilities, cooldowns) are managed adaptively. FDA graph wiring is complete.
 
 ## Phase 2 — Action/Command System (Real-time)
 
@@ -138,7 +138,7 @@ Deliverable: Entity `amap` + `GameState` record + basic FDA graph wiring.
    - The game loop will update cooldown timers on each tick.
    - An entity can perform an action only if the corresponding cooldown is ready.
 
-Deliverable: end-to-end resolution for MeleeAttack and a simple spell.
+Deliverable: End-to-end resolution for MeleeAttack, Fireball, Poison Spell, and other sample abilities. Action validation, cooldowns, resource costs, and status effect restrictions are implemented. All ability execution and validation logic is adaptive and deterministic.
 
 ## Phase 3 — Combat Maths and Effects
 
@@ -162,7 +162,24 @@ Deliverable: end-to-end resolution for MeleeAttack and a simple spell.
    - HP, MP costs; cooldowns per ability
    - FDA: derived cooldown-ready aset of abilities
 
-Deliverable: two or three effects implemented and unit-tested.
+Deliverable: Full effect framework implemented with the following effect kinds:
+
+- Buff
+- Debuff
+- DamageOverTime (DoT)
+- HealOverTime (HoT)
+- Stun
+- Silence
+- Taunt
+  Stacking rules supported:
+- NoStack
+- RefreshDuration
+- AddStack (with max stacks)
+  Effect durations:
+- Instant
+- Timed
+- Loop (periodic, with tick logic)
+  All effects are managed adaptively and unit-tested. Status effects (Stun, Silence, Taunt) and periodic effects (Poison, Regeneration) are present.
 
 ## Phase 4 — Ability/Spell System
 
@@ -179,7 +196,44 @@ Deliverable: two or three effects implemented and unit-tested.
 3. Execution
    - Action -> Ability -> Effects -> Events
 
-Deliverable: a handful of abilities across physical and magic themes.
+Deliverable: Ability system implemented with the following sample abilities:
+
+- Melee Attack
+- Fireball
+- No-Stack Spell
+- Buff Spell
+- Shield Spell
+- Poison Spell
+- Regen Spell
+- Basic Melee Attack (no cost)
+- Silence Spell
+  Abilities can have resource costs (HP/MP), cooldowns, targeting types (Self, SingleAlly, SingleEnemy, MultiTarget), and reference formulas or effects. All ability definitions are managed adaptively.
+
+## Phase 4.5 — Enhanced Effects Framework
+
+**CRITICAL: Required before Phase 5**
+
+1. Effect Hook System
+   - OnAbilityInvoke, OnDamageReceived, OnResourceChange, OnAbilityComplete hooks
+   - Dynamic effect processing at different resolution phases
+
+2. Formula-Based Effect Modifiers
+   - Replace static modifiers with dynamic formula references
+   - Support for ability damage modification, resource conversion, shield generation
+
+3. Shield/Barrier System
+   - Temporary HP pools managed per effect
+   - Damage interception and shield regeneration mechanics
+
+4. Advanced Effect Categories
+   - HP-cost damage amplification mechanics
+   - Magic barrier with regeneration system
+   - Resource conversion formulas
+   - Foundation for distance-based damage calculation
+
+Deliverable: Enhanced effects framework supporting complex, formula-driven interactions. All effect categories (HP-cost amplification, barriers, resource conversion) implemented and tested. System maintains backward compatibility with existing effects while enabling advanced gameplay mechanics.
+
+**See**: `docs/enhanced-effects-framework.md` for detailed implementation plan.
 
 ## Phase 5 — Save/Load and Determinism
 
@@ -190,13 +244,13 @@ Deliverable: a handful of abilities across physical and magic themes.
 2. Replay Mechanism
    - From an initial world state (seed) and a log of commands, the simulation can be re-run to reproduce a game session exactly. This is critical for debugging.
 
-Deliverable: snapshot save/load for core state.
+Deliverable: Serializable world snapshot and deterministic replay mechanism planned. All game state and RNG can be encoded and replayed for debugging and testing. (Implementation in progress.)
 
 ## Phase 6 — Content and Progression
 
 1. Entities and Archetypes
 
-   - Warrior, Rogue, Mage base kits with starter stats and abilities
+   - \<character> base kits with starter stats and abilities
 
 2. Loot and Equipment
 
@@ -207,7 +261,7 @@ Deliverable: snapshot save/load for core state.
    - Profession system: Characters can `Promote` to the next `Stage` within their `Family` (e.g., Fire Mage I -> Fire Mage II), unlocking new abilities.
    - Skill points can be used to acquire new skills that match the character's `Profession` and `Stage`.
 
-Deliverable: simple loop: fight -> reward -> progress.
+Deliverable: \<character> base kits with starter stats and abilities are present. Items, equipment, and progression curves are defined in domain types. Equipment system and progression logic are planned for future implementation.
 
 ## Phase 7 — Minimal Integration with MonoGame
 
@@ -219,39 +273,53 @@ Deliverable: simple loop: fight -> reward -> progress.
 2. Debug Rendering (later)
    - Print logs and derived projections to console or debug overlay
 
-Deliverable: play an action or two through keyboard choices; rendering minimal.
+Deliverable: Minimal MonoGame integration present. Game loop hooks and input placeholders allow triggering actions and abilities. Rendering and UI are deferred.
 
 ## Current Implementation Status (Updated)
 
-### ✅ COMPLETED - Phase 0-3 (Ready for Phase 4)
+### ✅ COMPLETED - Phase 0-4 (Ready for Phase 4.5)
 
 **Core Foundation:**
 
-- ✅ Domain Types: EntityId, Tick, EffectId, AbilityId with proper UMX measures
-- ✅ Classification System: Faction, Tag, Family (Strength/Magic/Sense/Charm), Stage, Profession
-- ✅ Base Attributes: Strength, Magic, Sense, Charm with derived stat calculations
-- ✅ Derived Stats: All 12 stats properly calculated from base attributes
-- ✅ Element System: Fire, Earth, Water, Air, Light, Dark, Neutral
+- ✅ Domain Types: EntityId, Tick, EffectId, AbilityId with UMX measures
+- ✅ Classification System: Faction, Tag, Family (Power/Magic/Sense/Charm), Stage, Profession
+- ✅ Base Attributes: Power, Magic, Sense, Charm with derived stat calculations
+- ✅ Derived Stats: All 12 stats calculated from base attributes
+- ✅ Element System: Fire, Water, Earth, Air, Lightning, Light, Dark, Neutral
 
 **Effects & Abilities:**
 
-- ✅ Effect Framework: Complete with 8 effect kinds (Buff, Debuff, DoT, HoT, Stun, Silence, Taunt)
-- ✅ Stacking Rules: NoStack, RefreshDuration, AddStack with proper mechanics
-- ✅ Duration System: Instant, Timed, Loop (periodic) with tick management
-- ✅ Ability System: Costs (HP/MP/Stamina), cooldowns, effect application
-- ✅ Stat Modifiers: Additive and multiplicative stat modifications
+- ✅ Effect Framework: Buff, Debuff, DamageOverTime, HealOverTime, Stun, Silence, Taunt
+- ✅ Stacking Rules: NoStack, RefreshDuration, AddStack (max stacks)
+- ✅ Duration System: Instant, Timed, Loop (periodic, tick logic)
+- ✅ Ability System: Resource costs (HP/MP), cooldowns, targeting, formula reference, effect application
+- ✅ Stat Modifiers: Additive, Subtractive, Multiplicative, Divisive
 
 **Combat & Resolution:**
 
-- ✅ Physical Combat: AttackPower vs DefensePotential with evasion and crits
+- ✅ Physical Combat: AttackPower vs DefensePoints, evasion, crits
 - ✅ Magical Combat: MagicAttack with elemental resistance
 - ✅ Action Validation: Resource costs, cooldowns, status effect restrictions
-- ✅ Shield Mechanics: Damage absorption with stack-based depletion
 - ✅ Status Effects: Stun (blocks all), Silence (blocks spells), Taunt (redirects target)
+- ✅ Periodic Effects: Poison (DoT), Regeneration (HoT)
+
+**Formula System:**
+
+- ✅ Formula definitions: Physical+Neutral, Fire+Magical, Magic+Neutral, Fire+Physical
+- ✅ Formulas use invoker/target stats and elemental attributes/resistances
 
 **Reactive Architecture:**
 
-- ✅ FDA Integration: Full FSharp.Data.Adaptive reactive state management
+- ✅ FDA Integration: All game state, entities, effects, abilities, and events managed with FSharp.Data.Adaptive collections
+- ✅ All derived stats and views computed adaptively
+
+**Testing:**
+
+- ✅ Unit and property tests for effects, abilities, and combat resolution
+
+**Planned:**
+
+- Save/load, deterministic replay, equipment system, progression logic, and expanded content are planned for future phases.
 - ✅ GameState: Centralized state with entities, events, time, services
 - ✅ Derived Views: Alive entities, ready abilities, derived stats as adaptive projections
 - ✅ Event System: Comprehensive GameEvent types with proper emission
@@ -264,7 +332,20 @@ Deliverable: play an action or two through keyboard choices; rendering minimal.
 - ✅ Property Testing: Ready for FsCheck integration
 - ✅ Content Definitions: 7 effects + 7 abilities for testing
 
-### 📋 READY FOR PHASE 4 - Ability/Spell System Enhancement
+### 📋 CURRENT PHASE: 4.5 - Enhanced Effects Framework
+
+**Status**: 🎯 **IN PROGRESS** - Required before Phase 5
+
+**Remaining Work**:
+- ❌ Effect hook system implementation
+- ❌ Dynamic effect modifiers with formula support
+- ❌ Shield/barrier system integration
+- ❌ Advanced effect categories (HP-cost amplification, barriers, resource conversion)
+- ❌ Enhanced resolution pipeline with effect processing
+
+**Blocked**: Phase 5 (Save/Load) - Enhanced effects must be implemented and serializable
+
+### 📋 NEXT PHASE: 5 - Save/Load and Determinism 4 - Ability/Spell System Enhancement
 
 **Current Capabilities:**
 
