@@ -153,17 +153,6 @@ module Effects =
     | Timed of int64<Tick>
     | Loop of int64<Tick> * int64<Tick> // Interval * Total Duration
 
-    member this.Duration =
-      match this with
-      | Instant -> ValueNone
-      | Timed d -> ValueSome d
-      | Loop(_, d) -> ValueSome d
-
-    member this.Interval =
-      match this with
-      | Loop(i, _) -> ValueSome i
-      | _ -> ValueNone
-
   [<Struct>]
   type StatModifier =
     | Additive of addStat: Stat * adStatValue: int
@@ -188,9 +177,13 @@ module Effects =
     RemainingTicks: int64<Tick>
     NextTickIn: int64<Tick>
     Stacks: int
+    Definition: EffectDefinition
   }
 
 module Abilities =
+  open FSharp.Data.Adaptive
+
+
   [<Struct>]
   type DamageType =
     | Physical
@@ -210,10 +203,8 @@ module Abilities =
   [<Struct>]
   type CalculationContext = {
     InvokerStats: Attributes.DerivedStats
-    InvokerElementalAttributes:
-      FSharp.Data.Adaptive.HashMap<Attributes.Element, float>
-    TargetElementalResistances:
-      FSharp.Data.Adaptive.HashMap<Attributes.Element, float>
+    InvokerElementalAttributes: HashMap<Attributes.Element, float>
+    TargetElementalResistances: HashMap<Attributes.Element, float>
   }
 
   type FormulaFunction = CalculationContext -> DamageResult
@@ -248,14 +239,12 @@ module Abilities =
     Cost: ResourceCost voption
     Targeting: TargetType
     FormulaId: int<FormulaId> voption
-    Effects: FSharp.Data.Adaptive.IndexList<int<EffectId>>
+    Effects: IndexList<int<EffectId>>
   }
 
 module AggregatedEffects =
   [<Struct>]
   type TickResult = { Damage: int; Healing: int }
-
-  let empty = { Damage = 0; Healing = 0 }
 
 module GameEvent =
   open FSharp.Data.Adaptive

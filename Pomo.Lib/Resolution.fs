@@ -208,8 +208,8 @@ module Resolution =
       | ValueSome c ->
         let hasEnough =
           match c.Type with
-          | Abilities.ResourceType.HP -> actor.Resources.HP >= c.Amount
-          | Abilities.ResourceType.MP -> actor.Resources.MP >= c.Amount
+          | HP -> actor.Resources.HP >= c.Amount
+          | MP -> actor.Resources.MP >= c.Amount
 
         struct (hasEnough, ValueSome c)
       | ValueNone -> struct (true, ValueNone)
@@ -241,99 +241,70 @@ module Resolution =
 
   module Shared =
     let private determineNewEffect
-      (effectDef: Effects.EffectDefinition voption)
-      (existingEffect: Effects.ActiveEffect option)
-      (actorId: int<EntityId>)
-      (effectId: int<EffectId>)
+      (effectDef: Effects.EffectDefinition)
+      (existingEffect: Effects.ActiveEffect)
       =
-      let stacking = effectDef |> ValueOption.map _.Stacking
+      let stacking = effectDef.Stacking
 
-      match existingEffect, stacking with
-      | Some _, ValueSome Effects.StackingRule.NoStack -> ValueNone // Do not apply
-      | Some e, ValueSome Effects.StackingRule.RefreshDuration ->
-        let duration =
-          match effectDef.Value.Duration with
-          | Effects.Duration.Timed d -> d
-          | Effects.Duration.Loop(_, d) -> d
-          | _ -> 0L<Tick>
-
-        let interval =
-          match effectDef.Value.Duration with
-          | Effects.Duration.Loop(i, _) -> i
-          | _ -> 0L<Tick>
-
+      match stacking with
+      | Effects.NoStack -> ValueNone
+      | Effects.RefreshDuration ->
         ValueSome {
-          e with
-              RemainingTicks = duration
-              NextTickIn = interval
+          existingEffect with
+              RemainingTicks =
+                effectDef.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
+              NextTickIn =
+                effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
         }
-      | Some e, ValueSome(Effects.StackingRule.AddStack maxStacks) ->
-        let newStacks = min maxStacks (e.Stacks + 1)
-
-        let duration =
-          match effectDef.Value.Duration with
-          | Effects.Duration.Timed d -> d
-          | Effects.Duration.Loop(_, d) -> d
-          | _ -> 0L<Tick>
-
-        let interval =
-          match effectDef.Value.Duration with
-          | Effects.Duration.Loop(i, _) -> i
-          | _ -> 0L<Tick>
+      | Effects.AddStack maxStacks ->
+        let newStacks = min maxStacks (existingEffect.Stacks + 1)
 
         ValueSome {
-          e with
+          existingEffect with
               Stacks = newStacks
-              RemainingTicks = duration
-              NextTickIn = interval
+              RemainingTicks =
+                effectDef.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
+              NextTickIn =
+                effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
         }
-      | _, ValueNone
-      | None, _ ->
-        let duration =
-          effectDef
-          |> ValueOption.map _.Duration.Duration
-          |> ValueOption.flatten
-          |> ValueOption.defaultValue 0L<Tick>
 
-        let interval =
-          effectDef
-          |> ValueOption.map _.Duration.Interval
-          |> ValueOption.flatten
-          |> ValueOption.defaultValue 0L<Tick>
 
-        ValueSome {
-          EffectId = effectId
-          SourceId = actorId
-          RemainingTicks = duration
-          NextTickIn = interval
-          Stacks = 1
-        }
 
     let private processEffect
-      (effectStore: IEffectStore)
+      (effectDef: Effects.EffectDefinition)
       (targetComponents: All)
       (actorId: int<EntityId>)
       (targetId: int<EntityId>)
-      (effectId: int<EffectId>)
       =
       adaptive {
-        let effectDef = effectStore.tryFind effectId
-
         let! existingEffect = adaptive {
           let! effects = targetComponents.Effects |> AList.toAVal
 
-          return effects |> IndexList.tryFind(fun _ e -> e.EffectId = effectId)
+          return
+            effects |> IndexList.tryFind(fun _ e -> e.EffectId = effectDef.Id)
         }
 
         let newEffect =
-          determineNewEffect effectDef existingEffect actorId effectId
+          match existingEffect with
+          | Some e -> determineNewEffect effectDef e
+          | None ->
+            ValueSome {
+              EffectId = effectDef.Id
+              SourceId = actorId
+              RemainingTicks =
+                effectDef.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
+              NextTickIn =
+                effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
+              Stacks = 1
+              Definition = effectDef
+            }
 
         let event =
           newEffect
           |> ValueOption.map(fun _ ->
             EffectApplied {
               target = targetId
-              effectId = effectId
+              effectId = effectDef.Id
               source = actorId
             })
 
@@ -363,9 +334,14 @@ module Resolution =
         let! results =
           abilityDef.Effects
           |> AList.ofIndexList
-          |> AList.mapA(
-            processEffect effectStore targetComponents actorId targetId
-          )
+          |> AList.mapA(fun effectId -> adaptive {
+            let effect = effectStore.tryFind effectId
+
+            match effect with
+            | ValueNone -> return ValueNone, ValueNone
+            | ValueSome effect ->
+              return! processEffect effect targetComponents actorId targetId
+          })
           |> AList.toAVal
 
         let effectEvents, effectsToApply =
@@ -396,7 +372,7 @@ module Resolution =
           }
         }
 
-        return effectEvents, finalTarget
+        return struct (effectEvents, finalTarget)
       }
 
     let checkForDeath
@@ -412,7 +388,7 @@ module Resolution =
 
         let resources = {
           targetComponents.Resources with
-              Status = Attributes.Status.Dead
+              Status = Dead
               HP = newHp
         }
 
@@ -433,7 +409,7 @@ module Resolution =
       | ValueSome cost ->
         let amount, updatedResources =
           match cost.Type with
-          | Abilities.ResourceType.HP ->
+          | HP ->
             let newAmount = actorComponents.Resources.HP - cost.Amount
 
             newAmount,
@@ -441,7 +417,7 @@ module Resolution =
               actorComponents.Resources with
                   HP = newAmount
             }
-          | Abilities.ResourceType.MP ->
+          | MP ->
             let newAmount = actorComponents.Resources.MP - cost.Amount
 
             newAmount,
@@ -453,16 +429,16 @@ module Resolution =
         let ev =
           ResourceChanged {
             target = actorId
-            resource = sprintf "%A" cost.Type
+            resource = ResourceType.asString cost.Type
             newValue = amount
           }
 
-        [| ev |],
-        {
-          actorComponents with
-              Resources = updatedResources
-        }
-      | ValueNone -> Array.empty, actorComponents
+        struct (ValueSome ev,
+                {
+                  actorComponents with
+                      Resources = updatedResources
+                })
+      | ValueNone -> struct (ValueNone, actorComponents)
 
     let updateCooldowns
       (actorComponents: All)
@@ -494,9 +470,7 @@ module Resolution =
       | ValueSome abilityDef ->
 
       match actor, target with
-      | Some actor, Some target when
-        actor.Resources.Status = Attributes.Status.Alive
-        ->
+      | Some actor, Some target when actor.Resources.Status = Alive ->
         let! isStunned =
           ValidateAction.checkStun rparams.services.effectStore actor
 
@@ -621,7 +595,7 @@ module Resolution =
               Resources = finalResources
         }
 
-        let! effectEvents, finalTarget =
+        let! struct (effectEvents, finalTarget) =
           Shared.applyAbilityEffects
             rparams.services.effectStore
             abilityDef
@@ -629,7 +603,7 @@ module Resolution =
             targetId
             updatedTargetAfterDeathCheck
 
-        let costEvents, actorWithCost =
+        let struct (costEvents, actorWithCost) =
           Shared.applyResourceCost costOpt actorComponents actorId
 
         let finalActor =
@@ -641,7 +615,8 @@ module Resolution =
         let allEvents =
           [|
             damageEvent
-            yield! costEvents
+            if costEvents.IsSome then
+              costEvents.Value
             yield! effectEvents
             if deathEvent.IsSome then
               deathEvent.Value
@@ -676,15 +651,15 @@ module Resolution =
         // Determine actual targets based on ability targeting constraints
         let actualTargets =
           match abilityDef.Targeting with
-          | Abilities.TargetType.Self -> IndexList.ofList [ action.actor ]
-          | Abilities.TargetType.SingleAlly
-          | Abilities.TargetType.SingleEnemy ->
+          | Self -> IndexList.ofList [ action.actor ]
+          | SingleAlly
+          | SingleEnemy ->
             action.targets
             |> IndexList.isEmpty
             |> function
               | true -> IndexList.empty
               | false -> action.targets |> IndexList.take 1
-          | Abilities.TargetType.MultiTarget maxTargets ->
+          | MultiTarget maxTargets ->
             action.targets |> IndexList.take maxTargets
 
         if IndexList.isEmpty actualTargets then

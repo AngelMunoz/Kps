@@ -28,10 +28,11 @@ module StatusEffects =
           EffectId = effectToApply.Id
           SourceId = sourceId
           RemainingTicks =
-            effectToApply.Duration.Duration |> ValueOption.defaultValue 0L<Tick>
+            effectToApply.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
           NextTickIn =
             effectToApply.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
           Stacks = 1
+          Definition = effectToApply
         }
 
         return effects |> IndexList.add newEffect
@@ -48,7 +49,7 @@ module StatusEffects =
                 | RefreshDuration -> {
                     e with
                         RemainingTicks =
-                          effectToApply.Duration.Duration
+                          effectToApply.Duration.Ticks
                           |> ValueOption.defaultValue 0L<Tick>
                         NextTickIn =
                           effectToApply.Duration.Interval
@@ -59,7 +60,7 @@ module StatusEffects =
                       e with
                           Stacks = min maxStacks (e.Stacks + 1)
                           RemainingTicks =
-                            effectToApply.Duration.Duration
+                            effectToApply.Duration.Ticks
                             |> ValueOption.defaultValue 0L<Tick>
                           NextTickIn =
                             effectToApply.Duration.Interval
@@ -219,7 +220,7 @@ module StatusEffects =
                       NextTickIn = newNextTickIn
                 }
 
-                updated, [], AggregatedEffects.empty
+                updated, [], TickResult.Zero
 
             let newAccEvents =
               newEvents
@@ -231,7 +232,7 @@ module StatusEffects =
             }
 
             IndexList.add updatedEffect accEffects, newAccEvents, newAccResult)
-          (IndexList.empty, IndexList.empty, AggregatedEffects.empty)
+          (IndexList.empty, IndexList.empty, TickResult.Zero)
 
 
       // 4. Combine all events and return the final state.

@@ -102,6 +102,7 @@ module private Phase3Helpers =
         RemainingTicks = remaining
         NextTickIn = 0L<Tick>
         Stacks = stacks
+        Definition = EffectStore.definitions[effectId]
       })
       |> clist
 
@@ -338,11 +339,11 @@ type ``Phase3 - Silence``() =
       |> AList.force
 
     Assert.Equal(2, damageEvents.Count)
-    
+
     // Verify the damage events: silence spell (0 damage) and no-cost melee (48 damage)
-    let silenceDamage = damageEvents |> Seq.find (fun e -> e.amount = 0)
-    let meleeDamage = damageEvents |> Seq.find (fun e -> e.amount = 48)
-    
+    let silenceDamage = damageEvents |> Seq.find(fun e -> e.amount = 0)
+    let meleeDamage = damageEvents |> Seq.find(fun e -> e.amount = 48)
+
     Assert.Equal(targetId, silenceDamage.target) // Silence spell hit target
     Assert.Equal(attackerId, meleeDamage.target) // No-cost melee hit attacker
 
@@ -377,6 +378,7 @@ type ``Phase3 - Taunt``() =
       RemainingTicks = 10000L<Tick>
       NextTickIn = 0L<Tick>
       Stacks = 1
+      Definition = EffectStore.definitions[tauntEffectId]
     }
 
     transact(fun _ ->
@@ -592,23 +594,27 @@ type ``Phase3 - Effect Stacking``() =
     applySpell()
     let hpAfterApply = hp()
     // Skip initial damage check due to hit/miss mechanics - focus on DoT
-    
+
     // Tick forward to trigger DoT
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
     Gameplay.GameState.applyTick state advance // 1st tick
     let hpAfterTick1 = hp()
-    Assert.True(hpAfterTick1 < hpAfterApply, "DoT should reduce HP on first tick")
-    
+
+    Assert.True(
+      hpAfterTick1 < hpAfterApply,
+      "DoT should reduce HP on first tick"
+    )
+
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
     Gameplay.GameState.applyTick state advance // 2nd tick
     let hpAfterTick2 = hp()
     Assert.True(hpAfterTick2 < hpAfterTick1, "DoT should continue reducing HP")
-    
+
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
     Gameplay.GameState.applyTick state advance // 3rd tick
     let hpAfterTick3 = hp()
     Assert.True(hpAfterTick3 < hpAfterTick2, "DoT should continue reducing HP")
-    
+
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
     Gameplay.GameState.applyTick state advance // 4th tick
     let hpAfterTick4 = hp()
