@@ -109,51 +109,79 @@ The context is built in `resolveAbility` after validation succeeds:
 ## Implementation Steps
 
 ### Step 0.5: Passive Skills & Ability Requirements System
-Add passive abilities and dynamic requirement validation:
+Redesign ability system with separate passive/active definitions:
 
 ```fsharp
 [<Struct>]
-type AbilityType =
-  | Active      // Normal abilities that are invoked
-  | Passive     // Always-on effects, never directly invoked
+type PassiveAbilityDefinition = {
+  Id: int<AbilityId>
+  Name: string
+  Effects: IndexList<int<EffectId>>  // Auto-applied permanent effects
+  Requirements: IndexList<AbilityRequirement>
+}
+
+[<Struct>]
+type ActiveAbilityDefinition = {
+  Id: int<AbilityId>
+  Name: string
+  Cooldown: int64<Tick>
+  Cost: ResourceCost voption
+  Targeting: TargetType
+  FormulaId: int<FormulaId> voption
+  Effects: IndexList<int<EffectId>>
+  Requirements: IndexList<AbilityRequirement>
+}
+
+[<Struct>]
+type AbilityKind =
+  | Passive of PassiveAbilityDefinition
+  | Active of ActiveAbilityDefinition
 
 [<Struct>]
 type AbilityRequirement =
   | StatRequirement of Stat * int
-  | AbilityRequirement of int<AbilityId>  // Must have learned this ability
-  | FormulaRequirement of int<FormulaId>  // Dynamic validation
+  | AbilityRequirement of int<AbilityId>
+  | FormulaRequirement of int<FormulaId>
 
 [<Struct>]
-type AbilityDefinition = {
-  // ... existing fields ...
-  AbilityType: AbilityType
-  Requirements: IndexList<AbilityRequirement>
-}
+type Duration =
+  | Instant | Timed of int64<Tick> | Loop of int64<Tick> * int64<Tick>
+  | Permanent  // NEW: For passive skill effects
 ```
 
-**Passive Skills Integration:**
-- Passive abilities automatically create permanent effects when learned
-- Requirements validated during `OnAbilityInvoke` hook
-- Formula-based requirements enable complex conditions
+**Integration with Enhanced Effects:**
+- **Passive abilities**: Create `Permanent` duration effects when learned
+- **Active abilities**: Use existing resolution pipeline with effect hooks
+- **Requirements**: Validated during `OnAbilityInvoke` hook
+- **Permanent effects**: Skip tick processing, never expire
 
 **Example - Gun Carrier System:**
 ```fsharp
-// Passive ability
-{
+// Passive ability definition
+Passive {
   Id = 50<AbilityId>
   Name = "Gun Carrier"
-  AbilityType = Passive
   Effects = IndexList.ofList [51<EffectId>] // Creates permanent effect
+  Requirements = IndexList.empty
 }
 
 // Gun ability with requirement
-{
+Active {
   Id = 100<AbilityId>
   Name = "Pistol Shot"
-  AbilityType = Active
   Requirements = IndexList.ofList [
     AbilityRequirement(50<AbilityId>) // Must have Gun Carrier
   ]
+  // ... other active ability fields
+}
+
+// Permanent effect for Gun Carrier
+{
+  Id = 51<EffectId>
+  Name = "Gun Proficiency"
+  Duration = Permanent  // Never expires
+  Kind = EffectKind.Buff
+  // ... other fields
 }
 ```
 
@@ -307,7 +335,9 @@ type EffectDefinition = {
 ## Integration Points
 
 ### Resolution.fs Changes
-- Add ability requirement validation to `validateAction`
+- Add `AbilityKind` pattern matching in `validateAction`
+- Add ability requirement validation (only for `Active` abilities)
+- Skip tick processing for `Permanent` duration effects
 - Extend `resolveAbility` to process effect hooks
 - Add shield damage interception logic
 - Implement pre/post ability effect processing
@@ -318,11 +348,13 @@ type EffectDefinition = {
 - Add dynamic modifier calculations
 
 ### Domain.fs Changes
-- Add `AbilityType` and `AbilityRequirement` types
-- Extend `AbilityDefinition` with requirements
+- Replace `AbilityDefinition` with `AbilityKind` discriminated union
+- Add `PassiveAbilityDefinition` and `ActiveAbilityDefinition`
+- Add `AbilityRequirement` types
+- Add `Permanent` to `Duration` type
 - Extend effect and resource types
 - Add shield data structures
-- Update ability context types
+- Update ability context typese ability context types
 
 ## Testing Strategy
 
