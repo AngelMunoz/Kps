@@ -28,12 +28,12 @@ module GameState =
     | ValueNone -> FSharp.Data.Adaptive.IndexList.empty
     |> AList.ofIndexList
 
-  let getAdditiveModifiers(effects: StatModifier alist) =
+  let getAdditiveModifiers(effects: EffectModifier alist) =
     effects
     |> AList.fold
       (fun acc modifier ->
         match modifier with
-        | StatModifier.Additive(stat, value) ->
+        | EffectModifier.StaticMod(StatModifier.Additive(stat, value)) ->
           match HashMap.tryFind stat acc with
           | Some existing -> HashMap.add stat (existing + value) acc
           | None -> HashMap.add stat value acc
@@ -63,19 +63,19 @@ module GameState =
             let v = value
 
             match stat with
-            | Effects.Stat.Power -> {
+            | Power -> {
                 currentBase with
                     Power = currentBase.Power + v
               }
-            | Effects.Stat.Magic -> {
+            | Magic -> {
                 currentBase with
                     Magic = currentBase.Magic + v
               }
-            | Effects.Stat.Sense -> {
+            | Sense -> {
                 currentBase with
                     Sense = currentBase.Sense + v
               }
-            | Effects.Stat.Charm -> {
+            | Charm -> {
                 currentBase with
                     Charm = currentBase.Charm + v
               }
@@ -86,7 +86,7 @@ module GameState =
       let initialDerived = {
         // Power derived stats
         AP = modifiedBase.Power * 2
-        AC = float modifiedBase.Power / 100.0
+        AC = modifiedBase.Power / 100
         DX = modifiedBase.Power
         // Magic derived stats
         MP = modifiedBase.Magic * 5
@@ -99,7 +99,7 @@ module GameState =
         // Charm derived stats
         HP = modifiedBase.Charm * 10
         DP = modifiedBase.Charm / 2
-        HV = float modifiedBase.Charm / 100.0
+        HV = modifiedBase.Charm / 100
 
         // TODO: Grab elements from equipment, buffs, etc.
         ElementAttributes = FSharp.Data.Adaptive.HashMap.empty
@@ -115,53 +115,53 @@ module GameState =
             let v = value
 
             match stat with
-            | Effects.Stat.HP -> {
+            | HP -> {
                 currentDerived with
                     HP = currentDerived.HP + v
               }
-            | Effects.Stat.MP -> {
+            | MP -> {
                 currentDerived with
                     MP = currentDerived.MP + v
               }
-            | Effects.Stat.AP -> {
+            | AP -> {
                 currentDerived with
                     AP = currentDerived.AP + v
               }
-            | Effects.Stat.MA -> {
+            | MA -> {
                 currentDerived with
                     MA = currentDerived.MA + v
               }
-            | Effects.Stat.MD -> {
+            | MD -> {
                 currentDerived with
                     MD = currentDerived.MD + v
               }
-            | Effects.Stat.DA -> {
+            | DA -> {
                 currentDerived with
                     DA = currentDerived.DA + v
               }
-            | Effects.Stat.DX -> {
+            | DX -> {
                 currentDerived with
                     DX = currentDerived.DX + v
               }
-            | Effects.Stat.WT -> {
+            | WT -> {
                 currentDerived with
                     WT = currentDerived.WT + v
               }
-            | Effects.Stat.LK -> {
+            | LK -> {
                 currentDerived with
                     LK = currentDerived.LK + v
               }
-            | Effects.Stat.DP -> {
+            | DP -> {
                 currentDerived with
                     DP = currentDerived.DP + v
               }
-            | Effects.Stat.AC -> {
+            | AC -> {
                 currentDerived with
-                    AC = currentDerived.AC + float v
+                    AC = currentDerived.AC + v
               }
-            | Effects.Stat.HV -> {
+            | HV -> {
                 currentDerived with
-                    HV = currentDerived.HV + float v
+                    HV = currentDerived.HV + v
               }
             | _ -> currentDerived)
           initialDerived
@@ -216,9 +216,24 @@ module GameState =
               Pomo.Lib.Content.AbilityStore.definitions
               |> Map.tryFind abilityId
               |> ValueOption.ofOption
+              |> ValueOption.map Abilities.Active
+              |> ValueOption.orElseWith(fun () ->
+                Pomo.Lib.Content.AbilityStore.passiveDefinitions
+                |> Map.tryFind abilityId
+                |> ValueOption.ofOption
+                |> ValueOption.map Abilities.Passive)
 
             member _.find abilityId =
-              Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
+              Pomo.Lib.Content.AbilityStore.definitions
+              |> Map.tryFind abilityId
+              |> ValueOption.ofOption
+              |> ValueOption.map Abilities.Active
+              |> ValueOption.orElseWith(fun () ->
+                Pomo.Lib.Content.AbilityStore.passiveDefinitions
+                |> Map.tryFind abilityId
+                |> ValueOption.ofOption
+                |> ValueOption.map Abilities.Passive)
+              |> ValueOption.get
         }
       formulaStore =
         { new Services.IFormulaStore with

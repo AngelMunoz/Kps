@@ -15,7 +15,10 @@ module EffectStore =
         Kind = EffectKind.Buff
         Duration = Timed(30000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = IndexList.ofList [ EffectModifier.StaticMod(StatModifier.Additive(Power, 5)) ]
+        Modifiers =
+          IndexList.ofList [
+            EffectModifier.StaticMod(StatModifier.Additive(Power, 5))
+          ]
         Hooks = IndexList.empty
         FormulaId = ValueNone
       }
@@ -26,7 +29,10 @@ module EffectStore =
         Kind = EffectKind.Debuff
         Duration = Timed(20000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = IndexList.ofList [ EffectModifier.StaticMod(StatModifier.Additive(DP, -5)) ]
+        Modifiers =
+          IndexList.ofList [
+            EffectModifier.StaticMod(StatModifier.Additive(DP, -5))
+          ]
         Hooks = IndexList.empty
         FormulaId = ValueNone
       }
@@ -71,7 +77,10 @@ module EffectStore =
         Kind = EffectKind.Debuff
         Duration = Timed(10000L<Tick>)
         Stacking = StackingRule.NoStack
-        Modifiers = IndexList.ofList [ EffectModifier.StaticMod(StatModifier.Subtractive(DX, 2)) ]
+        Modifiers =
+          IndexList.ofList [
+            EffectModifier.StaticMod(StatModifier.Subtractive(DX, 2))
+          ]
         Hooks = IndexList.empty
         FormulaId = ValueNone
       }
@@ -82,7 +91,10 @@ module EffectStore =
         Kind = EffectKind.DamageOverTime
         Duration = Loop(2000L<Tick>, 8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = IndexList.ofList [ EffectModifier.StaticMod(StatModifier.Subtractive(HP, 5)) ]
+        Modifiers =
+          IndexList.ofList [
+            EffectModifier.StaticMod(StatModifier.Subtractive(HP, 5))
+          ]
         Hooks = IndexList.empty
         FormulaId = ValueNone
       }
@@ -93,7 +105,38 @@ module EffectStore =
         Kind = EffectKind.HealOverTime
         Duration = Loop(2000L<Tick>, 8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = IndexList.ofList [ EffectModifier.StaticMod(StatModifier.Additive(HP, 5)) ]
+        Modifiers =
+          IndexList.ofList [
+            EffectModifier.StaticMod(StatModifier.Additive(HP, 5))
+          ]
+        Hooks = IndexList.empty
+        FormulaId = ValueNone
+      }
+      107<EffectId>,
+      {
+        Id = 107<EffectId>
+        Name = "MP Boost"
+        Kind = EffectKind.Buff
+        Duration = Permanent
+        Stacking = StackingRule.NoStack
+        Modifiers =
+          IndexList.ofList [
+            EffectModifier.StaticMod(StatModifier.Multiplicative(MP, 1.2))
+          ]
+        Hooks = IndexList.empty
+        FormulaId = ValueNone
+      }
+      108<EffectId>,
+      {
+        Id = 108<EffectId>
+        Name = "AP Boost"
+        Kind = EffectKind.Buff
+        Duration = Permanent
+        Stacking = StackingRule.NoStack
+        Modifiers =
+          IndexList.ofList [
+            EffectModifier.StaticMod(StatModifier.Multiplicative(AP, 1.15))
+          ]
         Hooks = IndexList.empty
         FormulaId = ValueNone
       }
@@ -271,5 +314,23 @@ module AbilityStore =
         FormulaId = ValueNone
         Effects = IndexList.ofList [ 101<EffectId> ] // Silence effect
         Requirements = IndexList.empty
+      }
+    ]
+
+  let passiveDefinitions: Map<int<AbilityId>, PassiveAbilityDefinition> =
+    Map.ofList [
+      1001<AbilityId>,
+      {
+        Id = 1001<AbilityId>
+        Name = "Total Concentration"
+        Requirements = IndexList.empty
+        Effects = IndexList.ofList [ 108<EffectId> ]
+      }
+      1002<AbilityId>,
+      {
+        Id = 1002<AbilityId>
+        Name = "Mana Flow"
+        Requirements = IndexList.empty
+        Effects = IndexList.ofList [ 107<EffectId> ]
       }
     ]

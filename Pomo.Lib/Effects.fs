@@ -134,11 +134,11 @@ module StatusEffects =
                       |> IndexList.fold
                         (fun acc modif ->
                           match modif with
-                          | StatModifier.Subtractive(Stat.HP, v) -> acc + v
-                          | StatModifier.Additive(Stat.HP, v) -> acc + v
-                          | StatModifier.Multiplicative(Stat.HP, v) ->
+                          | EffectModifier.StaticMod(StatModifier.Subtractive(HP, v)) -> acc + v
+                          | EffectModifier.StaticMod(StatModifier.Additive(HP, v)) -> acc + v
+                          | EffectModifier.StaticMod(StatModifier.Multiplicative(HP, v)) ->
                             acc + int v
-                          | StatModifier.Divisive(Stat.HP, v) -> acc + int v
+                          | EffectModifier.StaticMod(StatModifier.Divisive(HP, v)) -> acc + int v
                           | _ -> acc)
                         0
 
@@ -160,11 +160,11 @@ module StatusEffects =
                       |> IndexList.fold
                         (fun acc modif ->
                           match modif with
-                          | StatModifier.Additive(Stat.HP, v) -> acc + v
-                          | StatModifier.Subtractive(Stat.HP, v) -> acc + v
-                          | StatModifier.Multiplicative(Stat.HP, v) ->
+                          | EffectModifier.StaticMod(StatModifier.Additive(HP, v)) -> acc + v
+                          | EffectModifier.StaticMod(StatModifier.Subtractive(HP, v)) -> acc + v
+                          | EffectModifier.StaticMod(StatModifier.Multiplicative(HP, v)) ->
                             acc + int v
-                          | StatModifier.Divisive(Stat.HP, v) -> acc + int v
+                          | EffectModifier.StaticMod(StatModifier.Divisive(HP, v)) -> acc + int v
                           | _ -> acc)
                         0
                     // Apply healing per stack
