@@ -24,7 +24,7 @@ The architecture is based on a shared core and platform-specific heads. The core
   ```shell
   dotnet run --project Pomo.DesktopGL
   ```
-- **Running tests**: The tests are located in the `Pomo.Lib.Tests` project. You can run them using the `dotnet test --project ./Pomo.Lib.Tests/Pomo.Lib.Tests.fsproj` command.
+- **Running tests**: The tests are located in the `Pomo.Lib.Tests` project. You can run them using the `dotnet run --project Pomo.Lib.Tests` command.
 
 ## Architectural and Coding Principles
 

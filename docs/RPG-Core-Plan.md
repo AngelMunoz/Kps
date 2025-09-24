@@ -2,6 +2,18 @@
 
 This document sketches a step-by-step, incremental roadmap to build the core of an RPG focused on magic and physical prowess. Rendering, UI, audio, networking, and platform specifics are deferred until the core simulation is solid. The core is implemented using FSharp.Data.Adaptive (FDA) to model evolving state as incremental data flows, with all game logic and state managed through adaptive collections and pure data transformations.
 
+## 🎯 **ARCHITECTURAL VISION: BATTLE SUBSYSTEM**
+
+**IMPORTANT**: The current Pomo.Lib implementation represents a **battle subsystem** that will be integrated into a larger game architecture. The full game will support multiple contexts:
+
+- **Lobby State**: Lightweight character management, equipment, no battle processing
+- **Battle State**: Full Pomo.Lib engagement with effects, abilities, combat resolution
+- **Exploration State**: Selective features (stats, inventory) without full battle overhead
+
+**Shared Domain**: Core types (BaseAttributes, DerivedStats, Equipment, Abilities) are used across all contexts. **Context-Specific State**: Battle-only features (ActiveEffects, Cooldowns, Resources, GameTime) are isolated to battle subsystem.
+
+**Performance Goal**: Zero battle processing overhead when not in battle context.
+
 Good luck to us — and let’s move methodically.
 
 ## Guiding Principles
