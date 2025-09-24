@@ -2,6 +2,7 @@ namespace Pomo.Lib.Domain
 
 open FSharp.UMX
 
+// All measure types defined at the top
 [<Measure>]
 type Tick
 
@@ -13,6 +14,42 @@ type EffectId
 
 [<Measure>]
 type AbilityId
+
+[<Measure>]
+type FormulaId
+
+// Core types available at namespace level
+[<Struct>]
+type ResourceType =
+  | HP
+  | MP
+
+[<Struct>]
+type Stat =
+  // Base attributes
+  | Power
+  | Magic
+  | Sense
+  | Charm
+  // Derived stats (using game definition names)
+  | AP // Attack Power
+  | AC // Accuracy
+  | DX // Dexterity
+  | MP // Mana Pool
+  | MA // Magic Attack
+  | MD // Magic Defense
+  | WT // Weight
+  | DA // Detect Ability
+  | LK // Luck
+  | HP // Health Pool
+  | DP // Defense Points
+  | HV // Evasion
+
+[<Struct>]
+type AbilityRequirement =
+  | StatRequirement of Stat * int
+  | AbilityRequirement of int<AbilityId>
+  | FormulaRequirement of int<FormulaId>
 
 module Classification =
   [<Struct>]
@@ -67,7 +104,7 @@ module Attributes =
   type DerivedStats = {
     // Power derived stats
     AP: int
-    AC: float
+    AC: int
     DX: int
     // Magic derived stats
     MP: int
@@ -80,7 +117,7 @@ module Attributes =
     // Charm derived stats
     HP: int
     DP: int
-    HV: float
+    HV: int
 
     // Element % of attributes and resistances
     ElementAttributes: FSharp.Data.Adaptive.HashMap<Element, float>
@@ -94,7 +131,21 @@ module Attributes =
     | Disabled
 
   [<Struct>]
-  type Resources = { HP: int; MP: int; Status: Status }
+  type ShieldData = {
+    CurrentHP: int
+    MaxHP: int
+    LastHitTime: int64<Tick>
+    RegenDelay: int64<Tick>
+    RegenRate: int
+  }
+
+  [<Struct>]
+  type Resources = {
+    HP: int
+    MP: int
+    Status: Status
+    Shields: FSharp.Data.Adaptive.HashMap<int<EffectId>, ShieldData>
+  }
 
 module Inventory =
   [<Struct>]
@@ -109,27 +160,6 @@ module Inventory =
 
 module Effects =
   open FSharp.Data.Adaptive
-
-  [<Struct>]
-  type Stat =
-    // Base attributes
-    | Power
-    | Magic
-    | Sense
-    | Charm
-    // Derived stats (using game definition names)
-    | AP // Attack Power
-    | AC // Accuracy
-    | DX // Dexterity
-    | MP // Mana Pool
-    | MA // Magic Attack
-    | MD // Magic Defense
-    | WT // Weight
-    | DA // Detect Ability
-    | LK // Luck
-    | HP // Health Pool
-    | DP // Defense Points
-    | HV // Evasion
 
   [<Struct>]
   type EffectKind =
@@ -152,6 +182,15 @@ module Effects =
     | Instant
     | Timed of int64<Tick>
     | Loop of int64<Tick> * int64<Tick> // Interval * Total Duration
+    | Permanent // For passive skill effects, never expires
+
+  [<Struct>]
+  type EffectHook =
+    | OnAbilityInvoke
+    | OnDamageReceived
+    | OnResourceChange
+    | OnAbilityComplete
+    | OnTick
 
   [<Struct>]
   type StatModifier =
@@ -161,13 +200,23 @@ module Effects =
     | Divisive of divStat: Stat * divStatValue: float
 
   [<Struct>]
+  type EffectModifier =
+    | StaticMod of StatModifier
+    | DynamicMod of formulaId: int<FormulaId>
+    | AbilityDamageMod of abilityDamageValue: float
+    | ResourceConversion of ResourceType * ResourceType * float
+    | ShieldGeneration of shieldFormula: int<FormulaId>
+
+  [<Struct>]
   type EffectDefinition = {
     Id: int<EffectId>
     Name: string
     Kind: EffectKind
     Stacking: StackingRule
     Duration: Duration
-    Modifiers: IndexList<StatModifier>
+    Modifiers: IndexList<EffectModifier>
+    Hooks: IndexList<EffectHook>
+    FormulaId: int<FormulaId> voption
   }
 
   [<Struct>]
@@ -183,14 +232,10 @@ module Effects =
 module Abilities =
   open FSharp.Data.Adaptive
 
-
   [<Struct>]
   type DamageType =
     | Physical
     | Magical
-
-  [<Measure>]
-  type FormulaId
 
   [<Struct>]
   type DamageResult = {
@@ -217,11 +262,6 @@ module Abilities =
   }
 
   [<Struct>]
-  type ResourceType =
-    | HP
-    | MP
-
-  [<Struct>]
   type ResourceCost = { Type: ResourceType; Amount: int }
 
   [<Struct>]
@@ -231,8 +271,18 @@ module Abilities =
     | SingleEnemy
     | MultiTarget of int // number of targets
 
+
+
   [<Struct>]
-  type AbilityDefinition = {
+  type PassiveAbilityDefinition = {
+    Id: int<AbilityId>
+    Name: string
+    Effects: IndexList<int<EffectId>>
+    Requirements: IndexList<AbilityRequirement>
+  }
+
+  [<Struct>]
+  type ActiveAbilityDefinition = {
     Id: int<AbilityId>
     Name: string
     Cooldown: int64<Tick>
@@ -240,7 +290,13 @@ module Abilities =
     Targeting: TargetType
     FormulaId: int<FormulaId> voption
     Effects: IndexList<int<EffectId>>
+    Requirements: IndexList<AbilityRequirement>
   }
+
+  [<Struct>]
+  type AbilityKind =
+    | Passive of passive: PassiveAbilityDefinition
+    | Active of active: ActiveAbilityDefinition
 
 module AggregatedEffects =
   [<Struct>]
@@ -298,6 +354,16 @@ module GameEvent =
 
 module Rules =
   [<Struct>]
+  type AbilityContext = {
+    InvokerStats: Attributes.DerivedStats
+    TargetStats: Attributes.DerivedStats
+    AbilityResult: Abilities.DamageResult voption
+    InvokerEffects: Effects.ActiveEffect FSharp.Data.Adaptive.alist
+    TargetEffects: Effects.ActiveEffect FSharp.Data.Adaptive.alist
+    GameTime: int64<Tick>
+  }
+
+  [<Struct>]
   type UseAbilityAction = {
     actor: int<EntityId>
     targets: FSharp.Data.Adaptive.IndexList<int<EntityId>>
@@ -326,8 +392,8 @@ module Services =
   open Effects
 
   type IAbilityStore =
-    abstract member tryFind: int<AbilityId> -> AbilityDefinition voption
-    abstract member find: int<AbilityId> -> AbilityDefinition
+    abstract member tryFind: int<AbilityId> -> AbilityKind voption
+    abstract member find: int<AbilityId> -> AbilityKind
 
   type IEffectStore =
     abstract member tryFind: int<EffectId> -> EffectDefinition voption

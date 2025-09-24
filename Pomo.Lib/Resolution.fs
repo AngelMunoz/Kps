@@ -165,7 +165,7 @@ module Resolution =
     let checkSilence
       (effectStore: IEffectStore)
       (actor: All)
-      (abilityDef: Abilities.AbilityDefinition)
+      (abilityDef: Abilities.ActiveAbilityDefinition)
       =
       adaptive {
         let! hasSilence =
@@ -179,7 +179,7 @@ module Resolution =
 
         let isSpellAbility =
           match abilityDef.Cost with
-          | ValueSome c when c.Type = Abilities.ResourceType.MP -> true
+          | ValueSome c when c.Type = ResourceType.MP -> true
           | _ -> false
 
         return hasSilence && isSpellAbility
@@ -202,17 +202,59 @@ module Resolution =
 
     let checkResourceCost
       (actor: All)
-      (abilityDef: Abilities.AbilityDefinition)
+      (abilityDef: Abilities.ActiveAbilityDefinition)
       =
       match abilityDef.Cost with
       | ValueSome c ->
         let hasEnough =
           match c.Type with
-          | HP -> actor.Resources.HP >= c.Amount
-          | MP -> actor.Resources.MP >= c.Amount
+          | ResourceType.HP -> actor.Resources.HP >= c.Amount
+          | ResourceType.MP -> actor.Resources.MP >= c.Amount
 
         struct (hasEnough, ValueSome c)
       | ValueNone -> struct (true, ValueNone)
+
+    let checkAbilityRequirements
+      (actor: All)
+      (actorStats: Attributes.DerivedStats)
+      (requirements: IndexList<AbilityRequirement>)
+      (services: EngineServices)
+      =
+      adaptive {
+        let! hasAllRequirements =
+          requirements
+          |> AList.ofIndexList
+          |> AList.forallA(fun req ->
+            match req with
+            | StatRequirement(stat, minValue) ->
+              let actualValue =
+                match stat with
+                | Power -> actorStats.AP
+                | Magic -> actorStats.MA
+                | Sense -> actorStats.DA
+                | Charm -> actorStats.HP
+                | AP -> actorStats.AP
+                | AC -> actorStats.AC
+                | DX -> actorStats.DX
+                | MP -> actorStats.MP
+                | MA -> actorStats.MA
+                | MD -> actorStats.MD
+                | WT -> actorStats.WT
+                | DA -> actorStats.DA
+                | LK -> actorStats.LK
+                | HP -> actorStats.HP
+                | DP -> actorStats.DP
+                | HV -> actorStats.HV
+
+              AVal.constant(actualValue >= minValue)
+            | AbilityRequirement abilityId ->
+              actor.Abilities |> AList.exists(fun a -> a = abilityId)
+            | FormulaRequirement formulaId ->
+              // For now, return true - formula validation would be implemented later
+              AVal.constant true)
+
+        return hasAllRequirements
+      }
 
     let resolveTaunt
       (rparams: ResolverParams)
@@ -240,6 +282,20 @@ module Resolution =
       }
 
   module Shared =
+    let private getDurationTicks(duration: Effects.Duration) =
+      match duration with
+      | Effects.Instant
+      | Effects.Permanent -> 0L<Tick> // Permanent effects don't tick down
+      | Effects.Timed ticks -> ticks
+      | Effects.Loop(_, totalDuration) -> totalDuration
+
+    let private getDurationInterval(duration: Effects.Duration) =
+      match duration with
+      | Effects.Instant -> 0L<Tick>
+      | Effects.Timed _ -> 0L<Tick>
+      | Effects.Loop(interval, _) -> interval
+      | Effects.Permanent -> 0L<Tick>
+
     let private determineNewEffect
       (effectDef: Effects.EffectDefinition)
       (existingEffect: Effects.ActiveEffect)
@@ -251,10 +307,8 @@ module Resolution =
       | Effects.RefreshDuration ->
         ValueSome {
           existingEffect with
-              RemainingTicks =
-                effectDef.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
-              NextTickIn =
-                effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
+              RemainingTicks = getDurationTicks effectDef.Duration
+              NextTickIn = getDurationInterval effectDef.Duration
         }
       | Effects.AddStack maxStacks ->
         let newStacks = min maxStacks (existingEffect.Stacks + 1)
@@ -262,10 +316,8 @@ module Resolution =
         ValueSome {
           existingEffect with
               Stacks = newStacks
-              RemainingTicks =
-                effectDef.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
-              NextTickIn =
-                effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
+              RemainingTicks = getDurationTicks effectDef.Duration
+              NextTickIn = getDurationInterval effectDef.Duration
         }
 
 
@@ -291,10 +343,8 @@ module Resolution =
             ValueSome {
               EffectId = effectDef.Id
               SourceId = actorId
-              RemainingTicks =
-                effectDef.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
-              NextTickIn =
-                effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
+              RemainingTicks = getDurationTicks effectDef.Duration
+              NextTickIn = getDurationInterval effectDef.Duration
               Stacks = 1
               Definition = effectDef
             }
@@ -313,7 +363,7 @@ module Resolution =
 
     let applyAbilityEffects
       (effectStore: IEffectStore)
-      (abilityDef: Abilities.AbilityDefinition)
+      (abilityDef: Abilities.ActiveAbilityDefinition)
       (actorId: int<EntityId>)
       (targetId: int<EntityId>)
       (targetComponents: All)
@@ -409,7 +459,7 @@ module Resolution =
       | ValueSome cost ->
         let amount, updatedResources =
           match cost.Type with
-          | HP ->
+          | ResourceType.HP ->
             let newAmount = actorComponents.Resources.HP - cost.Amount
 
             newAmount,
@@ -417,7 +467,7 @@ module Resolution =
               actorComponents.Resources with
                   HP = newAmount
             }
-          | MP ->
+          | ResourceType.MP ->
             let newAmount = actorComponents.Resources.MP - cost.Amount
 
             newAmount,
@@ -426,10 +476,15 @@ module Resolution =
                   MP = newAmount
             }
 
+        let resourceString =
+          match cost.Type with
+          | ResourceType.HP -> "HP"
+          | ResourceType.MP -> "MP"
+
         let ev =
           ResourceChanged {
             target = actorId
-            resource = ResourceType.asString cost.Type
+            resource = resourceString
             newValue = amount
           }
 
@@ -444,7 +499,7 @@ module Resolution =
       (actorComponents: All)
       (abilityId: int<AbilityId>)
       (gameTime: int64<Tick>)
-      (abilityDef: Abilities.AbilityDefinition)
+      (abilityDef: Abilities.ActiveAbilityDefinition)
       =
       {
         actorComponents with
@@ -463,14 +518,17 @@ module Resolution =
     adaptive {
       let! actor = rparams.entities |> AMap.tryFind ractors.actor
       let! target = rparams.entities |> AMap.tryFind ractors.target
-      let abilityDef = rparams.services.abilityStore.tryFind abilityId
+      let abilityKind = rparams.services.abilityStore.tryFind abilityId
 
-      match abilityDef with
+      match abilityKind with
       | ValueNone -> return ValueNone // Invalid ability, cannot proceed
-      | ValueSome abilityDef ->
+      | ValueSome(Abilities.Passive _) -> return ValueNone // Passive abilities cannot be invoked
+      | ValueSome(Abilities.Active abilityDef) ->
 
       match actor, target with
       | Some actor, Some target when actor.Resources.Status = Alive ->
+        let! actorStats = rparams.derivedStats |> AMap.find ractors.actor
+
         let! isStunned =
           ValidateAction.checkStun rparams.services.effectStore actor
 
@@ -486,7 +544,20 @@ module Resolution =
         let struct (hasEnoughResource, cost) =
           ValidateAction.checkResourceCost actor abilityDef
 
-        if isStunned || isSilenced || isOnCooldown || not hasEnoughResource then
+        let! hasRequirements =
+          ValidateAction.checkAbilityRequirements
+            actor
+            actorStats
+            abilityDef.Requirements
+            rparams.services
+
+        if
+          isStunned
+          || isSilenced
+          || isOnCooldown
+          || not hasEnoughResource
+          || not hasRequirements
+        then
           return ValueNone
         else
           let! finalTarget = ValidateAction.resolveTaunt rparams ractors target
@@ -509,7 +580,7 @@ module Resolution =
 
         let! blockingEffect =
           match actor, abilityDef with
-          | Some actor, ValueSome abilityDef -> adaptive {
+          | Some actor, ValueSome(Active abilityDef) -> adaptive {
               let! isStunned =
                 ValidateAction.checkStun rparams.services.effectStore actor
 
@@ -637,16 +708,23 @@ module Resolution =
     (rparams: ResolverParams)
     : aval<StateChange> =
     adaptive {
-      let abilityDef = rparams.services.abilityStore.tryFind action.abilityId
+      let abilityKind = rparams.services.abilityStore.tryFind action.abilityId
 
-      match abilityDef with
+      match abilityKind with
       | ValueNone ->
         return {
           entities = HashMap.empty
           events = IndexList.empty
           gameTime = ValueNone
         }
-      | ValueSome abilityDef ->
+      | ValueSome(Abilities.Passive _) ->
+        // Passive abilities cannot be invoked
+        return {
+          entities = HashMap.empty
+          events = IndexList.empty
+          gameTime = ValueNone
+        }
+      | ValueSome(Abilities.Active abilityDef) ->
 
         // Determine actual targets based on ability targeting constraints
         let actualTargets =

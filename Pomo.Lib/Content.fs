@@ -15,7 +15,9 @@ module EffectStore =
         Kind = EffectKind.Buff
         Duration = Timed(30000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = IndexList.ofList [ StatModifier.Additive(Stat.Power, 5) ]
+        Modifiers = IndexList.ofList [ EffectModifier.StaticMod(StatModifier.Additive(Power, 5)) ]
+        Hooks = IndexList.empty
+        FormulaId = ValueNone
       }
       2<EffectId>,
       {
@@ -24,7 +26,9 @@ module EffectStore =
         Kind = EffectKind.Debuff
         Duration = Timed(20000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = IndexList.ofList [ StatModifier.Additive(Stat.DP, -5) ]
+        Modifiers = IndexList.ofList [ EffectModifier.StaticMod(StatModifier.Additive(DP, -5)) ]
+        Hooks = IndexList.empty
+        FormulaId = ValueNone
       }
       // Phase 3 Effect Kinds for testing
       100<EffectId>,
@@ -35,6 +39,8 @@ module EffectStore =
         Duration = Timed(5000L<Tick>)
         Stacking = StackingRule.RefreshDuration
         Modifiers = IndexList.empty
+        Hooks = IndexList.empty
+        FormulaId = ValueNone
       }
       101<EffectId>,
       {
@@ -44,6 +50,8 @@ module EffectStore =
         Duration = Timed(8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
         Modifiers = IndexList.empty
+        Hooks = IndexList.empty
+        FormulaId = ValueNone
       }
       103<EffectId>,
       {
@@ -53,6 +61,8 @@ module EffectStore =
         Duration = Timed(3000L<Tick>)
         Stacking = StackingRule.RefreshDuration
         Modifiers = IndexList.empty
+        Hooks = IndexList.empty
+        FormulaId = ValueNone
       }
       104<EffectId>,
       {
@@ -61,7 +71,9 @@ module EffectStore =
         Kind = EffectKind.Debuff
         Duration = Timed(10000L<Tick>)
         Stacking = StackingRule.NoStack
-        Modifiers = IndexList.ofList [ StatModifier.Subtractive(Stat.DX, 2) ]
+        Modifiers = IndexList.ofList [ EffectModifier.StaticMod(StatModifier.Subtractive(DX, 2)) ]
+        Hooks = IndexList.empty
+        FormulaId = ValueNone
       }
       105<EffectId>,
       {
@@ -70,7 +82,9 @@ module EffectStore =
         Kind = EffectKind.DamageOverTime
         Duration = Loop(2000L<Tick>, 8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = IndexList.ofList [ StatModifier.Subtractive(Stat.HP, 5) ]
+        Modifiers = IndexList.ofList [ EffectModifier.StaticMod(StatModifier.Subtractive(HP, 5)) ]
+        Hooks = IndexList.empty
+        FormulaId = ValueNone
       }
       106<EffectId>,
       {
@@ -79,7 +93,9 @@ module EffectStore =
         Kind = EffectKind.HealOverTime
         Duration = Loop(2000L<Tick>, 8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = IndexList.ofList [ StatModifier.Additive(Stat.HP, 5) ]
+        Modifiers = IndexList.ofList [ EffectModifier.StaticMod(StatModifier.Additive(HP, 5)) ]
+        Hooks = IndexList.empty
+        FormulaId = ValueNone
       }
     ]
 
@@ -155,7 +171,7 @@ module FormulaStore =
 
 module AbilityStore =
 
-  let definitions: Map<int<AbilityId>, AbilityDefinition> =
+  let definitions: Map<int<AbilityId>, ActiveAbilityDefinition> =
     Map.ofList [
       1<AbilityId>,
       {
@@ -166,6 +182,7 @@ module AbilityStore =
         Targeting = TargetType.SingleEnemy
         FormulaId = ValueSome 1<FormulaId>
         Effects = IndexList.empty
+        Requirements = IndexList.empty
       }
       2<AbilityId>,
       {
@@ -176,6 +193,7 @@ module AbilityStore =
         Targeting = TargetType.SingleEnemy
         FormulaId = ValueSome 2<FormulaId>
         Effects = IndexList.ofList [ 2<EffectId> ]
+        Requirements = IndexList.empty
       }
       3<AbilityId>,
       {
@@ -186,6 +204,7 @@ module AbilityStore =
         Targeting = TargetType.SingleEnemy
         FormulaId = ValueNone
         Effects = IndexList.ofList [ 104<EffectId> ]
+        Requirements = IndexList.empty
       }
       4<AbilityId>,
       {
@@ -196,6 +215,7 @@ module AbilityStore =
         Targeting = TargetType.Self
         FormulaId = ValueNone
         Effects = IndexList.ofList [ 1<EffectId> ] // RefreshDuration effect
+        Requirements = IndexList.empty
       }
       5<AbilityId>,
       {
@@ -206,6 +226,7 @@ module AbilityStore =
         Targeting = TargetType.SingleAlly
         FormulaId = ValueNone
         Effects = IndexList.ofList [ 102<EffectId> ] // AddStack effect
+        Requirements = IndexList.empty
       }
       6<AbilityId>,
       {
@@ -216,6 +237,7 @@ module AbilityStore =
         Targeting = TargetType.SingleEnemy
         FormulaId = ValueSome 3<FormulaId>
         Effects = IndexList.ofList [ 105<EffectId> ] // DoT effect
+        Requirements = IndexList.empty
       }
       7<AbilityId>,
       {
@@ -226,6 +248,7 @@ module AbilityStore =
         Targeting = TargetType.SingleAlly
         FormulaId = ValueNone
         Effects = IndexList.ofList [ 106<EffectId> ] // HoT effect
+        Requirements = IndexList.empty
       }
       8<AbilityId>,
       {
@@ -236,6 +259,7 @@ module AbilityStore =
         Targeting = TargetType.SingleEnemy
         FormulaId = ValueSome 4<FormulaId>
         Effects = IndexList.empty
+        Requirements = IndexList.empty
       }
       9<AbilityId>,
       {
@@ -246,5 +270,6 @@ module AbilityStore =
         Targeting = TargetType.SingleEnemy
         FormulaId = ValueNone
         Effects = IndexList.ofList [ 101<EffectId> ] // Silence effect
+        Requirements = IndexList.empty
       }
     ]
