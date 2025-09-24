@@ -38,7 +38,8 @@ This document tracks the design and implementation of an enhanced effects framew
 ```mermaid
 graph TD
     A[Command: UseAbility] --> B[validateAction]
-    B --> C{Validation Result}
+    B --> B1[Check Ability Requirements]
+    B1 --> C{Validation Result}
     C -->|Valid| D[Build AbilityContext]
     C -->|Invalid| E[Return Empty StateChange]
     
@@ -57,6 +58,7 @@ graph TD
     end
     
     subgraph "Enhanced System"
+        B1 --> D
         D --> F
         F --> G
         H --> I
@@ -105,6 +107,55 @@ The context is built in `resolveAbility` after validation succeeds:
 ```
 
 ## Implementation Steps
+
+### Step 0.5: Passive Skills & Ability Requirements System
+Add passive abilities and dynamic requirement validation:
+
+```fsharp
+[<Struct>]
+type AbilityType =
+  | Active      // Normal abilities that are invoked
+  | Passive     // Always-on effects, never directly invoked
+
+[<Struct>]
+type AbilityRequirement =
+  | StatRequirement of Stat * int
+  | AbilityRequirement of int<AbilityId>  // Must have learned this ability
+  | FormulaRequirement of int<FormulaId>  // Dynamic validation
+
+[<Struct>]
+type AbilityDefinition = {
+  // ... existing fields ...
+  AbilityType: AbilityType
+  Requirements: IndexList<AbilityRequirement>
+}
+```
+
+**Passive Skills Integration:**
+- Passive abilities automatically create permanent effects when learned
+- Requirements validated during `OnAbilityInvoke` hook
+- Formula-based requirements enable complex conditions
+
+**Example - Gun Carrier System:**
+```fsharp
+// Passive ability
+{
+  Id = 50<AbilityId>
+  Name = "Gun Carrier"
+  AbilityType = Passive
+  Effects = IndexList.ofList [51<EffectId>] // Creates permanent effect
+}
+
+// Gun ability with requirement
+{
+  Id = 100<AbilityId>
+  Name = "Pistol Shot"
+  AbilityType = Active
+  Requirements = IndexList.ofList [
+    AbilityRequirement(50<AbilityId>) // Must have Gun Carrier
+  ]
+}
+```
 
 ### Step 1: Effect Hook System
 Add effect hooks to intercept different resolution phases:
@@ -212,11 +263,12 @@ type EffectDefinition = {
 ### Phase 4.5: Enhanced Effects Framework (Before Phase 5)
 **Status**: 🎯 **REQUIRED BEFORE PHASE 5**
 
-1. **Step 1-2**: Core effect hooks and dynamic modifiers
-2. **Step 3**: Ability context system
-3. **Step 4**: Shield/barrier mechanics
-4. **Step 5**: Enhanced processing pipeline
-5. **Step 6**: Effect definition extensions
+1. **Step 0.5**: Passive skills and ability requirements
+2. **Step 1-2**: Core effect hooks and dynamic modifiers
+3. **Step 3**: Ability context system
+4. **Step 4**: Shield/barrier mechanics
+5. **Step 5**: Enhanced processing pipeline
+6. **Step 6**: Effect definition extensions
 
 ### Example Implementations
 
@@ -255,6 +307,7 @@ type EffectDefinition = {
 ## Integration Points
 
 ### Resolution.fs Changes
+- Add ability requirement validation to `validateAction`
 - Extend `resolveAbility` to process effect hooks
 - Add shield damage interception logic
 - Implement pre/post ability effect processing
@@ -265,6 +318,8 @@ type EffectDefinition = {
 - Add dynamic modifier calculations
 
 ### Domain.fs Changes
+- Add `AbilityType` and `AbilityRequirement` types
+- Extend `AbilityDefinition` with requirements
 - Extend effect and resource types
 - Add shield data structures
 - Update ability context types
@@ -272,12 +327,16 @@ type EffectDefinition = {
 ## Testing Strategy
 
 ### Unit Tests
+- Passive skill effect creation
+- Ability requirement validation
 - Effect hook processing
 - Shield absorption mechanics
 - Resource conversion accuracy
 - Dynamic modifier calculations
 
 ### Integration Tests
+- Gun Carrier passive skill system
+- Ability requirement blocking/allowing
 - HP-cost damage amplification mechanics
 - Magic barrier absorption + regeneration
 - Resource conversion mechanics
