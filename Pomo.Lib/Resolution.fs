@@ -19,6 +19,116 @@ module Resolution =
     IsEvaded: bool
   }
 
+  [<Struct>]
+  type HookContext = {
+    InvokerStats: DerivedStats
+    TargetStats: DerivedStats
+    AbilityId: int<AbilityId>
+    GameTime: int64<Tick>
+    DamageResult: DamageResult voption
+  }
+
+  [<Struct>]
+  type ResourceTypeExchange = {
+    From: ResourceType
+    To: ResourceType
+    Ratio: float
+  }
+
+  [<Struct>]
+  type ResourceChange =
+    | Additive of addition: struct (ResourceType * int)
+    | Exchange of ResourceTypeExchange
+    | SetTo of replace: struct (ResourceType * int)
+
+  [<Struct>]
+  type HookResult = {
+    DamageModification: int
+    ResourceChanges: ResourceChange list
+    ShieldGeneration: int
+  }
+
+  let processEffectHooks
+    (hook: Effects.EffectHook)
+    (context: HookContext)
+    (entityEffects: alist<Effects.ActiveEffect>)
+    (services: EngineServices)
+    =
+    entityEffects
+    |> AList.fold
+      (fun acc effect ->
+        if
+          effect.Definition.Hooks |> IndexList.exists(fun _ h -> h = hook)
+        then
+          let modifications =
+            effect.Definition.Modifiers
+            |> IndexList.fold
+              (fun acc modifier ->
+                match modifier with
+                | Effects.AbilityDamageMod multiplier ->
+                  match context.DamageResult with
+                  | ValueSome damage -> {
+                      acc with
+                          DamageModification =
+                            acc.DamageModification
+                            + damage.Amount * int multiplier
+                    }
+                  | ValueNone -> acc
+                | Effects.ResourceConversion(fromType, toType, ratio) -> {
+                    acc with
+                        ResourceChanges =
+                          Exchange {
+                            From = fromType
+                            To = toType
+                            Ratio = ratio
+                          }
+                          :: acc.ResourceChanges
+                  }
+                | Effects.ShieldGeneration formulaId ->
+                  match services.formulaStore.tryFind formulaId with
+                  | ValueSome formula ->
+                    let context = {
+                      InvokerStats = context.InvokerStats
+                      InvokerElementalAttributes =
+                        context.InvokerStats.ElementAttributes
+                      TargetElementalResistances =
+                        context.TargetStats.ElementResistances
+                    }
+
+                    let formulaResult = formula.Calculate context
+
+                    {
+                      acc with
+                          ShieldGeneration =
+                            // TODO: Come up with the actual formula for shield generation
+                            // requires to re-define how formulas are structured
+                            acc.ShieldGeneration + formulaResult.BaseDamage
+                    }
+                  | ValueNone -> acc
+                | _ -> acc)
+              {
+                DamageModification = 0
+                ResourceChanges = []
+                ShieldGeneration = 0
+              }
+
+          {
+            acc with
+                DamageModification =
+                  acc.DamageModification + modifications.DamageModification
+                ResourceChanges =
+                  acc.ResourceChanges @ modifications.ResourceChanges
+                ShieldGeneration =
+                  acc.ShieldGeneration + modifications.ShieldGeneration
+          }
+        else
+          acc)
+      {
+        DamageModification = 0
+        ResourceChanges = []
+        ShieldGeneration = 0
+      }
+
   let calculateDamage
     (formulaStore: IFormulaStore)
     (formulaId: int<FormulaId>)
@@ -625,7 +735,23 @@ module Resolution =
         let! gameTime = rparams.gameTime
         let rng = rparams.services.rng
 
-        let damageResult =
+        // Process OnAbilityInvoke hooks before damage calculation
+        let hookContext = {
+          InvokerStats = actorStats
+          TargetStats = targetStats
+          AbilityId = abilityId
+          GameTime = gameTime
+          DamageResult = ValueNone
+        }
+
+        let! invokeHookResults =
+          processEffectHooks
+            Effects.OnAbilityInvoke
+            hookContext
+            actorComponents.Effects
+            rparams.services
+
+        let baseDamageResult =
           match abilityDef.FormulaId with
           | ValueNone -> {
               Amount = 0
@@ -640,15 +766,63 @@ module Resolution =
               targetStats
               rng
 
+        // Apply hook modifications to damage
+        // --- Enhanced Effect Hook Processing ---
+        // 1. OnAbilityInvoke: collect all modifications
+        let! invokeHookResult =
+          processEffectHooks
+            Effects.OnAbilityInvoke
+            hookContext
+            actorComponents.Effects
+            rparams.services
+
+        let totalInvokeDamageMod = invokeHookResult.DamageModification
+        let totalInvokeShieldGen = invokeHookResult.ShieldGeneration
+        let invokeResourceChanges = invokeHookResult.ResourceChanges
+
+        let damageResult = {
+          baseDamageResult with
+              Amount = baseDamageResult.Amount + totalInvokeDamageMod
+        }
+
         let actualDamage = max 0 damageResult.Amount
+
+        // 2. OnDamageReceived: collect all modifications
+        let damageHookContext = {
+          hookContext with
+              DamageResult = ValueSome damageResult
+        }
+
+        let! damageReceivedResult =
+          processEffectHooks
+            Effects.OnDamageReceived
+            damageHookContext
+            targetComponents.Effects
+            rparams.services
+
+        let totalReceivedDamageMod = damageReceivedResult.DamageModification
+        let totalReceivedShieldGen = damageReceivedResult.ShieldGeneration
+        let receivedResourceChanges = damageReceivedResult.ResourceChanges
+
+        let finalDamage = actualDamage + totalReceivedDamageMod |> max 0
+
+        // 3. Shield Generation (placeholder: add to target's shield pool)
+        // TODO: Integrate shield system in future steps
+        // let totalShieldGen = totalInvokeShieldGen + totalReceivedShieldGen
+        // ... update targetComponents.Resources.Shields ...
+
+        // 4. Resource Changes (placeholder: apply to target)
+        // TODO: Integrate resource change system in future steps
+        // let allResourceChanges = invokeResourceChanges @ receivedResourceChanges
+        // ... apply resource changes ...
 
         let damageEvent =
           DamageApplied {
             target = targetId
-            amount = actualDamage
+            amount = finalDamage
           }
 
-        let newHp = max 0 (targetComponents.Resources.HP - actualDamage)
+        let newHp = max 0 (targetComponents.Resources.HP - finalDamage)
 
         let updatedTargetAfterDamage: All = {
           targetComponents with
@@ -680,8 +854,65 @@ module Resolution =
         let finalActor =
           Shared.updateCooldowns actorWithCost abilityId gameTime abilityDef
 
+        // 5. OnAbilityComplete: collect all modifications
+        let completeHookContext = {
+          damageHookContext with
+              DamageResult =
+                ValueSome {
+                  damageResult with
+                      Amount = finalDamage
+                }
+        }
+
+        let! completeHookResult =
+          processEffectHooks
+            Effects.OnAbilityComplete
+            completeHookContext
+            finalActor.Effects
+            rparams.services
+
+        let totalCompleteShieldGen = completeHookResult.ShieldGeneration
+        let completeResourceChanges = completeHookResult.ResourceChanges
+
+        // 6. Resource Changes from OnAbilityComplete (placeholder)
+        let finalActorWithCompleteEffects =
+          if not(List.isEmpty completeResourceChanges) then
+            let mutable updatedResources = finalActor.Resources
+
+            for rc in completeResourceChanges do
+              match rc with
+              | Additive(resourceType, amount) ->
+                match resourceType with
+                | ResourceType.HP ->
+                  updatedResources <- {
+                    updatedResources with
+                        HP = updatedResources.HP + amount
+                  }
+                | ResourceType.MP ->
+                  updatedResources <- {
+                    updatedResources with
+                        MP = updatedResources.MP + amount
+                  }
+              | Exchange exch -> () // TODO: implement exchange logic
+              | SetTo(resourceType, value) ->
+                match resourceType with
+                | ResourceType.HP ->
+                  updatedResources <- { updatedResources with HP = value }
+                | ResourceType.MP ->
+                  updatedResources <- { updatedResources with MP = value }
+
+            {
+              finalActor with
+                  Resources = updatedResources
+            }
+          else
+            finalActor
+
         let changes =
-          HashMap.ofList [ actorId, finalActor; targetId, finalTarget ]
+          HashMap.ofList [
+            actorId, finalActorWithCompleteEffects
+            targetId, finalTarget
+          ]
 
         let allEvents =
           [|

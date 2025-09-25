@@ -7,26 +7,34 @@ This document tracks the design and implementation of an enhanced effects framew
 ## Target Effect Categories
 
 ### 1. Damage Amplification with Resource Cost
+
 **Type**: HP-cost damage boost
+
 - When active, invoking abilities consumes % of ability's base damage from user's HP
 - Increases ability's final damage proportionally
 - **Hook**: OnAbilityInvoke (pre-execution)
 
 ### 2. Damage Absorption with Regeneration
+
 **Type**: Shield/barrier mechanics
+
 - Creates temporary HP pool based on caster stats
 - Incoming damage hits barrier before actual HP
 - Barrier regenerates when not receiving damage
 - **Hook**: OnDamageReceived (damage interception)
 
 ### 3. Resource Conversion
+
 **Type**: HP/MP transformation
+
 - Converts between resource types using formulas
 - Instant effect with calculated exchange rates
 - **Hook**: Instant (direct resource manipulation)
 
 ### 4. Distance-Based Damage
+
 **Type**: Positional damage calculation
+
 - AoE/MultiHit with distance-modified damage
 - Damage calculation includes spatial factors
 - **Hook**: OnAbilityInvoke + custom targeting (future)
@@ -42,7 +50,7 @@ graph TD
     B1 --> C{Validation Result}
     C -->|Valid| D[Build AbilityContext]
     C -->|Invalid| E[Return Empty StateChange]
-    
+
     D --> F[Process OnAbilityInvoke Effects]
     F --> G[Calculate Base Damage]
     G --> H[Apply Effect Modifiers]
@@ -50,13 +58,13 @@ graph TD
     I --> J[Apply Final Damage]
     J --> K[Process OnAbilityComplete Effects]
     K --> L[Return StateChange]
-    
+
     subgraph "Current System"
         B --> G2[Calculate Damage Directly]
         G2 --> J2[Apply Damage]
         J2 --> L2[Apply Effects]
     end
-    
+
     subgraph "Enhanced System"
         B1 --> D
         D --> F
@@ -89,7 +97,7 @@ The context is built in `resolveAbility` after validation succeeds:
     let! actorStats = rparams.derivedStats |> AMap.find actorId
     let! targetStats = rparams.derivedStats |> AMap.find targetId
     let! gameTime = rparams.gameTime
-    
+
     // NEW: Build AbilityContext here
     let abilityContext = {
         InvokerStats = actorStats
@@ -99,7 +107,7 @@ The context is built in `resolveAbility` after validation succeeds:
         TargetEffects = targetComponents.Effects
         GameTime = gameTime
     }
-    
+
     // Process OnAbilityInvoke effects with context
     // Calculate damage with effect modifiers
     // Update context with damage result
@@ -108,7 +116,8 @@ The context is built in `resolveAbility` after validation succeeds:
 
 ## Implementation Steps
 
-### Step 0.5: Passive Skills & Ability Requirements System
+### Step 0.5: Passive Skills & Ability Requirements System ✅ (Implemented)
+
 Redesign ability system with separate passive/active definitions:
 
 ```fsharp
@@ -150,12 +159,14 @@ type Duration =
 ```
 
 **Integration with Enhanced Effects:**
+
 - **Passive abilities**: Create `Permanent` duration effects when learned
 - **Active abilities**: Use existing resolution pipeline with effect hooks
 - **Requirements**: Validated during `OnAbilityInvoke` hook
 - **Permanent effects**: Skip tick processing, never expire
 
 **Example - Gun Carrier System:**
+
 ```fsharp
 // Passive ability definition
 Passive {
@@ -185,7 +196,8 @@ Active {
 }
 ```
 
-### Step 1: Effect Hook System
+### Step 1: Effect Hook System ✅ (Implemented in Domain.fs and Resolution.fs)
+
 Add effect hooks to intercept different resolution phases:
 
 ```fsharp
@@ -198,7 +210,8 @@ type EffectHook =
   | OnTick              // Periodic processing (existing DoT/HoT)
 ```
 
-### Step 2: Dynamic Effect Modifiers
+### Step 2: Dynamic Effect Modifiers ✅ (Implemented in Domain.fs, partial support in Resolution.fs)
+
 Replace static modifiers with formula-based system:
 
 ```fsharp
@@ -211,7 +224,8 @@ type EffectModifier =
   | ShieldGeneration of int<FormulaId>  // Shield HP calculation
 ```
 
-### Step 3: Ability Resolution Context
+### Step 3: Ability Resolution Context ✅ (AbilityContext type and context pipeline present)
+
 Create context for effects to access during resolution:
 
 ```fsharp
@@ -226,7 +240,8 @@ type AbilityContext = {
 }
 ```
 
-### Step 4: Shield/Barrier System
+### Step 4: Shield/Barrier System ⏳ (Types present in Domain.fs, not yet integrated in Resolution.fs)
+
 Extend resources to support temporary HP pools:
 
 ```fsharp
@@ -248,19 +263,23 @@ type ShieldData = {
 }
 ```
 
-### Step 5: Enhanced Effect Processing Pipeline
+### Step 5: Enhanced Effect Processing Pipeline ⏳ (Effect hooks processed, but shield/resource logic not fully integrated)
+
 Modify resolution to process effects at different hooks:
 
 1. **Pre-Ability Processing**:
+
    - Process `OnAbilityInvoke` effects
    - Apply HP costs for damage amplification
    - Calculate damage bonuses
 
 2. **Ability Execution**:
+
    - Apply base damage with effect modifiers
    - Process formula-based enhancements
 
 3. **Damage Reception**:
+
    - Process `OnDamageReceived` effects
    - Apply shield absorption mechanics
    - Handle damage reflection
@@ -269,7 +288,8 @@ Modify resolution to process effects at different hooks:
    - Process `OnAbilityComplete` effects
    - Apply resource conversion mechanics
 
-### Step 6: Effect Definition Extensions
+### Step 6: Effect Definition Extensions ✅ (EffectDefinition extended in Domain.fs)
+
 Extend `EffectDefinition` to support new capabilities:
 
 ```fsharp
@@ -289,6 +309,7 @@ type EffectDefinition = {
 ## Implementation Priority
 
 ### Phase 4.5: Enhanced Effects Framework (Before Phase 5)
+
 **Status**: 🎯 **REQUIRED BEFORE PHASE 5**
 
 1. **Step 0.5**: Passive skills and ability requirements
@@ -301,6 +322,7 @@ type EffectDefinition = {
 ### Example Implementations
 
 #### HP-Cost Damage Boost Effect
+
 ```fsharp
 {
   Id = 200<EffectId>
@@ -317,6 +339,7 @@ type EffectDefinition = {
 ```
 
 #### Magic Barrier Effect
+
 ```fsharp
 {
   Id = 201<EffectId>
@@ -335,6 +358,7 @@ type EffectDefinition = {
 ## Integration Points
 
 ### Resolution.fs Changes
+
 - Add `AbilityKind` pattern matching in `validateAction`
 - Add ability requirement validation (only for `Active` abilities)
 - Skip tick processing for `Permanent` duration effects
@@ -343,11 +367,13 @@ type EffectDefinition = {
 - Implement pre/post ability effect processing
 
 ### Effects.fs Changes
+
 - Add hook-based effect processing
 - Implement shield system management
 - Add dynamic modifier calculations
 
 ### Domain.fs Changes
+
 - Replace `AbilityDefinition` with `AbilityKind` discriminated union
 - Add `PassiveAbilityDefinition` and `ActiveAbilityDefinition`
 - Add `AbilityRequirement` types
@@ -359,6 +385,7 @@ type EffectDefinition = {
 ## Testing Strategy
 
 ### Unit Tests
+
 - Passive skill effect creation
 - Ability requirement validation
 - Effect hook processing
@@ -367,6 +394,7 @@ type EffectDefinition = {
 - Dynamic modifier calculations
 
 ### Integration Tests
+
 - Gun Carrier passive skill system
 - Ability requirement blocking/allowing
 - HP-cost damage amplification mechanics
@@ -375,6 +403,7 @@ type EffectDefinition = {
 - Complex effect interactions
 
 ### Property Tests
+
 - Shield HP never exceeds max
 - Resource conversions maintain balance
 - Effect stacking with dynamic modifiers
