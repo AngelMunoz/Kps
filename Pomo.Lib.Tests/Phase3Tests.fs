@@ -16,20 +16,10 @@ open Pomo.Lib.Domain.Rules
 module private Phase3Helpers =
 
   let create(rng: unit -> float) =
-    let effMap =
-      Pomo.Lib.Content.EffectStore.definitions
-      |> HashMap.ofMap
-      |> AMap.ofHashMap
-
     let abilMap =
       Pomo.Lib.Content.AbilityStore.definitions
       |> HashMap.ofMap
       |> AMap.ofHashMap
-
-    let effList =
-      AList.constant(fun () ->
-        [ for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions -> v ]
-        |> IndexList.ofList)
 
     let abilList =
       AList.constant(fun () ->
@@ -55,9 +45,12 @@ module private Phase3Helpers =
               Pomo.Lib.Content.AbilityStore.definitions
               |> Map.tryFind abilityId
               |> ValueOption.ofOption
+              |> ValueOption.map Abilities.Active
 
             member _.find abilityId =
-              Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
+              Pomo.Lib.Content.AbilityStore.definitions
+              |> Map.find abilityId
+              |> Abilities.Active
         }
       formulaStore =
         { new Services.IFormulaStore with
@@ -116,6 +109,7 @@ module private Phase3Helpers =
         HP = hp
         MP = mp
         Status = Status.Alive
+        Shields = FSharp.Data.Adaptive.HashMap.empty
       }
       Effects = (activeEffects :> alist<_>)
       Abilities = (clist abilities :> alist<_>)

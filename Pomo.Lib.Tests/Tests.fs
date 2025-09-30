@@ -84,9 +84,12 @@ module private TestHelpers =
               Pomo.Lib.Content.AbilityStore.definitions
               |> Map.tryFind abilityId
               |> ValueOption.ofOption
+              |> ValueOption.map Abilities.Active
 
             member _.find abilityId =
-              Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
+              Pomo.Lib.Content.AbilityStore.definitions
+              |> Map.find abilityId
+              |> Abilities.Active
         }
       formulaStore =
         { new Services.IFormulaStore with
@@ -125,6 +128,7 @@ module private TestHelpers =
         HP = hp
         MP = mp
         Status = Status.Alive
+        Shields = HashMap.empty
       }
       Effects = (clist [] :> alist<_>)
       Abilities = (clist abilities :> alist<_>)
