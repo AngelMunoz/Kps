@@ -357,9 +357,16 @@ type ``Phase3 - Taunt``() =
     let melee = 1<AbilityId>
     let tauntEffectId = 103<EffectId> // Taunt
 
-    let attacker = makeEntity attackerId baseStats 100 30 [ melee ] []
-    let intendedTarget = makeEntity intendedTargetId baseStats 100 30 [] []
-    let taunter = makeEntity taunterId baseStats 100 30 [] []
+    let tauntBaseStats = {
+      Power = 100
+      Magic = 4
+      Sense = 50
+      Charm = 10
+    }
+
+    let attacker = makeEntity attackerId tauntBaseStats 100 30 [ melee ] []
+    let intendedTarget = makeEntity intendedTargetId tauntBaseStats 100 30 [] []
+    let taunter = makeEntity taunterId tauntBaseStats 100 30 [] []
 
     addEntity state attackerId attacker
     addEntity state intendedTargetId intendedTarget
