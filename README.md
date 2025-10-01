@@ -108,3 +108,74 @@ This project uses a reactive architecture with FSharp.Data.Adaptive (FDA) for it
 - **Property-Based Tests**: Use libraries like FsCheck to verify the mathematical correctness of rules, such as stat composition and effect stacking.
 - **Deterministic Simulation**: Leverage the deterministic nature of the core logic by using a fixed seed for the random number generator in tests to reproduce complex scenarios.
 - **FsCheck**: We need to ensure that we're using the right features of the library besides just property testing.
+
+### Code Conventions
+
+- **Functions must be focused**: Each function should be descriptive of what it does. If a function is doing too much, it can either use:
+
+  - Local functions
+
+  Example:
+
+  ```fsharp
+  let calculateDamage attacker defender =
+     let computeBaseDamage attacker defender = ...
+     let applyModifiers baseDamage attacker defender = ...
+
+     let baseDamage = computeBaseDamage attacker defender
+     let modifiedDamage = applyModifiers baseDamage attacker defender
+     modifiedDamage
+  ```
+
+  - Module-level functions
+
+  Example:
+
+  ```fsharp
+  module Combat =
+     let computeBaseDamage attacker defender = ...
+     let applyModifiers baseDamage attacker defender = ...
+
+     let calculateDamage attacker defender =
+        let baseDamage = computeBaseDamage attacker defender
+        let modifiedDamage = applyModifiers baseDamage attacker defender
+        modifiedDamage
+  ```
+
+- **Modules must be cohesive**: Group related functions and types into modules that represent a single concept or area of functionality.
+- **Match expressions body should be small**: Each branch of a match expression should be concise. If a branch is complex, consider extracting it into a separate function.
+
+  Example:
+
+  ```fsharp
+  match someValue with
+  | Case1 -> handleCase1 someValue
+  | Case2 -> handleCase2 someValue
+  | Case3 -> handleCase3 someValue
+  ```
+
+- **Avoid deep nesting**: Where possible use inline'able Active patterns, Partial Active Patterns and function composition to flatten nested logic.
+
+  Example:
+
+  ```fsharp
+  let inline (|IsEven|IsOdd|) x =
+     if x % 2 = 0 then IsEven else IsOdd
+
+  let processNumber x =
+     match x with
+     | IsEven -> handleEven x
+     | IsOdd -> handleOdd x
+  ```
+
+  ```fsharp
+  [<return: Struct>]
+  let inline (|ActiveEffect|_|) (effectType: EffectType) (effect: Effect) =
+     if effect.EffectType = effectType then ValueSome effect else ValueNone
+
+   let processEffect effect =
+      match effect with
+      | ActiveEffect EffectType.Damage dmgEffect -> handleDamageEffect dmgEffect
+      | ActiveEffect EffectType.Heal healEffect -> handleHealEffect healEffect
+      | _ -> handleOtherEffect effect
+  ```
