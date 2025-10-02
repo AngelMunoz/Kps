@@ -149,6 +149,33 @@ module Resolution =
         return result
       }
 
+  let calculateHitChance (attackerStat: int) (defenderStat: int) =
+    let attackerValue = float attackerStat
+    let defenderValue = float defenderStat
+
+    // Base chance to hit is 50%, adjusted by stats
+    let baseHitChance = 0.5
+
+    // If both stats are zero, it's a guaranteed hit.
+    if attackerValue = 0.0 && defenderValue = 0.0 then
+      1.0
+    else
+      // The effective stat difference. We use max to avoid negative results which would flip the logic.
+      let effectiveAttacker = max 0.0 attackerValue
+      let effectiveDefender = max 0.0 defenderValue
+
+      let statAdvantage = effectiveAttacker - effectiveDefender
+
+      // The divisor scales the effect of the stat advantage.
+      // A larger divisor means stats have less impact on hit chance.
+      let divisor = 100.0
+
+      let chance = baseHitChance + (statAdvantage / divisor)
+
+      // Clamp the result between a minimum and maximum hit chance
+      // to ensure there's always a chance to hit or miss.
+      max 0.05 (min 0.95 chance)
+
   let calculateDamage
     (formulaStore: IFormulaStore)
     (formulaId: int<FormulaId>)
@@ -174,13 +201,9 @@ module Resolution =
         match formulaResult.DamageType with
         | DamageType.Neutral
         | DamageType.Physical ->
-          // AC vs HV for physical attacks
-          float attackerStats.AC
-          / (float attackerStats.AC + float defenderStats.HV)
+          calculateHitChance attackerStats.AC defenderStats.HV
         | DamageType.Magical ->
-          // LK vs LK for magical/elemental attacks
-          float attackerStats.LK
-          / (float attackerStats.LK + float defenderStats.LK)
+          calculateHitChance attackerStats.LK defenderStats.LK
 
       let isHit = hitRoll < hitChance
 
@@ -952,38 +975,31 @@ module Resolution =
         | SingleAlly
         | SingleEnemy ->
           action.targets
-          |> Array.isEmpty
-          |> function
-            | true -> Array.empty
-            | false -> action.targets |> Array.take 1
+          |> Array.tryHead
+          |> Option.map(fun targetId -> [| targetId |])
+          |> Option.defaultValue Array.empty
         | MultiTarget maxTargets -> action.targets |> Array.take maxTargets
 
-      if Array.isEmpty actualTargets then
-        return {
-          entities = HashMap.empty
-          gameTime = ValueNone
-        }
-      else
-        // Process each target
-        let! components =
-          actualTargets
-          |> AList.ofArray
-          |> AList.mapA(fun targetId ->
-            let ractors = {
-              actor = action.actor
-              target = targetId
-            }
+      // Process each target
+      let! components =
+        actualTargets
+        |> AList.ofArray
+        |> AList.mapA(fun targetId ->
+          let ractors = {
+            actor = action.actor
+            target = targetId
+          }
 
-            // Use unified resolver for all ability types
-            resolveAbility action.abilityId (rparams, ractors))
-          |> AList.fold
-            (fun acc result -> HashMap.union acc result.entities)
-            HashMap.empty
+          // Use unified resolver for all ability types
+          resolveAbility action.abilityId (rparams, ractors))
+        |> AList.fold
+          (fun acc result -> HashMap.union acc result.entities)
+          HashMap.empty
 
-        return {
-          entities = components
-          gameTime = ValueNone
-        }
+      return {
+        entities = components
+        gameTime = ValueNone
+      }
     }
 
   let step (state: GameState) (cmd: Command) : aval<StateChange> =

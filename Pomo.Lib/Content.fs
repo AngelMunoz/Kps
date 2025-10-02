@@ -180,7 +180,6 @@ module EffectStore =
       }
     ]
 
-
 module FormulaStore =
   let definitions: Map<int<FormulaId>, FormulaDefinition> =
     Map.ofList [
@@ -260,8 +259,6 @@ module FormulaStore =
           }
       }
     ]
-
-
 
 module AbilityStore =
 
@@ -351,7 +348,7 @@ module AbilityStore =
         Cost = ValueNone
         Cooldown = 1000L<Tick>
         Targeting = TargetType.SingleEnemy
-        FormulaId = ValueSome 4<FormulaId>
+        FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
       }

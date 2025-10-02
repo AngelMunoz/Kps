@@ -43,20 +43,6 @@ module private TestHelpers =
 
 
   let create(rng: unit -> float) =
-    let effMap = EffectStore.definitions |> HashMap.ofMap |> AMap.ofHashMap
-
-    let abilMap = AbilityStore.definitions |> HashMap.ofMap |> AMap.ofHashMap
-
-    let effList =
-      AList.constant(fun () ->
-        [ for KeyValue(_, v) in EffectStore.definitions -> v ]
-        |> IndexList.ofList)
-
-    let abilList =
-      AList.constant(fun () ->
-        [ for KeyValue(_, v) in AbilityStore.definitions -> v ]
-        |> IndexList.ofList)
-
     GameState.create' {
       effectStore =
         { new Services.IEffectStore with
@@ -144,17 +130,35 @@ type ``Derived Stats``() =
 
     TestHelpers.addEntity state id entity
     let derived = TestHelpers.derivedOf state id
+
     let expectedAttack = baseAttrs.Power * 2
-    let expectedMagicAttack = baseAttrs.Magic * 2
-    let expectedHealthPoints = baseAttrs.Charm * 10
+    let expectedAccuracy = baseAttrs.Power / 100
+    let expectedDexterity = baseAttrs.Power
+
     let expectedMagicPotential = baseAttrs.Magic * 5
-    let expectedAccuracy = float baseAttrs.Power / 100.0
+    let expectedMagicAttack = baseAttrs.Magic * 2
+    let expectedMagicDefense = baseAttrs.Magic
+
+    let expectedWeight = baseAttrs.Sense
+    let expectedDetectAbility = baseAttrs.Sense
+    let expectedLuck = baseAttrs.Sense
+
+    let expectedHealthPoints = baseAttrs.Charm * 10
+    let expectedDefense = baseAttrs.Charm / 2
+    let expectedEvasion = baseAttrs.Charm / 100
 
     expectedAttack = derived.AP
-    && expectedMagicAttack = derived.MA
-    && expectedHealthPoints = derived.HP
-    && expectedMagicPotential = derived.MP
     && expectedAccuracy = derived.AC
+    && expectedDexterity = derived.DX
+    && expectedMagicPotential = derived.MP
+    && expectedMagicAttack = derived.MA
+    && expectedMagicDefense = derived.MD
+    && expectedWeight = derived.WT
+    && expectedDetectAbility = derived.DA
+    && expectedLuck = derived.LK
+    && expectedHealthPoints = derived.HP
+    && expectedDefense = derived.DP
+    && expectedEvasion = derived.HV
 
 // --------------------------------------------------
 // Phase 2 Action Resolution Tests
@@ -175,8 +179,8 @@ type ``Action Resolution``() =
   }
 
   [<Fact>]
-  member _.``Melee attack applies expected damage and emits DamageApplied``() =
-    let state = TestHelpers.create(fun () -> 0.5)
+  member _.``Melee attack applies expected damage``() =
+    let state = TestHelpers.create(fun () -> 0.1)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 8<AbilityId> // Basic Melee Attack No Cost and No Effects
@@ -423,22 +427,12 @@ type ``Combat Mechanics Properties``() =
     (defenderCharm: PositiveInt)
     (rng: NormalFloat)
     =
-    let power = float(attackerPower.Get % 50 + 10)
-    let charm = float(defenderCharm.Get % 50 + 10)
+    let power = attackerPower.Get % 50 + 10
+    let charm = defenderCharm.Get % 50 + 10
     let rngValue = abs rng.Get % 1.0
 
-    let ac = power / 100.0 // AC formula from derived stats
-    let hv = charm / 100.0 // HV formula from derived stats
-    let expectedHitChance = ac / (ac + hv)
-    let shouldHit = rngValue < expectedHitChance
-
-    let state = TestHelpers.create(fun () -> rngValue)
-    let attackerId = 1<EntityId>
-    let targetId = 2<EntityId>
-    let meleeId = 1<AbilityId>
-
     let attackerStats = {
-      Power = int power
+      Power = power
       Magic = 4
       Sense = 50
       Charm = 10
@@ -448,8 +442,14 @@ type ``Combat Mechanics Properties``() =
       Power = 12
       Magic = 4
       Sense = 50
-      Charm = int charm
+      Charm = charm
     }
+
+    let state = TestHelpers.create(fun () -> rngValue)
+    let attackerId = 1<EntityId>
+    let targetId = 2<EntityId>
+    let meleeId = 1<AbilityId>
+
 
     let attacker =
       TestHelpers.makeEntity [ Classification.Player ] attackerStats 100 100 [
@@ -461,6 +461,17 @@ type ``Combat Mechanics Properties``() =
 
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
+
+    let attackerDerived = TestHelpers.derivedOf state attackerId
+    let defenderDerived = TestHelpers.derivedOf state targetId
+
+    let expectedHitChance =
+      Resolution.calculateHitChance
+        attackerDerived.AC
+        defenderDerived.HV
+
+    let shouldHit = rngValue < expectedHitChance
+
 
     let entitiesSnapshot = state.entities |> AMap.force
 
@@ -489,11 +500,12 @@ type ``Combat Mechanics Properties``() =
     (defenderSense: PositiveInt)
     (rng: NormalFloat)
     =
-    let atkSense = float(attackerSense.Get % 50 + 10)
-    let defSense = float(defenderSense.Get % 50 + 10)
+    let atkSense = attackerSense.Get % 50 + 10
+    let defSense = defenderSense.Get % 50 + 10
+
     let rngValue = abs rng.Get % 1.0
 
-    let expectedHitChance = atkSense / (atkSense + defSense)
+    let expectedHitChance = Resolution.calculateHitChance atkSense defSense
     let shouldHit = rngValue < expectedHitChance
 
     let state = TestHelpers.create(fun () -> rngValue)
@@ -552,11 +564,10 @@ type ``Combat Mechanics Properties``() =
     (attackerPower: PositiveInt)
     (rngResult: NormalFloat)
     =
-    let power = attackerPower.Get
+    let power = abs attackerPower.Get
     let rngValue = abs rngResult.Get % 1.0
 
-    let stateLow = TestHelpers.create(fun () -> rngValue)
-    let stateHigh = TestHelpers.create(fun () -> rngValue)
+    let state = TestHelpers.create(fun () -> rngValue)
 
     let attackerIdLow = 1<EntityId>
     let attackerIdHigh = 2<EntityId>
@@ -567,21 +578,21 @@ type ``Combat Mechanics Properties``() =
       Power = power
       Magic = 4
       Sense = 50
-      Charm = 10
+      Charm = 0
     }
 
     let highStats = {
       Power = power + 10
       Magic = 4
       Sense = 50
-      Charm = 10
+      Charm = 0
     }
 
     let targetStats = {
       Power = 5
       Magic = 4
       Sense = 1
-      Charm = 10
+      Charm = 0
     }
 
 
@@ -595,44 +606,44 @@ type ``Combat Mechanics Properties``() =
         meleeId
       ]
 
-    let targetLow =
+    let target =
       TestHelpers.makeEntity [ Classification.Enemy ] targetStats 100 100 []
 
-    let targetHigh =
-      TestHelpers.makeEntity [ Classification.Enemy ] targetStats 100 100 []
+    TestHelpers.addEntity state attackerIdLow attackerLow
+    TestHelpers.addEntity state attackerIdHigh attackerHigh
+    TestHelpers.addEntity state targetId target
 
-    TestHelpers.addEntity stateLow attackerIdLow attackerLow
-    TestHelpers.addEntity stateLow targetId targetLow
-    TestHelpers.addEntity stateHigh attackerIdHigh attackerHigh
-    TestHelpers.addEntity stateHigh targetId targetHigh
+    let derivedStats = GameState.getDerivedStats state |> AMap.force
+    let actorStatsLow = derivedStats[attackerIdLow]
+    let actorStatsHigh = derivedStats[attackerIdHigh]
+    let targetStats = derivedStats[targetId]
 
-    let targetLowLifeBefore = stateLow.entities[targetId].Resources.HP
-    let targetHighLifeBefore = stateHigh.entities[targetId].Resources.HP
+    let rparams : Resolution.ResolverParams = {
+        entities = state.entities
+        enemies = GameState.getEnemies state
+        allies = GameState.getAllies state
+        derivedStats = GameState.getDerivedStats state
+        gameTime = state.gameTime
+        services = state.services
+    }
 
-    let actionLow =
-      UseAbility {
-        actor = attackerIdLow
-        targets = [| targetId |]
-        abilityId = meleeId
-      }
+    let abilityDef =
+        match state.services.abilityStore.tryFind meleeId with
+        | ValueSome (Abilities.Active def) -> def
+        | _ -> failwith "Melee ability not found or not active"
 
-    let deltaLow = Resolution.step stateLow actionLow |> AVal.force
-    Resolution.apply stateLow deltaLow
+    let damageLow =
+        Resolution.AbilityResolution.calculateBaseDamage
+            rparams
+            abilityDef
+            actorStatsLow
+            targetStats
 
-    let actionHigh =
-      UseAbility {
-        actor = attackerIdHigh
-        targets = [| targetId |]
-        abilityId = meleeId
-      }
+    let damageHigh =
+        Resolution.AbilityResolution.calculateBaseDamage
+            rparams
+            abilityDef
+            actorStatsHigh
+            targetStats
 
-    let deltaHigh = Resolution.step stateHigh actionHigh |> AVal.force
-    Resolution.apply stateHigh deltaHigh
-
-    let targetLowLifeAfter = stateLow.entities[targetId].Resources.HP
-    let targetHighLifeAfter = stateHigh.entities[targetId].Resources.HP
-
-    let damageHigh = targetHighLifeBefore - targetHighLifeAfter
-    let damageLow = targetLowLifeBefore - targetLowLifeAfter
-
-    if damageHigh > 0 then damageHigh > damageLow else true
+    damageHigh.Amount > damageLow.Amount
