@@ -223,6 +223,7 @@ module Resolution =
           if isCritical then
             float(formulaResult.BaseDamage + formulaResult.ElementalDamage)
             * 0.10
+            |> int
           else
             0
 
@@ -234,11 +235,18 @@ module Resolution =
 
             float formulaResult.ElementalDamage * (1.0 - elementRes) |> int
           else
-            int 0.0
+            0
 
         let totalDamage = formulaResult.BaseDamage + finalElementalDamage
 
-        let finalDamage = float totalDamage + damageMultiplier
+        // Apply defense reduction
+        let damageAfterDefense =
+          match formulaResult.DamageType with
+          | DamageType.Physical -> totalDamage - defenderStats.DP
+          | DamageType.Magical -> totalDamage - defenderStats.MD
+          | DamageType.Neutral -> totalDamage
+
+        let finalDamage = max 0 (damageAfterDefense + damageMultiplier)
 
         {
           Amount = int finalDamage

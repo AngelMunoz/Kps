@@ -181,8 +181,12 @@ Damage calculation is done in 4 steps:
   - Is the target valid?
   - Is the actor alive?
 - Hit or Miss calculation:
-  - If Physical damage: AC vs HV (AC / (AC + HV))
-  - If Magical damage: LK vs LK (LK / (LK + LK))
+  - A base hit chance of 50% is adjusted by the difference between attacker and defender stats.
+  - The formula is: `chance = 0.5 + (attackerStat - defenderStat) / 100.0`.
+  - The final chance is clamped between 5% and 95%.
+  - If Physical damage: uses Attacker's AC vs Defender's HV.
+  - If Magical damage: uses Attacker's LK vs Defender's LK.
+  - Neutral damage always hits.
 
 2. **Formula-Based Damage Calculation**:
 
@@ -208,8 +212,12 @@ Damage calculation is done in 4 steps:
 
 4. **Apply Final Damage**:
 
-- Calculate total damage: BaseDamage + FinalElementalDamage + CriticalBonus
-- Subtract remaining damage from target's HP
+- Calculate total damage: BaseDamage + FinalElementalDamage
+- Apply defense reduction based on damage type:
+  - Physical Damage: `totalDamage - defender.DP`
+  - Magical Damage: `totalDamage - defender.MD`
+- Apply critical hit bonus.
+- Subtract final damage from target's HP.
 - Check for death (HP <= 0)
 
 ### Resource System

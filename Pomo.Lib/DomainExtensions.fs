@@ -13,6 +13,24 @@ type Attributes.DerivedStats with
   member inline this.AttributeValue element =
     this.ElementAttributes |> HashMap.tryFindV element
 
+  static member inline Zero: Attributes.DerivedStats =
+    {
+      AP = 0
+      AC = 0
+      DX = 0
+      MP = 0
+      MA = 0
+      MD = 0
+      WT = 0
+      DA = 0
+      LK = 0
+      HP = 0
+      DP = 0
+      HV = 0
+      ElementAttributes = HashMap.empty
+      ElementResistances = HashMap.empty
+    }
+
 type Effects.Duration with
 
   member inline this.Ticks =
