@@ -804,14 +804,11 @@ module Resolution =
       (abilityId: int<AbilityId>)
       (rparams: ResolverParams)
       (ractors: ResolverActors)
-      (actorComponents: EntityComponents)
-      (targetComponents: EntityComponents)
-      (costOpt: ResourceCost voption)
-      (abilityDef: ActiveAbilityDefinition)
+      (action: ValidatedActionResult)
       =
       adaptive {
         let actorId = ractors.actor
-        let targetId = ractors.target
+        let targetId = action.target
 
         let! actorStats = rparams.derivedStats |> AMap.find actorId
         let! targetStats = rparams.derivedStats |> AMap.find targetId
@@ -822,12 +819,16 @@ module Resolution =
           processInvokeHooks
             rparams
             abilityId
-            actorComponents
+            action.actorComponents
             actorStats
             targetStats
 
         let baseDamageResult =
-          calculateBaseDamage rparams abilityDef actorStats targetStats
+          calculateBaseDamage
+            rparams
+            action.abilityDefinition
+            actorStats
+            targetStats
 
         let damageAfterInvoke: ResolvedDamage = {
           baseDamageResult with
@@ -843,7 +844,7 @@ module Resolution =
             abilityId
             damageAfterInvoke
             actorStats
-            targetComponents
+            action.targetComponents
             targetStats
 
         // 3. Apply shield absorption
@@ -854,10 +855,10 @@ module Resolution =
 
         // 4. Apply final damage and check for death
         let finalResources =
-          applyDamageAndCheckDeath damageAfterReceived targetComponents
+          applyDamageAndCheckDeath damageAfterReceived action.targetComponents
 
         let targetAfterDamage = {
-          targetComponents with
+          action.targetComponents with
               Resources = finalResources
         }
 
@@ -865,16 +866,21 @@ module Resolution =
         let! targetAfterEffects =
           Shared.applyAbilityEffects
             rparams.services.effectStore
-            abilityDef
+            action.abilityDefinition
             actorId
             targetAfterDamage
 
         // 6. Apply costs to actor
-        let actorWithCost = Shared.applyResourceCost costOpt actorComponents
+        let actorWithCost =
+          Shared.applyResourceCost action.cost action.actorComponents
 
         // 7. Update actor cooldowns
         let actorWithCooldown =
-          Shared.updateCooldowns actorWithCost abilityId gameTime abilityDef
+          Shared.updateCooldowns
+            actorWithCost
+            abilityId
+            gameTime
+            action.abilityDefinition
 
         // 8. OnAbilityComplete hooks
         let completeHookContext = {
@@ -938,15 +944,7 @@ module Resolution =
           gameTime = ValueNone
         }
       | ValidAction action ->
-        return!
-          AbilityResolution.resolve
-            abilityId
-            rparams
-            ractors
-            action.actorComponents
-            action.targetComponents
-            action.cost
-            action.abilityDefinition
+        return! AbilityResolution.resolve abilityId rparams ractors action
     }
 
 

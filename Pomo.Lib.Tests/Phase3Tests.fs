@@ -309,7 +309,7 @@ type ``Phase3 - Taunt``() =
   [<Fact>]
   member _.``T4 Taunt redirection forces target to taunter``() =
     // Arrange
-    let state = create(fun () -> 0.5)
+    let state = create(fun () -> 0.1)
     let attackerId = 1<EntityId>
     let intendedTargetId = 2<EntityId>
     let taunterId = 3<EntityId>
@@ -317,10 +317,10 @@ type ``Phase3 - Taunt``() =
     let tauntEffectId = 103<EffectId> // Taunt
 
     let tauntBaseStats = {
-      Power = 100
-      Magic = 4
-      Sense = 50
-      Charm = 10
+      Power = 10
+      Magic = 1
+      Sense = 1
+      Charm = 0
     }
 
     let attacker =
