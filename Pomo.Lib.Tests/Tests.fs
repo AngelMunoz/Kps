@@ -92,7 +92,7 @@ module private TestHelpers =
     }
 
   let makeEntity
-    (id: int<EntityId>)
+    (faction: Classification.Faction seq)
     (baseStats: BaseAttributes)
     hp
     mp
@@ -106,6 +106,7 @@ module private TestHelpers =
         cooldowns.Add(a, 0L<Tick>) |> ignore)
 
     {
+      Factions = HashSet.ofSeq faction
       Identity = {
         Family = Classification.Family.Power
         Stage = Classification.Stage.First
@@ -137,7 +138,10 @@ type ``Derived Stats``() =
     =
     let state = TestHelpers.create(fun _ -> 0.5)
     let id = 1<EntityId>
-    let entity = TestHelpers.makeEntity id baseAttrs 100 100 []
+
+    let entity =
+      TestHelpers.makeEntity [ Classification.Player ] baseAttrs 100 100 []
+
     TestHelpers.addEntity state id entity
     let derived = TestHelpers.derivedOf state id
     let expectedAttack = baseAttrs.Power * 2
@@ -176,17 +180,20 @@ type ``Action Resolution``() =
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 8<AbilityId> // Basic Melee Attack No Cost and No Effects
-    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 [ melee ]
-    let target = TestHelpers.makeEntity targetId baseB 80 30 []
+
+    let attacker =
+      TestHelpers.makeEntity [ Classification.Player ] baseA 100 50 [ melee ]
+
+    let target = TestHelpers.makeEntity [ Classification.Enemy ] baseB 80 30 []
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
 
     let action =
-      (UseAbility {
+      UseAbility {
         actor = attackerId
         targets = [| targetId |]
         abilityId = melee
-      })
+      }
 
     let delta = Resolution.step state action
     let change = delta |> AVal.force
@@ -216,8 +223,14 @@ type ``Action Resolution``() =
       Charm = 5
     }
 
-    let caster = TestHelpers.makeEntity casterId casterBase 100 100 [ spell ]
-    let victim = TestHelpers.makeEntity victimId victimBase 30 10 []
+    let caster =
+      TestHelpers.makeEntity [ Classification.Player ] casterBase 100 100 [
+        spell
+      ]
+
+    let victim =
+      TestHelpers.makeEntity [ Classification.Enemy ] victimBase 30 10 []
+
     TestHelpers.addEntity state casterId caster
     TestHelpers.addEntity state victimId victim
 
@@ -246,8 +259,11 @@ type ``Action Resolution``() =
     let attackerId = 100<EntityId>
     let targetId = 200<EntityId>
     let melee = 1<AbilityId>
-    let attacker = TestHelpers.makeEntity attackerId baseA 100 40 [ melee ]
-    let target = TestHelpers.makeEntity targetId baseB 40 10 []
+
+    let attacker =
+      TestHelpers.makeEntity [ Classification.Player ] baseA 100 40 [ melee ]
+
+    let target = TestHelpers.makeEntity [ Classification.Enemy ] baseB 40 10 []
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
     let before = attacker.Resources.MP
@@ -277,8 +293,11 @@ type ``Action Resolution``() =
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
-    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 [ melee ]
-    let target = TestHelpers.makeEntity targetId baseB 80 30 []
+
+    let attacker =
+      TestHelpers.makeEntity [ Classification.Player ] baseA 100 50 [ melee ]
+
+    let target = TestHelpers.makeEntity [ Classification.Enemy ] baseB 80 30 []
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
 
@@ -313,8 +332,11 @@ type ``Action Resolution``() =
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
-    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 [ melee ]
-    let target = TestHelpers.makeEntity targetId baseB 80 30 []
+
+    let attacker =
+      TestHelpers.makeEntity [ Classification.Player ] baseA 100 50 [ melee ]
+
+    let target = TestHelpers.makeEntity [ Classification.Enemy ] baseB 80 30 []
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
 
@@ -347,8 +369,11 @@ type ``Action Resolution``() =
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
-    let attacker = TestHelpers.makeEntity attackerId baseA 100 50 [ melee ]
-    let target = TestHelpers.makeEntity targetId baseB 80 30 []
+
+    let attacker =
+      TestHelpers.makeEntity [ Classification.Player ] baseA 100 50 [ melee ]
+
+    let target = TestHelpers.makeEntity [ Classification.Enemy ] baseB 80 30 []
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
 
@@ -427,9 +452,12 @@ type ``Combat Mechanics Properties``() =
     }
 
     let attacker =
-      TestHelpers.makeEntity attackerId attackerStats 100 100 [ meleeId ]
+      TestHelpers.makeEntity [ Classification.Player ] attackerStats 100 100 [
+        meleeId
+      ]
 
-    let target = TestHelpers.makeEntity targetId defenderStats 100 100 []
+    let target =
+      TestHelpers.makeEntity [ Classification.Enemy ] defenderStats 100 100 []
 
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
@@ -488,9 +516,12 @@ type ``Combat Mechanics Properties``() =
     }
 
     let attacker =
-      TestHelpers.makeEntity attackerId attackerStats 100 100 [ spellId ]
+      TestHelpers.makeEntity [ Classification.Player ] attackerStats 100 100 [
+        spellId
+      ]
 
-    let target = TestHelpers.makeEntity targetId defenderStats 100 100 []
+    let target =
+      TestHelpers.makeEntity [ Classification.Enemy ] defenderStats 100 100 []
 
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
@@ -555,13 +586,20 @@ type ``Combat Mechanics Properties``() =
 
 
     let attackerLow =
-      TestHelpers.makeEntity attackerIdLow lowStats 100 100 [ meleeId ]
+      TestHelpers.makeEntity [ Classification.Player ] lowStats 100 100 [
+        meleeId
+      ]
 
     let attackerHigh =
-      TestHelpers.makeEntity attackerIdHigh highStats 100 100 [ meleeId ]
+      TestHelpers.makeEntity [ Classification.Player ] highStats 100 100 [
+        meleeId
+      ]
 
-    let targetLow = TestHelpers.makeEntity targetId targetStats 100 100 []
-    let targetHigh = TestHelpers.makeEntity targetId targetStats 100 100 []
+    let targetLow =
+      TestHelpers.makeEntity [ Classification.Enemy ] targetStats 100 100 []
+
+    let targetHigh =
+      TestHelpers.makeEntity [ Classification.Enemy ] targetStats 100 100 []
 
     TestHelpers.addEntity stateLow attackerIdLow attackerLow
     TestHelpers.addEntity stateLow targetId targetLow

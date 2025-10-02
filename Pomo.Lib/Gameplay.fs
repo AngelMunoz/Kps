@@ -38,6 +38,21 @@ module GameState =
       HashMap.empty
     |> AMap.ofAVal
 
+  let getAllies(state: GameState) =
+    state.entities
+    |> AMap.filter(fun _ c ->
+      c.Factions |> HashSet.contains Classification.Ally)
+
+  let getEnemies(state: GameState) =
+    state.entities
+    |> AMap.filter(fun _ c ->
+      c.Factions |> HashSet.contains Classification.Enemy)
+
+  let getValidTargets(state: GameState) =
+    state.entities
+    |> AMap.filter(fun _ c ->
+      c.Factions |> HashSet.contains Classification.Ally
+      || c.Factions |> HashSet.contains Classification.Enemy)
 
   let private applyModifiers
     (effectStore: Services.IEffectStore)

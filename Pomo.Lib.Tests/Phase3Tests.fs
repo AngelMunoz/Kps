@@ -69,6 +69,7 @@ module private Phase3Helpers =
     mp
     (abilities: int<AbilityId> list)
     (effects: (int<EffectId> * int * int64<Tick>) list)
+    (factions: Classification.Faction seq)
     =
     let emptySeq: seq<int<AbilityId> * int64<Tick>> = Seq.empty
     let cooldowns: cmap<int<AbilityId>, int64<Tick>> = cmap emptySeq
@@ -90,6 +91,7 @@ module private Phase3Helpers =
       |> clist
 
     {
+      Factions = HashSet.ofSeq factions
       Identity = {
         Family = Classification.Family.Power
         Stage = Classification.Stage.First
@@ -136,9 +138,10 @@ type ``Phase3 - Stun``() =
     let attacker =
       makeEntity attackerId baseStats 100 30 [ melee ] [
         (stunEffectId, 1, 10000L<Tick>)
-      ]
+      ] [ Classification.Player ]
 
-    let target = makeEntity targetId baseStats 100 30 [] []
+    let target =
+      makeEntity targetId baseStats 100 30 [] [] [ Classification.Enemy ]
 
     addEntity state attackerId attacker
     addEntity state targetId target
@@ -181,10 +184,15 @@ type ``Phase3 - Silence``() =
     let silence = 9<AbilityId> // Silence Spell
     let meeleWithcost = 1<AbilityId> // Melee with MP cost
 
-    let attacker = makeEntity attackerId baseStats 100 30 [ silence ] []
+    let attacker =
+      makeEntity attackerId baseStats 100 30 [ silence ] [] [
+        Classification.Player
+      ]
 
     let target =
-      makeEntity targetId baseStats 100 30 [ melee; meeleWithcost ] []
+      makeEntity targetId baseStats 100 30 [ melee; meeleWithcost ] [] [
+        Classification.Enemy
+      ]
 
     addEntity state attackerId attacker
     addEntity state targetId target
@@ -315,9 +323,18 @@ type ``Phase3 - Taunt``() =
       Charm = 10
     }
 
-    let attacker = makeEntity attackerId tauntBaseStats 100 30 [ melee ] []
-    let intendedTarget = makeEntity intendedTargetId tauntBaseStats 100 30 [] []
-    let taunter = makeEntity taunterId tauntBaseStats 100 30 [] []
+    let attacker =
+      makeEntity attackerId tauntBaseStats 100 30 [ melee ] [] [
+        Classification.Player
+      ]
+
+    let intendedTarget =
+      makeEntity intendedTargetId tauntBaseStats 100 30 [] [] [
+        Classification.Enemy
+      ]
+
+    let taunter =
+      makeEntity taunterId tauntBaseStats 100 30 [] [] [ Classification.Ally ]
 
     addEntity state attackerId attacker
     addEntity state intendedTargetId intendedTarget
@@ -380,8 +397,14 @@ type ``Phase3 - Effect Stacking``() =
     let spellId = 3<AbilityId> // A spell that applies a NoStack effect
     let noStackEffectId = 104<EffectId> // Assuming this is a NoStack effect
 
-    let caster = makeEntity casterId baseStats 100 100 [ spellId ] []
-    let target = makeEntity targetId baseStats 100 100 [] []
+    let caster =
+      makeEntity casterId baseStats 100 100 [ spellId ] [] [
+        Classification.Player
+      ]
+
+    let target =
+      makeEntity targetId baseStats 100 100 [] [] [ Classification.Enemy ]
+
     addEntity state casterId caster
     addEntity state targetId target
 
@@ -435,8 +458,14 @@ type ``Phase3 - Effect Stacking``() =
     let spellId = 4<AbilityId> // A spell that applies a RefreshDuration effect
     let refreshEffectId = 1<EffectId> // Minor Strength Buff
 
-    let caster = makeEntity casterId baseStats 100 100 [ spellId ] []
-    let target = makeEntity targetId baseStats 100 100 [] []
+    let caster =
+      makeEntity casterId baseStats 100 100 [ spellId ] [] [
+        Classification.Player
+      ]
+
+    let target =
+      makeEntity targetId baseStats 100 100 [] [] [ Classification.Enemy ]
+
     addEntity state casterId caster
     addEntity state targetId target
 
@@ -509,8 +538,14 @@ type ``Phase3 - Effect Stacking``() =
     let spellId = 6<AbilityId> // Poison Spell
     let _ = 105<EffectId> // Poison
 
-    let caster = makeEntity casterId baseStats 100 100 [ spellId ] []
-    let target = makeEntity targetId baseStats 100 100 [] []
+    let caster =
+      makeEntity casterId baseStats 100 100 [ spellId ] [] [
+        Classification.Player
+      ]
+
+    let target =
+      makeEntity targetId baseStats 100 100 [] [] [ Classification.Enemy ]
+
     addEntity state casterId caster
     addEntity state targetId target
 
@@ -574,8 +609,14 @@ type ``Phase3 - Effect Stacking``() =
     let spellId = 7<AbilityId> // Regen Spell
     let _ = 106<EffectId> // Regeneration
 
-    let caster = makeEntity casterId baseStats 100 100 [ spellId ] []
-    let target = makeEntity targetId baseStats 50 100 [] [] // Start with 50 HP
+    let caster =
+      makeEntity casterId baseStats 100 100 [ spellId ] [] [
+        Classification.Player
+      ]
+
+    let target =
+      makeEntity targetId baseStats 50 100 [] [] [ Classification.Enemy ] // Start with 50 HP
+
     addEntity state casterId caster
     addEntity state targetId target
 
@@ -646,11 +687,21 @@ type ``Phase3 - Determinism``() =
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
 
-    let attacker1 = makeEntity attackerId baseStats 100 30 [ melee ] []
-    let target1 = makeEntity targetId baseStats 100 30 [] []
+    let attacker1 =
+      makeEntity attackerId baseStats 100 30 [ melee ] [] [
+        Classification.Player
+      ]
 
-    let attacker2 = makeEntity attackerId baseStats 100 30 [ melee ] []
-    let target2 = makeEntity targetId baseStats 100 30 [] []
+    let target1 =
+      makeEntity targetId baseStats 100 30 [] [] [ Classification.Enemy ]
+
+    let attacker2 =
+      makeEntity attackerId baseStats 100 30 [ melee ] [] [
+        Classification.Player
+      ]
+
+    let target2 =
+      makeEntity targetId baseStats 100 30 [] [] [ Classification.Enemy ]
 
     addEntity state1 attackerId attacker1
     addEntity state1 targetId target1
@@ -705,9 +756,13 @@ type ``Phase3 - Cooldown Management``() =
     let melee = 1<AbilityId>
     let spell = 2<AbilityId>
 
-    let attacker = makeEntity attackerId baseStats 100 100 [ melee; spell ] []
+    let attacker =
+      makeEntity attackerId baseStats 100 100 [ melee; spell ] [] [
+        Classification.Player
+      ]
 
-    let target = makeEntity targetId baseStats 100 100 [] []
+    let target =
+      makeEntity targetId baseStats 100 100 [] [] [ Classification.Enemy ]
 
     addEntity state attackerId attacker
     addEntity state targetId target

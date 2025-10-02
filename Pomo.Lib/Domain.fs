@@ -56,7 +56,9 @@ module Classification =
   type Faction =
     | Player
     | Enemy
+    | Ally
     | Neutral
+    | Terrain
 
   [<Struct>]
   type Tag =
@@ -259,7 +261,7 @@ module Abilities =
     | Self
     | SingleAlly
     | SingleEnemy
-    | MultiTarget of int // number of targets
+    | MultiTarget of int
 
   [<Struct>]
   type PassiveAbilityDefinition = {
@@ -343,6 +345,7 @@ module Components =
   open Effects
 
   type EntityComponents = {
+    Factions: Classification.Faction HashSet
     Identity: Classification.Profession
     BaseStats: Attributes.BaseAttributes
     Resources: Attributes.Resources

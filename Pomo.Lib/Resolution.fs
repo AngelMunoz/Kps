@@ -149,14 +149,6 @@ module Resolution =
         return result
       }
 
-  let processEffectHooks
-    (hook: Effects.EffectHook)
-    (context: HookContext)
-    (entityEffects: alist<Effects.ActiveEffect>)
-    (services: EngineServices)
-    =
-    ProcessHook.processAll hook context entityEffects services
-
   let calculateDamage
     (formulaStore: IFormulaStore)
     (formulaId: int<FormulaId>)
@@ -239,6 +231,8 @@ module Resolution =
 
   type ResolverParams = {
     entities: amap<int<EntityId>, EntityComponents>
+    enemies: amap<int<EntityId>, EntityComponents>
+    allies: amap<int<EntityId>, EntityComponents>
     derivedStats: amap<int<EntityId>, DerivedStats>
     gameTime: cval<int64<Tick>>
     services: EngineServices
@@ -250,59 +244,45 @@ module Resolution =
   }
 
   /// Helper function to check if an actor is taunted and must target a specific entity
-  let checkTauntTarget
-    (effectStore: IEffectStore)
-    (actorEffects: alist<Effects.ActiveEffect>)
-    =
-    adaptive {
-      let tauntEffects =
-        actorEffects
-        |> AList.filter(fun effect ->
-          let effectDef = effectStore.tryFind effect.EffectId
+  let checkTauntTarget(actorEffects: alist<Effects.ActiveEffect>) = adaptive {
+    let tauntEffects =
+      actorEffects
+      |> AList.filter(fun effect ->
+        effect.Definition.Kind = Effects.EffectKind.Taunt)
 
-          match effectDef with
-          | ValueNone -> false
-          | ValueSome effectDef -> effectDef.Kind = Effects.EffectKind.Taunt)
+    let! isEmpty = AList.isEmpty tauntEffects
 
-      let! isEmpty = AList.isEmpty tauntEffects
+    if isEmpty then
+      return ValueNone // No taunt, use intended target
+    else
+      // If taunted, must target the source of the most recent taunt effect
+      let! mostRecentTaunt =
+        tauntEffects
+        |> AList.fold
+          (fun acc effect ->
+            match acc with
+            | None -> Some effect
+            | Some current ->
+              if effect.RemainingTicks > current.RemainingTicks then
+                Some effect
+              else
+                Some current)
+          None
 
-      if isEmpty then
-        return ValueNone // No taunt, use intended target
-      else
-        // If taunted, must target the source of the most recent taunt effect
-        let! mostRecentTaunt =
-          tauntEffects
-          |> AList.fold
-            (fun acc effect ->
-              match acc with
-              | None -> Some effect
-              | Some current ->
-                if effect.RemainingTicks > current.RemainingTicks then
-                  Some effect
-                else
-                  Some current)
-            None
-
-        match mostRecentTaunt with
-        | Some taunt -> return ValueSome taunt.SourceId
-        | None -> return ValueNone // Fallback, should not happen
-    }
+      match mostRecentTaunt with
+      | Some taunt -> return ValueSome taunt.SourceId
+      | None -> return ValueNone // Fallback, should not happen
+  }
 
 
   type ResolverFn = ResolverParams * ResolverActors -> aval<StateChange>
 
   module ValidateAction =
-    let checkStun (effectStore: IEffectStore) (actor: EntityComponents) =
+    let checkStun(actor: EntityComponents) =
       actor.Effects
-      |> AList.exists(fun e ->
-        let def = effectStore.tryFind e.EffectId
-
-        match def with
-        | ValueNone -> false
-        | ValueSome def -> def.Kind = Effects.EffectKind.Stun)
+      |> AList.exists(fun e -> e.Definition.Kind = Effects.EffectKind.Stun)
 
     let checkSilence
-      (effectStore: IEffectStore)
       (actor: EntityComponents)
       (abilityDef: ActiveAbilityDefinition)
       =
@@ -310,11 +290,7 @@ module Resolution =
         let! hasSilence =
           actor.Effects
           |> AList.exists(fun e ->
-            let def = effectStore.tryFind e.EffectId
-
-            match def with
-            | ValueNone -> false
-            | ValueSome def -> def.Kind = Effects.EffectKind.Silence)
+            e.Definition.Kind = Effects.EffectKind.Silence)
 
         let isSpellAbility =
           match abilityDef.Cost with
@@ -406,34 +382,22 @@ module Resolution =
         match actor with
         | None -> return struct (ractors.target, initialTarget)
         | Some actor ->
-          let! forcedTargetId =
-            checkTauntTarget rparams.services.effectStore actor.Effects
 
-          match forcedTargetId with
-          | ValueNone -> return struct (ractors.target, initialTarget)
-          | ValueSome targetId ->
-            let! newTarget = rparams.entities |> AMap.tryFind targetId
+        let! forcedTargetId = checkTauntTarget actor.Effects
 
-            return
-              match newTarget with
-              | Some t -> struct (targetId, t)
-              | None -> struct (ractors.target, initialTarget)
+        match forcedTargetId with
+        | ValueNone -> return struct (ractors.target, initialTarget)
+        | ValueSome targetId ->
+
+        let! newTarget = rparams.entities |> AMap.tryFind targetId
+
+        return
+          match newTarget with
+          | Some t -> struct (targetId, t)
+          | None -> struct (ractors.target, initialTarget)
       }
 
   module Shared =
-    let getDurationTicks(duration: Effects.Duration) =
-      match duration with
-      | Effects.Instant
-      | Effects.Permanent -> 0L<Tick> // Permanent effects don't tick down
-      | Effects.Timed ticks -> ticks
-      | Effects.Loop(_, totalDuration) -> totalDuration
-
-    let getDurationInterval(duration: Effects.Duration) =
-      match duration with
-      | Effects.Instant -> 0L<Tick>
-      | Effects.Timed _ -> 0L<Tick>
-      | Effects.Loop(interval, _) -> interval
-      | Effects.Permanent -> 0L<Tick>
 
     let determineNewEffect
       (effectDef: Effects.EffectDefinition)
@@ -446,8 +410,10 @@ module Resolution =
       | Effects.RefreshDuration ->
         ValueSome {
           existingEffect with
-              RemainingTicks = getDurationTicks effectDef.Duration
-              NextTickIn = getDurationInterval effectDef.Duration
+              RemainingTicks =
+                effectDef.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
+              NextTickIn =
+                effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
         }
       | Effects.AddStack maxStacks ->
         let newStacks = min maxStacks (existingEffect.Stacks + 1)
@@ -455,8 +421,10 @@ module Resolution =
         ValueSome {
           existingEffect with
               Stacks = newStacks
-              RemainingTicks = getDurationTicks effectDef.Duration
-              NextTickIn = getDurationInterval effectDef.Duration
+              RemainingTicks =
+                effectDef.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
+              NextTickIn =
+                effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
         }
 
 
@@ -482,8 +450,10 @@ module Resolution =
             ValueSome {
               EffectId = effectDef.Id
               SourceId = actorId
-              RemainingTicks = getDurationTicks effectDef.Duration
-              NextTickIn = getDurationInterval effectDef.Duration
+              RemainingTicks =
+                effectDef.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
+              NextTickIn =
+                effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
               Stacks = 1
               Definition = effectDef
             }
@@ -495,7 +465,6 @@ module Resolution =
       (effectStore: IEffectStore)
       (abilityDef: ActiveAbilityDefinition)
       (actorId: int<EntityId>)
-      (_: int<EntityId>)
       (targetComponents: EntityComponents)
       =
       let processEffects(currentEffects: IndexList<Effects.ActiveEffect>) =
@@ -525,8 +494,12 @@ module Resolution =
                 let newEff: Effects.ActiveEffect = {
                   EffectId = effectDef.Id
                   SourceId = actorId
-                  RemainingTicks = getDurationTicks effectDef.Duration
-                  NextTickIn = getDurationInterval effectDef.Duration
+                  RemainingTicks =
+                    effectDef.Duration.Ticks
+                    |> ValueOption.defaultValue 0L<Tick>
+                  NextTickIn =
+                    effectDef.Duration.Interval
+                    |> ValueOption.defaultValue 0L<Tick>
                   Stacks = 1
                   Definition = effectDef
                 }
@@ -549,11 +522,7 @@ module Resolution =
         return processEffects currentEffects
       }
 
-    let checkForDeath
-      (newHp: int)
-      (targetComponents: EntityComponents)
-      (_: int<EntityId>)
-      =
+    let checkForDeath (newHp: int) (targetComponents: EntityComponents) =
       if newHp <= 0 && targetComponents.Resources.Status = Status.Alive then
         {
           targetComponents.Resources with
@@ -569,7 +538,6 @@ module Resolution =
     let applyResourceCost
       (costOpt: ResourceCost voption)
       (actorComponents: EntityComponents)
-      (_: int<EntityId>)
       =
       match costOpt with
       | ValueSome cost ->
@@ -651,14 +619,9 @@ module Resolution =
       | Some actor, Some target when actor.Resources.Status = Alive ->
         let! actorStats = rparams.derivedStats |> AMap.find ractors.actor
 
-        let! isStunned =
-          ValidateAction.checkStun rparams.services.effectStore actor
+        let! isStunned = ValidateAction.checkStun actor
 
-        let! isSilenced =
-          ValidateAction.checkSilence
-            rparams.services.effectStore
-            actor
-            abilityDef
+        let! isSilenced = ValidateAction.checkSilence actor abilityDef
 
         let! isOnCooldown =
           ValidateAction.checkCooldown actor abilityId rparams.gameTime
@@ -777,7 +740,6 @@ module Resolution =
     let applyDamageAndCheckDeath
       (damage: int)
       (targetComponents: EntityComponents)
-      (targetId: int<EntityId>)
       =
       let newHp = max 0 (targetComponents.Resources.HP - damage)
 
@@ -786,7 +748,7 @@ module Resolution =
             EntityComponents.Resources.HP = newHp
       }
 
-      Shared.checkForDeath newHp updatedTargetWithDamage targetId
+      Shared.checkForDeath newHp updatedTargetWithDamage
 
     let applyResourceChanges
       (changes: ResourceChange[])
@@ -869,7 +831,7 @@ module Resolution =
 
         // 4. Apply final damage and check for death
         let finalResources =
-          applyDamageAndCheckDeath damageAfterReceived targetComponents targetId
+          applyDamageAndCheckDeath damageAfterReceived targetComponents
 
         let targetAfterDamage = {
           targetComponents with
@@ -882,12 +844,10 @@ module Resolution =
             rparams.services.effectStore
             abilityDef
             actorId
-            targetId
             targetAfterDamage
 
         // 6. Apply costs to actor
-        let actorWithCost =
-          Shared.applyResourceCost costOpt actorComponents actorId
+        let actorWithCost = Shared.applyResourceCost costOpt actorComponents
 
         // 7. Update actor cooldowns
         let actorWithCooldown =
@@ -902,12 +862,6 @@ module Resolution =
           ResolvedDamage = ValueSome damageAfterInvoke
         }
 
-        let! _ =
-          ProcessHook.processAll
-            Effects.OnAbilityComplete
-            completeHookContext
-            actorWithCooldown.Effects
-            rparams.services
 
         // 9. Apply resource and shield changes from all hooks
         let actorAfterResourceChanges =
@@ -920,10 +874,22 @@ module Resolution =
             damageReceivedResult.ResourceChanges
             targetAfterEffects
 
+        let! result =
+          ProcessHook.processAll
+            Effects.OnAbilityComplete
+            completeHookContext
+            actorWithCooldown.Effects
+            rparams.services
+
+        let actorAfterAllChanges =
+          applyResourceChanges result.ResourceChanges actorAfterResourceChanges
+
+
+
         return {
           entities =
             HashMap.ofList [
-              actorId, actorAfterResourceChanges
+              actorId, actorAfterAllChanges
               targetId, targetWithResourceChanges
             ]
           gameTime = ValueNone
@@ -936,17 +902,8 @@ module Resolution =
       let! validationResult = validateAction rparams ractors abilityId
 
       match validationResult with
-      | Stunned ->
-        return {
-          entities = HashMap.empty
-          gameTime = ValueNone
-        }
-
-      | Silenced ->
-        return {
-          entities = HashMap.empty
-          gameTime = ValueNone
-        }
+      | Stunned
+      | Silenced
       | IsPassive
       | NotFound
       | NotAlive
@@ -979,11 +936,7 @@ module Resolution =
       let abilityKind = rparams.services.abilityStore.tryFind action.abilityId
 
       match abilityKind with
-      | ValueNone ->
-        return {
-          entities = HashMap.empty
-          gameTime = ValueNone
-        }
+      | ValueNone
       | ValueSome(Passive _) ->
         // Passive abilities cannot be invoked
         return {
@@ -992,55 +945,56 @@ module Resolution =
         }
       | ValueSome(Active abilityDef) ->
 
-        // Determine actual targets based on ability targeting constraints
-        let actualTargets =
-          match abilityDef.Targeting with
-          | Self -> [| action.actor |]
-          | SingleAlly
-          | SingleEnemy ->
-            action.targets
-            |> Array.isEmpty
-            |> function
-              | true -> Array.empty
-              | false ->
-                action.targets
-                |> Array.filter(fun id -> id <> action.actor)
-                |> Array.take 1
-          | MultiTarget maxTargets -> action.targets |> Array.take maxTargets
+      // Determine actual targets based on ability targeting constraints
+      let actualTargets =
+        match abilityDef.Targeting with
+        | Self -> [| action.actor |]
+        | SingleAlly
+        | SingleEnemy ->
+          action.targets
+          |> Array.isEmpty
+          |> function
+            | true -> Array.empty
+            | false -> action.targets |> Array.take 1
+        | MultiTarget maxTargets -> action.targets |> Array.take maxTargets
 
-        if Array.isEmpty actualTargets then
-          return {
-            entities = HashMap.empty
-            gameTime = ValueNone
-          }
-        else
-          // Process each target
-          let! components =
-            actualTargets
-            |> AList.ofArray
-            |> AList.mapA(fun targetId ->
-              let ractors = {
-                actor = action.actor
-                target = targetId
-              }
+      if Array.isEmpty actualTargets then
+        return {
+          entities = HashMap.empty
+          gameTime = ValueNone
+        }
+      else
+        // Process each target
+        let! components =
+          actualTargets
+          |> AList.ofArray
+          |> AList.mapA(fun targetId ->
+            let ractors = {
+              actor = action.actor
+              target = targetId
+            }
 
-              // Use unified resolver for all ability types
-              resolveAbility action.abilityId (rparams, ractors))
-            |> AList.fold
-              (fun acc result -> HashMap.union acc result.entities)
-              HashMap.empty
+            // Use unified resolver for all ability types
+            resolveAbility action.abilityId (rparams, ractors))
+          |> AList.fold
+            (fun acc result -> HashMap.union acc result.entities)
+            HashMap.empty
 
-          return {
-            entities = components
-            gameTime = ValueNone
-          }
+        return {
+          entities = components
+          gameTime = ValueNone
+        }
     }
 
   let step (state: GameState) (cmd: Command) : aval<StateChange> =
     let derivedStats = GameState.getDerivedStats state
+    let enemies = GameState.getEnemies state
+    let allies = GameState.getAllies state
 
     let resolverParams = {
       entities = state.entities
+      enemies = enemies
+      allies = allies
       derivedStats = derivedStats
       gameTime = state.gameTime
       services = state.services
