@@ -23,7 +23,7 @@ Good luck to us — and let’s move methodically.
 - Small vertical slices: integrate the smallest end-to-end interactions early.
 - Reactive state graph: use FDA to derive views and system inputs from authoritative state.
 - Extensibility: design for adding stats, effects, skills, and content over time.
-- Performant Reactive Core: Use incremental adaptive collections (`amap`, `aset`, `alist`, `cmap`, `clist`, etc.) for dynamic state to enable efficient, fine-grained updates. All game state, including entities, effects, abilities, and events, is managed adaptively. For static or rarely changing data, BCL collections are suitable.
+- Performant Reactive Core: Use incremental adaptive collections (`amap`, `aset`, `alist`, `cmap`, `clist`, etc.) for dynamic state to enable efficient, fine-grained updates. All game state, including entities, effects, and abilities, is managed adaptively. For static or rarely changing data, BCL collections are suitable.
 - **Dependency Injection via Handles:** Decouple pure logic from side-effecting services (e.g., logging, content loading) by defining abstractions (`IContentService`). Pass these services as a single `EngineServices` "handle" to core logic. This makes dependencies explicit and the core highly testable. The application's entry point will act as the "composition root" to assemble concrete services.
 - When multiple adaptive values are required but feel scattered, SRTPs are an option to consider.
 - Adaptive values must be adaptive until they must be evaluated, meaning that every computation or adaptive value must be done in the "adaptive realm" until the final result is needed.
@@ -98,7 +98,6 @@ Deliverable: Domain types, stat archetypes, measures, and base attributes are fu
      ```fsharp
      type GameState = {
          entities: cmap<EntityId, All> // All components per entity.
-         gameEvents: clist<GameEvent>  // Events emitted by resolutions.
          gameTime : cval<int64<ticks>> // Master clock for cooldowns, effects, etc.
          rng : cval<System.Random>      // For deterministic, reproducible simulations.
      }
@@ -111,7 +110,7 @@ Deliverable: Domain types, stat archetypes, measures, and base attributes are fu
      - `entities`: The master collection of all game objects. Using an `cmap` allows for efficient, incremental updates.
      - While entities is a `cmap`, the game components will have to access it as an `amap` for reactive computations. This can be achieved by exposing a derived `amap` view of the `cmap` when needed.
      - `gameTime`: Essential for managing all time-based logic in a real-time game.
-     - `rng`: Crucial for determinism. Storing the RNG state ensures that simulations are reproducible, which is vital for debugging and replays.
+     - `rng`: Crucial for determinism. Storing the RNG state ensures that simulations are reproducible, which is vital for debugging.
    - **Derived Data:** All other information is computed from this authoritative state. We can use a companion module to house helper functions for these computations.
      ```fsharp
      module GameState =
@@ -124,7 +123,7 @@ Deliverable: Domain types, stat archetypes, measures, and base attributes are fu
      ```
    - This pattern keeps the core state clean while providing a clear, organized way to access derived views of the world.
 
-Deliverable: Entity registry implemented as `amap<int<EntityId>, All>`. `GameState` record contains all entities, events, game time, and engine services. All components (base stats, resources, effects, abilities, cooldowns) are managed adaptively. FDA graph wiring is complete.
+Deliverable: Entity registry implemented as `amap<int<EntityId>, All>`. `GameState` record contains all entities, game time, and engine services. All components (base stats, resources, effects, abilities, cooldowns) are managed adaptively. FDA graph wiring is complete.
 
 ## Phase 2 — Action/Command System (Real-time)
 
@@ -140,9 +139,8 @@ Deliverable: Entity registry implemented as `amap<int<EntityId>, All>`. `GameSta
 
 2. Resolution Pipeline
 
-   - Steps: Validate -> Cost (resource consumption) -> Resolve (damage/heal/apply) -> Events
-   - Produce an array of `GameEvent` values:
-     - DamageApplied, Healed, ResourceChanged, EffectApplied, EffectExpired, EntityDied
+   - Steps: Validate -> Cost (resource consumption) -> Resolve (damage/heal/apply)
+   - Update world state through pure transformations
 
 3. Real-time Action Cooldowns
    - Actions are not turn-based but are limited by timers and cooldowns.
@@ -206,7 +204,7 @@ Deliverable: Full effect framework implemented with the following effect kinds:
    - Validation and targeting filters as pure functions
 
 3. Execution
-   - Action -> Ability -> Effects -> Events
+   - Action -> Ability -> Effects -> State Updates
 
 Deliverable: Ability system implemented with the following sample abilities:
 
@@ -214,7 +212,6 @@ Deliverable: Ability system implemented with the following sample abilities:
 - Fireball
 - No-Stack Spell
 - Buff Spell
-- Shield Spell
 - Poison Spell
 - Regen Spell
 - Basic Melee Attack (no cost)
@@ -231,11 +228,7 @@ Deliverable: Ability system implemented with the following sample abilities:
 
 2. Formula-Based Effect Modifiers
    - Replace static modifiers with dynamic formula references
-   - Support for ability damage modification, resource conversion, shield generation
-
-3. Shield/Barrier System
-   - Temporary HP pools managed per effect
-   - Damage interception and shield regeneration mechanics
+   - Support for ability damage modification, resource conversion
 
 4. Advanced Effect Categories
    - HP-cost damage amplification mechanics
@@ -247,16 +240,13 @@ Deliverable: Enhanced effects framework supporting complex, formula-driven inter
 
 **See**: `docs/enhanced-effects-framework.md` for detailed implementation plan.
 
-## Phase 5 — Save/Load and Determinism
+## Phase 5 — Save/Load
 
 1. Serializable World Snapshot
 
    - Encode World and RNG state; versioned with schema evolution in mind
 
-2. Replay Mechanism
-   - From an initial world state (seed) and a log of commands, the simulation can be re-run to reproduce a game session exactly. This is critical for debugging.
-
-Deliverable: Serializable world snapshot and deterministic replay mechanism planned. All game state and RNG can be encoded and replayed for debugging and testing. (Implementation in progress.)
+Deliverable: Serializable world snapshot implementation. All game state and RNG can be encoded and restored for persistence and debugging.
 
 ## Phase 6 — Content and Progression
 
@@ -322,7 +312,7 @@ Deliverable: Minimal MonoGame integration present. Game loop hooks and input pla
 
 **Reactive Architecture:**
 
-- ✅ FDA Integration: All game state, entities, effects, abilities, and events managed with FSharp.Data.Adaptive collections
+- ✅ FDA Integration: All game state, entities, effects, and abilities managed with FSharp.Data.Adaptive collections
 - ✅ All derived stats and views computed adaptively
 
 **Testing:**
@@ -331,10 +321,9 @@ Deliverable: Minimal MonoGame integration present. Game loop hooks and input pla
 
 **Planned:**
 
-- Save/load, deterministic replay, equipment system, progression logic, and expanded content are planned for future phases.
-- ✅ GameState: Centralized state with entities, events, time, services
+- Save/load, equipment system, progression logic, and expanded content are planned for future phases.
+- ✅ GameState: Centralized state with entities, time, services
 - ✅ Derived Views: Alive entities, ready abilities, derived stats as adaptive projections
-- ✅ Event System: Comprehensive GameEvent types with proper emission
 - ✅ Services: IAbilityStore, IEffectStore with dependency injection
 
 **Testing & Quality:**
@@ -351,7 +340,6 @@ Deliverable: Minimal MonoGame integration present. Game loop hooks and input pla
 **Remaining Work**:
 - ❌ Effect hook system implementation
 - ❌ Dynamic effect modifiers with formula support
-- ❌ Shield/barrier system integration
 - ❌ Advanced effect categories (HP-cost amplification, barriers, resource conversion)
 - ❌ Enhanced resolution pipeline with effect processing
 
@@ -383,7 +371,6 @@ open System.Collections.Immutable
 // Authoritative world state is held in a single record of adaptive values
 type GameState = {
     entities : amap<EntityId, Components>
-    gameEvents : alist<Event>
     gameTime : cval<int64>
     rng : cval<System.Random>
 }
@@ -395,7 +382,6 @@ type EntityId = EntityId of int
 module GameState =
     let create () =
         { entities = cmap []
-          gameEvents = clist []
           gameTime = cval 0L<ticks>
           rng = cval (System.Random 42) }
 
@@ -420,25 +406,22 @@ module GameState =
 let apply (state: GameState) (cmd:Command) =
   transact (fun _ ->
     let currentEntities = state.entities.GetValue()
-    let entityChanges, newEvents = step currentEntities cmd
+    let entityChanges = step currentEntities cmd
 
     // Apply the changeset to the amap
-    state.entities.Modify(fun m -> Map.fold (fun s k v -> s.SetItem(k, v.Value)) m entityChanges) // Simplified
-
-    // Add new events to the alist
-    state.gameEvents.AddMany(newEvents))
+    state.entities.Modify(fun m -> Map.fold (fun s k v -> s.SetItem(k, v.Value)) m entityChanges)) // Simplified
 ```
 
 ## Milestones Checklist
 
 - ✅ Phase 0: Types and RNG
 - ✅ Phase 1: Entity store + FDA projections
-- ✅ Phase 2: Commands + resolution + events (MeleeAttack + simple spell)
+- ✅ Phase 2: Commands + resolution (MeleeAttack + simple spell)
 - ✅ Phase 3: Combat maths and effects (formulas, status framework, resources/costs)
 - ✅ Phase 3.5: Architectural Refinement (DI)
 - 🎯 **CURRENT**: Phase 4 Preparation - Refactoring and alignment
 - ⏳ Phase 4: Enhanced Ability/Spell System
-- ⏳ Phase 5: Save/Load and Determinism
+- ⏳ Phase 5: Save/Load
 - ⏳ Phase 6: Content and Progression
 - ⏳ Phase 7: MonoGame Integration
 
@@ -447,14 +430,14 @@ let apply (state: GameState) (cmd:Command) =
 - **Composition Root:** In `PomoGame.Initialize`, create concrete services (e.g., `ConsoleLogger`, `JsonContentService`) and compose the `engineServices` handle.
 - **Initialize State:** Create the initial `worldState` record.
 - **Game Loop:** In `PomoGame.Update`, translate user input into `Commands` and pass the `services` handle and `worldState` to the `apply` function.
-- **Debug View:** For now, log events from the `gameEvents` list to the console to verify flows.
+- **Debug View:** For now, log state changes and derived projections to the console to verify flows.
 
 ## Testing Strategy
 
 - **Unit tests with Fakes:** For core logic modules (e.g., `ActionResolver`), use simple, in-memory "fake" implementations of the `EngineServices` interfaces (e.g., a `FakeContentService` backed by a `Map`). This allows testing logic in isolation, such as verifying that a spell fails correctly when the fake service is configured to not find it.
 - **Property-based tests:** Use for stat composition and effect stacking rules to ensure they are mathematically sound across a wide range of inputs.
 - **Deterministic simulations:** Use a fixed-seed implementation of the RNG service to test complex, multi-turn scenarios and ensure the simulation is perfectly reproducible.
-- **Integration/Scenario tests:** Given a real set of services, an initial world state, and a sequence of commands, assert the final state and emitted events are as expected.
+- **Integration/Scenario tests:** Given a real set of services, an initial world state, and a sequence of commands, assert the final state is as expected.
 
 ## Future Extensions (post-core)
 

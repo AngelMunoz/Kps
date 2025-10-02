@@ -14,16 +14,7 @@ This document tracks the design and implementation of an enhanced effects framew
 - Increases ability's final damage proportionally
 - **Hook**: OnAbilityInvoke (pre-execution)
 
-### 2. Damage Absorption with Regeneration
-
-**Type**: Shield/barrier mechanics
-
-- Creates temporary HP pool based on caster stats
-- Incoming damage hits barrier before actual HP
-- Barrier regenerates when not receiving damage
-- **Hook**: OnDamageReceived (damage interception)
-
-### 3. Resource Conversion
+### 2. Resource Conversion
 
 **Type**: HP/MP transformation
 
@@ -82,9 +73,8 @@ graph LR
     C --> D[Damage Calculation]
     D --> E[Context + Damage Result]
     E --> F[OnDamageReceived Effects]
-    F --> G[Context + Shield Absorption]
-    G --> H[OnAbilityComplete Effects]
-    H --> I[Final Context + Events]
+    F --> G[OnAbilityComplete Effects]
+    G --> I[Final Context + Events]
 ```
 
 ### AbilityContext Construction Point
@@ -221,7 +211,6 @@ type EffectModifier =
   | DynamicMod of int<FormulaId>        // Formula-based calculation
   | AbilityDamageMod of float           // % modifier to ability damage
   | ResourceConversion of ResourceType * ResourceType * float
-  | ShieldGeneration of int<FormulaId>  // Shield HP calculation
 ```
 
 ### Step 3: Ability Resolution Context ✅ (AbilityContext type and context pipeline present)
@@ -240,30 +229,8 @@ type AbilityContext = {
 }
 ```
 
-### Step 4: Shield/Barrier System ⏳ (Types present in Domain.fs, not yet integrated in Resolution.fs)
 
-Extend resources to support temporary HP pools:
-
-```fsharp
-[<Struct>]
-type Resources = {
-  HP: int
-  MP: int
-  Shields: HashMap<int<EffectId>, ShieldData>
-  Status: Status
-}
-
-[<Struct>]
-type ShieldData = {
-  CurrentHP: int
-  MaxHP: int
-  LastHitTime: int64<Tick>
-  RegenDelay: int64<Tick>
-  RegenRate: int // HP per tick
-}
-```
-
-### Step 5: Enhanced Effect Processing Pipeline ⏳ (Effect hooks processed, but shield/resource logic not fully integrated)
+### Step 5: Enhanced Effect Processing Pipeline ⏳
 
 Modify resolution to process effects at different hooks:
 
@@ -281,7 +248,6 @@ Modify resolution to process effects at different hooks:
 3. **Damage Reception**:
 
    - Process `OnDamageReceived` effects
-   - Apply shield absorption mechanics
    - Handle damage reflection
 
 4. **Post-Ability Processing**:
@@ -315,7 +281,6 @@ type EffectDefinition = {
 1. **Step 0.5**: Passive skills and ability requirements
 2. **Step 1-2**: Core effect hooks and dynamic modifiers
 3. **Step 3**: Ability context system
-4. **Step 4**: Shield/barrier mechanics
 5. **Step 5**: Enhanced processing pipeline
 6. **Step 6**: Effect definition extensions
 
@@ -338,23 +303,6 @@ type EffectDefinition = {
 }
 ```
 
-#### Magic Barrier Effect
-
-```fsharp
-{
-  Id = 201<EffectId>
-  Name = "Arcane Barrier"
-  Kind = EffectKind.Buff
-  Duration = Timed(60000L<Tick>)
-  Stacking = StackingRule.RefreshDuration
-  Modifiers = IndexList.ofList [
-    ShieldGeneration(101<FormulaId>)  // Shield HP = MA * 3
-  ]
-  Hooks = IndexList.ofList [OnDamageReceived]
-  FormulaId = ValueSome 101<FormulaId>
-}
-```
-
 ## Integration Points
 
 ### Resolution.fs Changes
@@ -363,13 +311,11 @@ type EffectDefinition = {
 - Add ability requirement validation (only for `Active` abilities)
 - Skip tick processing for `Permanent` duration effects
 - Extend `resolveAbility` to process effect hooks
-- Add shield damage interception logic
 - Implement pre/post ability effect processing
 
 ### Effects.fs Changes
 
 - Add hook-based effect processing
-- Implement shield system management
 - Add dynamic modifier calculations
 
 ### Domain.fs Changes
@@ -379,7 +325,6 @@ type EffectDefinition = {
 - Add `AbilityRequirement` types
 - Add `Permanent` to `Duration` type
 - Extend effect and resource types
-- Add shield data structures
 - Update ability context typese ability context types
 
 ## Testing Strategy
@@ -389,7 +334,6 @@ type EffectDefinition = {
 - Passive skill effect creation
 - Ability requirement validation
 - Effect hook processing
-- Shield absorption mechanics
 - Resource conversion accuracy
 - Dynamic modifier calculations
 
@@ -404,7 +348,6 @@ type EffectDefinition = {
 
 ### Property Tests
 
-- Shield HP never exceeds max
 - Resource conversions maintain balance
 - Effect stacking with dynamic modifiers
 
@@ -414,7 +357,6 @@ type EffectDefinition = {
 2. ✅ Backward compatibility with existing effects maintained
 3. ✅ Performance impact minimal (adaptive collections)
 4. ✅ Formula-based effects work with existing formula system
-5. ✅ Shield system integrates with damage resolution
 6. ✅ Effect hooks process at correct resolution phases
 
 ## Dependencies
