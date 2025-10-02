@@ -4,15 +4,13 @@ open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.Attributes
-open Pomo.Lib.Domain.GameEvent
 open Pomo.Lib.Domain.Effects
 open Pomo.Lib.Effects
 open Pomo.Lib.Domain.State
 open Pomo.Lib.Domain.AggregatedEffects
 
 type GameState = {
-  entities: cmap<int<EntityId>, All>
-  gameEvents: clist<GameEvent>
+  entities: cmap<int<EntityId>, EntityComponents>
   gameTime: cval<int64<Tick>>
   services: Services.EngineServices
 }
@@ -25,8 +23,7 @@ module GameState =
 
     match effect with
     | ValueSome e -> e.Modifiers
-    | ValueNone -> FSharp.Data.Adaptive.IndexList.empty
-    |> AList.ofIndexList
+    | ValueNone -> Array.empty
 
   let getAdditiveModifiers(effects: EffectModifier alist) =
     effects
@@ -44,14 +41,14 @@ module GameState =
 
   let private applyModifiers
     (effectStore: Services.IEffectStore)
-    (baseStats: Attributes.BaseAttributes)
-    (effects: alist<Effects.ActiveEffect>)
-    : aval<Attributes.DerivedStats> =
+    (baseStats: BaseAttributes)
+    (effects: alist<ActiveEffect>)
+    : aval<DerivedStats> =
     adaptive {
       let modifiers =
         effects
         |> AList.collect(fun effect ->
-          getModifiersForEffect effectStore effect.EffectId)
+          getModifiersForEffect effectStore effect.EffectId |> AList.ofArray)
 
       let additiveModifiers = getAdditiveModifiers modifiers
       // 1. Apply base stat modifiers
@@ -171,34 +168,11 @@ module GameState =
 
   let create'(services: Services.EngineServices) = {
     entities = cmap()
-    gameEvents = clist []
     gameTime = cval 0L<Tick>
     services = services
   }
 
   let create() =
-    let effMap =
-      Pomo.Lib.Content.EffectStore.definitions
-      |> HashMap.ofMap
-      |> AMap.ofHashMap
-
-    let abilMap =
-      Pomo.Lib.Content.AbilityStore.definitions
-      |> HashMap.ofMap
-      |> AMap.ofHashMap
-
-    let effList =
-      AList.constant(fun () ->
-        [ for KeyValue(_, v) in Pomo.Lib.Content.EffectStore.definitions -> v ]
-        |> IndexList.ofList)
-
-    let abilList =
-      AList.constant(fun () ->
-        [
-          for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions -> v
-        ]
-        |> IndexList.ofList)
-
     create' {
       effectStore =
         { new Services.IEffectStore with
@@ -216,24 +190,9 @@ module GameState =
               Pomo.Lib.Content.AbilityStore.definitions
               |> Map.tryFind abilityId
               |> ValueOption.ofOption
-              |> ValueOption.map Abilities.Active
-              |> ValueOption.orElseWith(fun () ->
-                Pomo.Lib.Content.AbilityStore.passiveDefinitions
-                |> Map.tryFind abilityId
-                |> ValueOption.ofOption
-                |> ValueOption.map Abilities.Passive)
 
             member _.find abilityId =
-              Pomo.Lib.Content.AbilityStore.definitions
-              |> Map.tryFind abilityId
-              |> ValueOption.ofOption
-              |> ValueOption.map Abilities.Active
-              |> ValueOption.orElseWith(fun () ->
-                Pomo.Lib.Content.AbilityStore.passiveDefinitions
-                |> Map.tryFind abilityId
-                |> ValueOption.ofOption
-                |> ValueOption.map Abilities.Passive)
-              |> ValueOption.get
+              Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
         }
       formulaStore =
         { new Services.IFormulaStore with
@@ -248,18 +207,13 @@ module GameState =
       rng = fun () -> System.Random().NextDouble()
     }
 
-  let getDerivedStats
-    (state: GameState)
-    : amap<int<EntityId>, Attributes.DerivedStats> =
+  let getDerivedStats(state: GameState) : amap<int<EntityId>, DerivedStats> =
     state.entities
     |> AMap.mapA(fun _ c ->
       applyModifiers state.services.effectStore c.BaseStats c.Effects)
 
   [<Struct>]
-  type EntityChange = {
-    components: All
-    events: FSharp.Data.Adaptive.IndexList<GameEvent>
-  }
+  type EntityChange = { components: EntityComponents }
 
   let tick (state: GameState) (time: int64<Tick>) : aval<StateChange> = adaptive {
     let! currentTime = state.gameTime
@@ -268,12 +222,11 @@ module GameState =
     let! allEntityChanges =
       state.entities
       |> AMap.mapA(fun entityId components -> adaptive {
-        let! updatedEffects, generatedEvents, tickResult =
+        let! updatedEffects, tickResult =
           StatusEffects.tickEffects
             state.services.effectStore
             components.Effects
             time
-            entityId
 
         let! derivedStats = getDerivedStats state |> AMap.tryFind entityId
 
@@ -297,19 +250,9 @@ module GameState =
               Resources = updatedResources
         }
 
-        return {
-          components = updatedComponents
-          events = generatedEvents
-        }
+        return { components = updatedComponents }
       })
       |> AMap.toAVal
-
-
-    let events =
-      IndexList.ofList [
-        for _, change in allEntityChanges do
-          yield! change.events
-      ]
 
     let entities =
       allEntityChanges |> HashMap.map(fun _ change -> change.components)
@@ -317,7 +260,6 @@ module GameState =
 
     return {
       entities = entities
-      events = events
       gameTime = ValueSome newTime
     }
   }
@@ -328,21 +270,16 @@ module GameState =
       | ValueSome newTime -> state.gameTime.Value <- newTime
       | ValueNone -> ()
 
-      state.gameEvents.AddRange change.events
-
       for entityId, updatedComponents in change.entities do
         state.entities[entityId] <- updatedComponents)
 
   let aAlive entities : aset<int<EntityId>> =
     entities
     |> AMap.toASet
-    |> ASet.filter(fun (_, c) -> c.Resources.Status = Attributes.Status.Alive)
-    |> ASet.map(fun (id, _) -> id)
+    |> ASet.filter(fun (_, c) -> c.Resources.Status = Status.Alive)
+    |> ASet.map fst
 
-  let aReadyAbilities
-    entities
-    gameTime
-    : aset<(int<EntityId> * int<AbilityId>)> =
+  let aReadyAbilities entities gameTime : aset<int<EntityId> * int<AbilityId>> =
     let allCoolDowns =
       entities
       |> AMap.toASet

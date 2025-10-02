@@ -1,6 +1,6 @@
 namespace Pomo.Lib.Domain
 
-open FSharp.UMX
+open FSharp.Data.Adaptive
 
 // All measure types defined at the top
 [<Measure>]
@@ -131,21 +131,7 @@ module Attributes =
     | Disabled
 
   [<Struct>]
-  type ShieldData = {
-    CurrentHP: int
-    MaxHP: int
-    LastHitTime: int64<Tick>
-    RegenDelay: int64<Tick>
-    RegenRate: int
-  }
-
-  [<Struct>]
-  type Resources = {
-    HP: int
-    MP: int
-    Status: Status
-    Shields: FSharp.Data.Adaptive.HashMap<int<EffectId>, ShieldData>
-  }
+  type Resources = { HP: int; MP: int; Status: Status }
 
 module Inventory =
   [<Struct>]
@@ -159,7 +145,6 @@ module Inventory =
     | Accessory
 
 module Effects =
-  open FSharp.Data.Adaptive
 
   [<Struct>]
   type EffectKind =
@@ -214,8 +199,8 @@ module Effects =
     Kind: EffectKind
     Stacking: StackingRule
     Duration: Duration
-    Modifiers: IndexList<EffectModifier>
-    Hooks: IndexList<EffectHook>
+    Modifiers: EffectModifier[]
+    Hooks: EffectHook[]
     FormulaId: int<FormulaId> voption
   }
 
@@ -230,12 +215,12 @@ module Effects =
   }
 
 module Abilities =
-  open FSharp.Data.Adaptive
 
   [<Struct>]
   type DamageType =
     | Physical
     | Magical
+    | Neutral
 
   [<Struct>]
   type DamageResult = {
@@ -243,7 +228,13 @@ module Abilities =
     ElementalDamage: int
     Element: Attributes.Element
     DamageType: DamageType
-  }
+  } with
+
+    static member inline (+)(a: DamageResult, b: DamageResult) : DamageResult = {
+      a with
+          BaseDamage = a.BaseDamage + b.BaseDamage
+          ElementalDamage = a.ElementalDamage + b.ElementalDamage
+    }
 
   [<Struct>]
   type CalculationContext = {
@@ -254,7 +245,6 @@ module Abilities =
 
   type FormulaFunction = CalculationContext -> DamageResult
 
-  [<Struct>]
   type FormulaDefinition = {
     Id: int<FormulaId>
     Name: string
@@ -271,14 +261,12 @@ module Abilities =
     | SingleEnemy
     | MultiTarget of int // number of targets
 
-
-
   [<Struct>]
   type PassiveAbilityDefinition = {
     Id: int<AbilityId>
     Name: string
-    Effects: IndexList<int<EffectId>>
-    Requirements: IndexList<AbilityRequirement>
+    Effects: int<EffectId>[]
+    Requirements: AbilityRequirement[]
   }
 
   [<Struct>]
@@ -289,8 +277,8 @@ module Abilities =
     Cost: ResourceCost voption
     Targeting: TargetType
     FormulaId: int<FormulaId> voption
-    Effects: IndexList<int<EffectId>>
-    Requirements: IndexList<AbilityRequirement>
+    Effects: int<EffectId>[]
+    Requirements: AbilityRequirement[]
   }
 
   [<Struct>]
@@ -302,71 +290,48 @@ module AggregatedEffects =
   [<Struct>]
   type TickResult = { Damage: int; Healing: int }
 
-module GameEvent =
-  open FSharp.Data.Adaptive
-
-  [<Struct>]
-  type DamageAppliedEvent = { target: int<EntityId>; amount: int }
-
-  [<Struct>]
-  type HealedEvent = { target: int<EntityId>; amount: int }
-
-  [<Struct>]
-  type ResourceChangedEvent = {
-    target: int<EntityId>
-    resource: string
-    newValue: int
-  }
-
-  [<Struct>]
-  type EffectAppliedEvent = {
-    target: int<EntityId>
-    effectId: int<EffectId>
-    source: int<EntityId>
-  }
-
-  [<Struct>]
-  type EffectExpiredEvent = {
-    target: int<EntityId>
-    effectId: int<EffectId>
-  }
-
-  [<Struct>]
-  type EntityDiedEvent = { entityId: int<EntityId> }
-
-  [<Struct>]
-  type EffectRealizationEvent = {
-    actor: int<EntityId>
-    targets: IndexList<int<EntityId>>
-    abilityId: int<AbilityId>
-    RealizedEffect: Effects.EffectKind
-  }
-
-  [<Struct>]
-  type GameEvent =
-    | DamageApplied of dmgAE: DamageAppliedEvent
-    | Healed of healE: HealedEvent
-    | ResourceChanged of resCE: ResourceChangedEvent
-    | EffectApplied of effAE: EffectAppliedEvent
-    | EffectExpired of effEE: EffectExpiredEvent
-    | EntityDied of entDieDE: EntityDiedEvent
-    | EffectRealization of effRealE: EffectRealizationEvent
-
 module Rules =
+  [<Struct>]
+  type ResolvedDamage = {
+    Amount: int
+    IsCritical: bool
+    IsEvaded: bool
+  }
+
+  [<Struct>]
+  type HookContext = {
+    InvokerStats: Attributes.DerivedStats
+    TargetStats: Attributes.DerivedStats
+    AbilityId: int<AbilityId>
+    GameTime: int64<Tick>
+    ResolvedDamage: ResolvedDamage voption
+  }
+
+  [<Struct>]
+  type ResourceChange =
+    | Additive of addition: struct (ResourceType * int)
+    | SetTo of replace: struct (ResourceType * int)
+
+  [<Struct>]
+  type HookResult = {
+    DamageModification: Abilities.DamageResult
+    ResourceChanges: ResourceChange[]
+  }
+
   [<Struct>]
   type AbilityContext = {
     InvokerStats: Attributes.DerivedStats
     TargetStats: Attributes.DerivedStats
     AbilityResult: Abilities.DamageResult voption
-    InvokerEffects: Effects.ActiveEffect FSharp.Data.Adaptive.alist
-    TargetEffects: Effects.ActiveEffect FSharp.Data.Adaptive.alist
+    InvokerEffects: Effects.ActiveEffect alist
+    TargetEffects: Effects.ActiveEffect alist
     GameTime: int64<Tick>
   }
 
   [<Struct>]
   type UseAbilityAction = {
     actor: int<EntityId>
-    targets: FSharp.Data.Adaptive.IndexList<int<EntityId>>
+    targets: int<EntityId>[]
     abilityId: int<AbilityId>
   }
 
@@ -375,16 +340,15 @@ module Rules =
 
 
 module Components =
-  open FSharp.Data.Adaptive
   open Effects
 
-  type All = {
+  type EntityComponents = {
     Identity: Classification.Profession
     BaseStats: Attributes.BaseAttributes
     Resources: Attributes.Resources
     Effects: alist<ActiveEffect>
-    Abilities: alist<int<AbilityId>> // Abilities this entity possesses
-    AbilityCooldowns: amap<int<AbilityId>, int64<Tick>> // Tracks when a cooldown is complete
+    Abilities: alist<int<AbilityId>>
+    AbilityCooldowns: amap<int<AbilityId>, int64<Tick>>
   }
 
 module Services =
@@ -411,13 +375,10 @@ module Services =
   }
 
 module State =
-  open FSharp.Data.Adaptive
   open Components
-  open GameEvent
 
   [<Struct>]
   type StateChange = {
-    entities: HashMap<int<EntityId>, All>
-    events: IndexList<GameEvent>
+    entities: HashMap<int<EntityId>, EntityComponents>
     gameTime: int64<Tick> voption
   }

@@ -38,3 +38,12 @@ module ResourceType =
 
 module TickResult =
   let Zero: AggregatedEffects.TickResult = { Damage = 0; Healing = 0 }
+
+module DamageResult =
+
+  let Zero: Abilities.DamageResult = {
+    BaseDamage = 0
+    DamageType = Abilities.DamageType.Neutral
+    Element = Attributes.Neutral
+    ElementalDamage = 0
+  }

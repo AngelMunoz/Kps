@@ -142,6 +142,8 @@ This project uses a reactive architecture with FSharp.Data.Adaptive (FDA) for it
         modifiedDamage
   ```
 
+  Functions and modules do not need to be private/internal, that is up to the developer's discretion.
+
 - **Modules must be cohesive**: Group related functions and types into modules that represent a single concept or area of functionality.
 - **Match expressions body should be small**: Each branch of a match expression should be concise. If a branch is complex, consider extracting it into a separate function.
 

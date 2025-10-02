@@ -16,9 +16,9 @@ type PomoGame() as this =
 
   let graphicsDeviceManager = new GraphicsDeviceManager(this)
 
-  let isMobile = OperatingSystem.IsAndroid() || OperatingSystem.IsIOS()
+  let _ = OperatingSystem.IsAndroid() || OperatingSystem.IsIOS()
 
-  let isDesktop =
+  let _ =
     OperatingSystem.IsWindows()
     || OperatingSystem.IsLinux()
     || OperatingSystem.IsMacOS()

@@ -23,7 +23,7 @@ type Program() =
   /// This method starts the game by calling RunGame.
   /// </summary>
   /// <param name="app">The UIApplication instance representing the application.</param>
-  override this.FinishedLaunching(app: UIApplication) = Program.RunGame()
+  override this.FinishedLaunching(_: UIApplication) = Program.RunGame()
 
   /// <summary>
   /// The main entry point for the application.

@@ -1,6 +1,5 @@
 namespace Pomo.Lib.Tests
 
-open System
 open Xunit
 open FSharp.Data.Adaptive
 open Pomo.Lib
@@ -8,7 +7,6 @@ open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.Effects
-open Pomo.Lib.Domain.GameEvent
 open Pomo.Lib.Content
 open Pomo.Lib.Rules
 open Pomo.Lib.Domain.Rules
@@ -16,51 +14,43 @@ open Pomo.Lib.Domain.Rules
 module private Phase3Helpers =
 
   let create(rng: unit -> float) =
-    let abilMap =
-      Pomo.Lib.Content.AbilityStore.definitions
-      |> HashMap.ofMap
-      |> AMap.ofHashMap
+    let _ = AbilityStore.definitions |> HashMap.ofMap |> AMap.ofHashMap
 
-    let abilList =
+    let _ =
       AList.constant(fun () ->
-        [
-          for KeyValue(_, v) in Pomo.Lib.Content.AbilityStore.definitions -> v
-        ]
+        [ for KeyValue(_, v) in AbilityStore.definitions -> v ]
         |> IndexList.ofList)
 
     Gameplay.GameState.create' {
       effectStore =
         { new Services.IEffectStore with
             member _.tryFind effectId =
-              Pomo.Lib.Content.EffectStore.definitions
+              EffectStore.definitions
               |> Map.tryFind effectId
               |> ValueOption.ofOption
 
             member _.find effectId =
-              Pomo.Lib.Content.EffectStore.definitions |> Map.find effectId
+              EffectStore.definitions |> Map.find effectId
         }
       abilityStore =
         { new Services.IAbilityStore with
             member _.tryFind abilityId =
-              Pomo.Lib.Content.AbilityStore.definitions
+              AbilityStore.definitions
               |> Map.tryFind abilityId
               |> ValueOption.ofOption
-              |> ValueOption.map Abilities.Active
 
             member _.find abilityId =
-              Pomo.Lib.Content.AbilityStore.definitions
-              |> Map.find abilityId
-              |> Abilities.Active
+              AbilityStore.definitions |> Map.find abilityId
         }
       formulaStore =
         { new Services.IFormulaStore with
             member _.tryFind formulaId =
-              Pomo.Lib.Content.FormulaStore.definitions
+              FormulaStore.definitions
               |> Map.tryFind formulaId
               |> ValueOption.ofOption
 
             member _.find formulaId =
-              Pomo.Lib.Content.FormulaStore.definitions |> Map.find formulaId
+              FormulaStore.definitions |> Map.find formulaId
         }
       rng = rng
     }
@@ -109,7 +99,6 @@ module private Phase3Helpers =
         HP = hp
         MP = mp
         Status = Status.Alive
-        Shields = FSharp.Data.Adaptive.HashMap.empty
       }
       Effects = (activeEffects :> alist<_>)
       Abilities = (clist abilities :> alist<_>)
@@ -119,12 +108,12 @@ module private Phase3Helpers =
   let addEntity
     (state: Gameplay.GameState)
     (id: int<EntityId>)
-    (all: Components.All)
+    (all: EntityComponents)
     =
     transact(fun _ -> state.entities.Add(id, all) |> ignore)
 
   let derivedOf (state: Gameplay.GameState) (id: int<EntityId>) =
-    Gameplay.GameState.getDerivedStats state |> AMap.force |> (fun m -> m.[id])
+    Gameplay.GameState.getDerivedStats state |> AMap.force |> (fun m -> m[id])
 
 open Phase3Helpers
 
@@ -138,7 +127,7 @@ type ``Phase3 - Stun``() =
   [<Fact>]
   member _.``T2 Stun prevents all actions``() =
     // Arrange
-    let state = Phase3Helpers.create(fun () -> 0.5)
+    let state = create(fun () -> 0.5)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
@@ -154,14 +143,14 @@ type ``Phase3 - Stun``() =
     addEntity state attackerId attacker
     addEntity state targetId target
 
-    let initialTargetHp = state.entities.[targetId].Resources.HP
-    let initialAttackerMp = state.entities.[attackerId].Resources.MP
+    let initialTargetHp = state.entities[targetId].Resources.HP
+    let initialAttackerMp = state.entities[attackerId].Resources.MP
 
     // Act
     let action =
       UseAbility {
         actor = attackerId
-        targets = IndexList.ofList [ targetId ]
+        targets = [| targetId |]
         abilityId = melee
       }
 
@@ -170,24 +159,14 @@ type ``Phase3 - Stun``() =
     Resolution.apply state change
 
     // Assert
-    let finalTargetHp = state.entities.[targetId].Resources.HP
+    let finalTargetHp = state.entities[targetId].Resources.HP
     Assert.Equal(initialTargetHp, finalTargetHp)
 
-    let finalAttackerMp = state.entities.[attackerId].Resources.MP
+    let finalAttackerMp = state.entities[attackerId].Resources.MP
     Assert.Equal(initialAttackerMp, finalAttackerMp)
 
-    let damageEventCount =
-      state.gameEvents
-      |> AList.choose (function
-        | GameEvent.DamageApplied _ -> Some()
-        | _ -> None)
-      |> AList.force
-      |> Seq.length
-
-    Assert.Equal(0, damageEventCount)
-
     let cooldown =
-      (state.entities.[attackerId].AbilityCooldowns |> AMap.force).[melee]
+      (state.entities[attackerId].AbilityCooldowns |> AMap.force)[melee]
 
     Assert.Equal(0L<Tick>, cooldown)
 
@@ -195,7 +174,7 @@ type ``Phase3 - Silence``() =
   [<Fact>]
   member _.``T3 Silence blocks MP abilities``() =
     // Arrange
-    let state = Phase3Helpers.create(fun () -> 0.5)
+    let state = create(fun () -> 0.5)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 8<AbilityId> // Basic Melee Attack
@@ -210,14 +189,14 @@ type ``Phase3 - Silence``() =
     addEntity state attackerId attacker
     addEntity state targetId target
 
-    let initialTargetHp = state.entities.[targetId].Resources.HP
-    let initialAttackerMp = state.entities.[attackerId].Resources.MP
+    let initialTargetHp = state.entities[targetId].Resources.HP
+    let initialAttackerMp = state.entities[attackerId].Resources.MP
 
     // Act 1: Attempt to cast a spell (should fail)
     let spellAction =
       UseAbility {
         actor = attackerId
-        targets = IndexList.ofList [ targetId ]
+        targets = [| targetId |]
         abilityId = silence
       }
 
@@ -226,18 +205,23 @@ type ``Phase3 - Silence``() =
     Resolution.apply state spellChange
 
     // Assert 1
-    let targetHpAfterSpell = state.entities.[targetId].Resources.HP
+    let targetHpAfterSpell = state.entities[targetId].Resources.HP
     Assert.Equal(initialTargetHp, targetHpAfterSpell)
 
     // Silence spell should cost MP
-    let attackerMpAfterSpell = state.entities.[attackerId].Resources.MP
-    let silenceSpellCost = AbilityStore.definitions.[silence].Cost.Value.Amount
+    let attackerMpAfterSpell = state.entities[attackerId].Resources.MP
+
+    let silenceSpellCost =
+      match AbilityStore.definitions[silence] with
+      | Abilities.Active def -> def.Cost.Value.Amount
+      | _ -> failwith "Expected active ability"
+
     let expectedMpAfterSpell = initialAttackerMp - silenceSpellCost
 
     Assert.Equal(expectedMpAfterSpell, attackerMpAfterSpell)
 
     // Check that silence effect was applied to target
-    let targetEffects = state.entities.[targetId].Effects |> AList.force
+    let targetEffects = state.entities[targetId].Effects |> AList.force
 
     let hasSilenceEffect =
       targetEffects |> Seq.exists(fun e -> e.EffectId = 101<EffectId>)
@@ -250,13 +234,13 @@ type ``Phase3 - Silence``() =
 
     // Act 2: Perform a melee with mp cost attack
     let initialHpAttackerBeforeTargetMeele =
-      state.entities.[attackerId].Resources.HP
+      state.entities[attackerId].Resources.HP
 
-    let targetMpBeforeAttack = state.entities.[targetId].Resources.MP
+    let targetMpBeforeAttack = state.entities[targetId].Resources.MP
 
     // Check target has silence effect before attempting MP attack
     let targetEffectsBeforeMpAttack =
-      state.entities.[targetId].Effects |> AList.force
+      state.entities[targetId].Effects |> AList.force
 
     let hasSilenceBeforeMpAttack =
       targetEffectsBeforeMpAttack
@@ -271,7 +255,7 @@ type ``Phase3 - Silence``() =
       // The target returns the attack to the attacker
       UseAbility {
         actor = targetId
-        targets = IndexList.ofList [ attackerId ]
+        targets = [| attackerId |]
         abilityId = meeleWithcost
       }
 
@@ -280,8 +264,8 @@ type ``Phase3 - Silence``() =
     Resolution.apply state meleeChange
 
     // Assert 2
-    let attackerHpAfterTargetMelee = state.entities.[attackerId].Resources.HP
-    let targetMpAfterAttack = state.entities.[targetId].Resources.MP
+    let attackerHpAfterTargetMelee = state.entities[attackerId].Resources.HP
+    let targetMpAfterAttack = state.entities[targetId].Resources.MP
 
     // target is silenced, so melee should not hit
     Assert.Equal(attackerHpAfterTargetMelee, initialHpAttackerBeforeTargetMeele)
@@ -296,7 +280,7 @@ type ``Phase3 - Silence``() =
       // The target returns the attack to the attacker
       UseAbility {
         actor = targetId
-        targets = IndexList.ofList [ attackerId ]
+        targets = [| attackerId |]
         abilityId = melee
       }
 
@@ -305,44 +289,11 @@ type ``Phase3 - Silence``() =
     Resolution.apply state meleeWithCostChange
 
     let attackerHpAfterTargetMeleeWithNoCost =
-      state.entities.[attackerId].Resources.HP
+      state.entities[attackerId].Resources.HP
     // target is silenced but melee with no cost should hit
     Assert.True(
       attackerHpAfterTargetMeleeWithNoCost < initialHpAttackerBeforeTargetMeele
     )
-
-    // Check that MP-costing ability was blocked by silence
-    let realizationEvents =
-      state.gameEvents
-      |> AList.choose (function
-        | GameEvent.EffectRealization e when e.abilityId = meeleWithcost ->
-          Some e
-        | _ -> None)
-      |> AList.force
-
-    Assert.Single(realizationEvents) |> ignore
-    let realizationEvent = realizationEvents |> Seq.head
-    Assert.Equal(Effects.EffectKind.Silence, realizationEvent.RealizedEffect)
-
-    // Check that two damage events occurred (silence spell + no-cost melee)
-    let damageEvents =
-      state.gameEvents
-      |> AList.choose (function
-        | GameEvent.DamageApplied e -> Some e
-        | _ -> None)
-      |> AList.force
-
-    Assert.Equal(2, damageEvents.Count)
-
-    // Verify the damage events: silence spell (0 damage) and no-cost melee (48 damage)
-    let silenceDamage = damageEvents |> Seq.find(fun e -> e.amount = 0)
-    let meleeDamage = damageEvents |> Seq.find(fun e -> e.amount = 48)
-
-    Assert.Equal(targetId, silenceDamage.target) // Silence spell hit target
-    Assert.Equal(attackerId, meleeDamage.target) // No-cost melee hit attacker
-
-
-
 
 // T4 Taunt redirection -------------------------------------------------------
 
@@ -350,7 +301,7 @@ type ``Phase3 - Taunt``() =
   [<Fact>]
   member _.``T4 Taunt redirection forces target to taunter``() =
     // Arrange
-    let state = Phase3Helpers.create(fun () -> 0.5)
+    let state = create(fun () -> 0.5)
     let attackerId = 1<EntityId>
     let intendedTargetId = 2<EntityId>
     let taunterId = 3<EntityId>
@@ -391,14 +342,14 @@ type ``Phase3 - Taunt``() =
               Effects = clist [ tauntEffect ]
         })
 
-    let initialIntendedTargetHp = state.entities.[intendedTargetId].Resources.HP
-    let initialTaunterHp = state.entities.[taunterId].Resources.HP
+    let initialIntendedTargetHp = state.entities[intendedTargetId].Resources.HP
+    let initialTaunterHp = state.entities[taunterId].Resources.HP
 
     // Act
     let action =
       UseAbility {
         actor = attackerId
-        targets = IndexList.ofList [ intendedTargetId ]
+        targets = [| intendedTargetId |]
         abilityId = melee
       }
 
@@ -407,27 +358,15 @@ type ``Phase3 - Taunt``() =
     Resolution.apply state change
 
     // Assert
-    let finalIntendedTargetHp = state.entities.[intendedTargetId].Resources.HP
+    let finalIntendedTargetHp = state.entities[intendedTargetId].Resources.HP
     Assert.Equal(initialIntendedTargetHp, finalIntendedTargetHp)
 
-    let finalTaunterHp = state.entities.[taunterId].Resources.HP
+    let finalTaunterHp = state.entities[taunterId].Resources.HP
 
     Assert.True(
       finalTaunterHp < initialTaunterHp,
       "Taunter should have taken damage"
     )
-
-    let damageEvent =
-      state.gameEvents
-      |> AList.choose (function
-        | GameEvent.DamageApplied e -> Some e
-        | _ -> None)
-      |> AList.force
-      |> Seq.tryHead
-
-    match damageEvent with
-    | Some de -> Assert.Equal(taunterId, de.target)
-    | None -> Assert.True(false, "A damage event should have been emitted")
 
 // T5 Effect stacking: NoStack ------------------------------------------------
 
@@ -435,7 +374,7 @@ type ``Phase3 - Effect Stacking``() =
   [<Fact>]
   member _.``T5 NoStack ignores second application``() =
     // Arrange
-    let state = Phase3Helpers.create(fun () -> 0.5)
+    let state = create(fun () -> 0.5)
     let casterId = 1<EntityId>
     let targetId = 2<EntityId>
     let spellId = 3<AbilityId> // A spell that applies a NoStack effect
@@ -452,7 +391,7 @@ type ``Phase3 - Effect Stacking``() =
           state
           (UseAbility {
             actor = casterId
-            targets = IndexList.ofList [ targetId ]
+            targets = [| targetId |]
             abilityId = spellId
           })
 
@@ -461,7 +400,7 @@ type ``Phase3 - Effect Stacking``() =
 
     // Act
     applySpell() // First application
-    let effectsAfterFirst = state.entities.[targetId].Effects |> AList.force
+    let effectsAfterFirst = state.entities[targetId].Effects |> AList.force
 
     let firstEffect =
       effectsAfterFirst |> Seq.find(fun e -> e.EffectId = noStackEffectId)
@@ -470,7 +409,7 @@ type ``Phase3 - Effect Stacking``() =
     Gameplay.GameState.applyTick state advance // Advance time slightly
 
     applySpell() // Second application
-    let effectsAfterSecond = state.entities.[targetId].Effects |> AList.force
+    let effectsAfterSecond = state.entities[targetId].Effects |> AList.force
 
     // Assert
     Assert.Equal(1, effectsAfterFirst.Count)
@@ -490,7 +429,7 @@ type ``Phase3 - Effect Stacking``() =
   [<Fact>]
   member _.``T6 RefreshDuration resets timer, stack count unchanged``() =
     // Arrange
-    let state = Phase3Helpers.create(fun () -> 0.5)
+    let state = create(fun () -> 0.5)
     let casterId = 1<EntityId>
     let targetId = 2<EntityId>
     let spellId = 4<AbilityId> // A spell that applies a RefreshDuration effect
@@ -507,7 +446,7 @@ type ``Phase3 - Effect Stacking``() =
           state
           (UseAbility {
             actor = casterId
-            targets = IndexList.ofList [ targetId ]
+            targets = [| targetId |]
             abilityId = spellId
           })
 
@@ -516,7 +455,7 @@ type ``Phase3 - Effect Stacking``() =
 
     // Act
     applySpell() // First application
-    let effectsAfterFirst = state.entities.[targetId].Effects |> AList.force
+    let effectsAfterFirst = state.entities[targetId].Effects |> AList.force
 
     let firstEffect =
       effectsAfterFirst |> Seq.tryFind(fun e -> e.EffectId = refreshEffectId)
@@ -530,7 +469,7 @@ type ``Phase3 - Effect Stacking``() =
     Gameplay.GameState.applyTick state advance // Advance time
 
     applySpell() // Second application (should refresh)
-    let effectsAfterSecond = state.entities.[targetId].Effects |> AList.force
+    let effectsAfterSecond = state.entities[targetId].Effects |> AList.force
 
     let secondEffect =
       effectsAfterSecond |> Seq.tryFind(fun e -> e.EffectId = refreshEffectId)
@@ -539,7 +478,7 @@ type ``Phase3 - Effect Stacking``() =
     | None -> () // Effect wasn't applied in second cast either
     | Some secondEffect ->
       // Assert
-      let effectDef = EffectStore.definitions.[refreshEffectId]
+      let effectDef = EffectStore.definitions[refreshEffectId]
 
       let expectedDuration =
         match effectDef.Duration with
@@ -564,11 +503,11 @@ type ``Phase3 - Effect Stacking``() =
   [<Fact>]
   member _.``T8 DoT ticking applies periodic damage and expires``() =
     // Arrange
-    let state = Phase3Helpers.create(fun () -> 0.5)
+    let state = create(fun () -> 0.5)
     let casterId = 1<EntityId>
     let targetId = 2<EntityId>
     let spellId = 6<AbilityId> // Poison Spell
-    let dotEffectId = 105<EffectId> // Poison
+    let _ = 105<EffectId> // Poison
 
     let caster = makeEntity casterId baseStats 100 100 [ spellId ] []
     let target = makeEntity targetId baseStats 100 100 [] []
@@ -581,15 +520,15 @@ type ``Phase3 - Effect Stacking``() =
           state
           (UseAbility {
             actor = casterId
-            targets = IndexList.ofList [ targetId ]
+            targets = [| targetId |]
             abilityId = spellId
           })
 
       let change = delta |> AVal.force
       Resolution.apply state change
 
-    let hp() = state.entities.[targetId].Resources.HP
-    let initialHp = hp()
+    let hp() = state.entities[targetId].Resources.HP
+    let _ = hp()
 
     // Act
     applySpell()
@@ -622,18 +561,18 @@ type ``Phase3 - Effect Stacking``() =
     Assert.True(hpAfterTick4 < hpAfterTick3, "DoT should continue reducing HP")
 
     // Effect should have expired now (8000L<ticks> total duration)
-    let effects = state.entities.[targetId].Effects |> AList.force
+    let effects = state.entities[targetId].Effects |> AList.force
     Assert.Empty(effects)
 
   // T9 HoT ticking applies periodic healing ------------------------------------
   [<Fact>]
   member _.``T9 HoT ticking applies periodic healing and expires``() =
     // Arrange
-    let state = Phase3Helpers.create(fun () -> 0.5)
+    let state = create(fun () -> 0.5)
     let casterId = 1<EntityId>
     let targetId = 2<EntityId>
     let spellId = 7<AbilityId> // Regen Spell
-    let hotEffectId = 106<EffectId> // Regeneration
+    let _ = 106<EffectId> // Regeneration
 
     let caster = makeEntity casterId baseStats 100 100 [ spellId ] []
     let target = makeEntity targetId baseStats 50 100 [] [] // Start with 50 HP
@@ -646,14 +585,14 @@ type ``Phase3 - Effect Stacking``() =
           state
           (UseAbility {
             actor = casterId
-            targets = IndexList.ofList [ targetId ]
+            targets = [| targetId |]
             abilityId = spellId
           })
 
       let change = delta |> AVal.force
       Resolution.apply state change
 
-    let hp() = state.entities.[targetId].Resources.HP
+    let hp() = state.entities[targetId].Resources.HP
     let initialHp = hp()
 
     // Act
@@ -684,7 +623,7 @@ type ``Phase3 - Effect Stacking``() =
     Assert.Equal(initialHp + 20, hpAfterTick4)
 
     // Effect should have expired now (8000L<ticks> total duration)
-    let effects = state.entities.[targetId].Effects |> AList.force
+    let effects = state.entities[targetId].Effects |> AList.force
     Assert.Empty(effects)
 
 // T10 Shield partial depletion across multiple hits (spillover to HP) -----------
@@ -700,8 +639,8 @@ type ``Phase3 - Determinism``() =
     let rng1 = fun () -> 0.3 // Fixed value
     let rng2 = fun () -> 0.3 // Same fixed value
 
-    let state1 = Phase3Helpers.create rng1
-    let state2 = Phase3Helpers.create rng2
+    let state1 = create rng1
+    let state2 = create rng2
 
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
@@ -724,7 +663,7 @@ type ``Phase3 - Determinism``() =
           state
           (UseAbility {
             actor = attackerId
-            targets = IndexList.ofList [ targetId ]
+            targets = [| targetId |]
             abilityId = melee
           })
 
@@ -736,23 +675,9 @@ type ``Phase3 - Determinism``() =
     performAttack state2
 
     // Assert: Both states should have identical results
-    let target1Hp = state1.entities.[targetId].Resources.HP
-    let target2Hp = state2.entities.[targetId].Resources.HP
+    let target1Hp = state1.entities[targetId].Resources.HP
+    let target2Hp = state2.entities[targetId].Resources.HP
     Assert.Equal(target1Hp, target2Hp)
-
-    // Get damage events from both states
-    let getDamageEvents(state: Gameplay.GameState) =
-      state.gameEvents
-      |> AList.choose (function
-        | GameEvent.DamageApplied e when e.target = targetId -> Some e.amount
-        | _ -> None)
-      |> AList.force
-      |> Seq.toList
-
-    let damage1 = getDamageEvents state1
-    let damage2 = getDamageEvents state2
-
-    Assert.Equal<int list>(damage1, damage2)
 
     // Perform second round after cooldown
     let advance1 = Gameplay.GameState.tick state1 2500L<Tick> |> AVal.force
@@ -763,8 +688,8 @@ type ``Phase3 - Determinism``() =
     performAttack state1
     performAttack state2
 
-    let target1HpAfter2 = state1.entities.[targetId].Resources.HP
-    let target2HpAfter2 = state2.entities.[targetId].Resources.HP
+    let target1HpAfter2 = state1.entities[targetId].Resources.HP
+    let target2HpAfter2 = state2.entities[targetId].Resources.HP
     Assert.Equal(target1HpAfter2, target2HpAfter2)
 
 // T12 Cooldown-ready abilities set includes ability after cooldown elapses -----
@@ -774,7 +699,7 @@ type ``Phase3 - Cooldown Management``() =
     ()
     =
     // Arrange
-    let state = Phase3Helpers.create(fun () -> 0.5)
+    let state = create(fun () -> 0.5)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
     let melee = 1<AbilityId>
@@ -807,7 +732,7 @@ type ``Phase3 - Cooldown Management``() =
         state
         (UseAbility {
           actor = attackerId
-          targets = IndexList.ofList [ targetId ]
+          targets = [| targetId |]
           abilityId = melee
         })
 
@@ -852,7 +777,7 @@ type ``Phase3 - Cooldown Management``() =
         state
         (UseAbility {
           actor = attackerId
-          targets = IndexList.ofList [ targetId ]
+          targets = [| targetId |]
           abilityId = spell
         })
 
