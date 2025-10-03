@@ -12,122 +12,6 @@ open Pomo.Lib.Domain.Services
 open Pomo.Lib.Domain.Abilities
 
 module Resolution =
-  module ProcessHook =
-    let processModifier
-      (context: HookContext)
-      (services: EngineServices)
-      (modifier: EffectModifier)
-      =
-      match modifier with
-      | EffectModifier.StaticMod _ ->
-        {
-          DamageModification = DamageResult.Zero
-          ResourceChanges = Array.empty
-        }
-      | EffectModifier.DynamicMod formulaId ->
-        let formula = services.formulaStore.tryFind formulaId
-
-        match formula with
-        | ValueSome formula -> {
-            DamageModification =
-              formula.Calculate {
-                InvokerStats = context.InvokerStats
-                InvokerElementalAttributes =
-                  context.InvokerStats.ElementAttributes
-                TargetElementalResistances =
-                  context.TargetStats.ElementResistances
-              }
-            ResourceChanges = Array.empty
-          }
-        | ValueNone ->
-            {
-              DamageModification = DamageResult.Zero
-              ResourceChanges = Array.empty
-            }
-      | EffectModifier.AbilityDamageMod percent ->
-        let damageMod =
-          match context.ResolvedDamage with
-          | ValueSome damage -> int(float damage.Amount * percent)
-          | ValueNone -> 0 // No resolved damage yet, so no modification
-
-        {
-          DamageModification = {
-            DamageResult.Zero with
-                BaseDamage = damageMod
-          }
-          ResourceChanges = Array.empty
-        }
-      | EffectModifier.ResourceConversion(fromType, toType, ratio) ->
-        // Calculate the conversion amount based on current resources
-        let conversionAmount =
-          match fromType with
-          | ResourceType.HP -> int(float context.InvokerStats.HP * ratio)
-          | ResourceType.MP -> int(float context.InvokerStats.MP * ratio)
-
-        {
-          DamageModification = DamageResult.Zero
-          ResourceChanges = [|
-            ResourceChange.Additive(struct (fromType, -conversionAmount)) // Subtract from source
-            ResourceChange.Additive(struct (toType, conversionAmount)) // Add to target
-          |]
-        }
-
-    let processEffect
-      (context: HookContext)
-      (services: EngineServices)
-      (effect: ActiveEffect)
-      =
-      effect.Definition.Modifiers
-      |> Array.fold
-        (fun acc modifier ->
-          let result = processModifier context services modifier
-
-          {
-            DamageModification =
-              acc.DamageModification + result.DamageModification
-            ResourceChanges =
-              Array.append acc.ResourceChanges result.ResourceChanges
-          })
-        {
-          DamageModification = DamageResult.Zero
-          ResourceChanges = Array.empty
-        }
-
-    let processAll
-      (hook: EffectHook)
-      (context: HookContext)
-      (entityEffects: alist<ActiveEffect>)
-      (services: EngineServices)
-      =
-      adaptive {
-        let! effects =
-          entityEffects
-          |> AList.filter(fun effect ->
-            effect.Definition.Hooks |> Array.exists(fun h -> h = hook))
-          |> AList.toAVal
-
-        let result =
-          effects
-          |> IndexList.fold
-            (fun acc effect ->
-              let modifications = processEffect context services effect
-
-              {
-                DamageModification =
-                  acc.DamageModification + modifications.DamageModification
-                ResourceChanges =
-                  Array.append
-                    acc.ResourceChanges
-                    modifications.ResourceChanges
-              })
-            {
-              DamageModification = DamageResult.Zero
-              ResourceChanges = Array.empty
-            }
-
-        return result
-      }
-
   let calculateHitChance (attackerStat: int) (defenderStat: int) =
     let attackerValue = float attackerStat
     let defenderValue = float defenderStat
@@ -155,34 +39,40 @@ module Resolution =
       // to ensure there's always a chance to hit or miss.
       max 0.05 (min 0.95 chance)
 
-  let calculateDamage
-    (formulaStore: IFormulaStore)
-    (formulaId: int<FormulaId>)
-    (attackerStats: DerivedStats)
-    (defenderStats: DerivedStats)
-    (rng: unit -> float)
-    =
+  [<Struct>]
+  type DamageParams = {
+    services: EngineServices
+    attackerStats: DerivedStats
+    defenderStats: DerivedStats
+  }
 
-    match formulaStore.tryFind formulaId with
+  let calculateDamage (damageParams: DamageParams) (formulaId: int<FormulaId>) =
+    match damageParams.services.formulaStore.tryFind formulaId with
     | ValueSome formula ->
-      let context = {
-        InvokerStats = attackerStats
-        InvokerElementalAttributes = attackerStats.ElementAttributes
-        TargetElementalResistances = defenderStats.ElementResistances
-      }
 
-      let formulaResult = formula.Calculate context
+      let formulaResult =
+        formula.Calculate {
+          InvokerStats = damageParams.attackerStats
+          InvokerElementalAttributes =
+            damageParams.attackerStats.ElementAttributes
+          TargetElementalResistances =
+            damageParams.defenderStats.ElementResistances
+        }
 
       // STEP 1: Hit/Miss calculation based on damage type
-      let hitRoll = rng()
+      let hitRoll = damageParams.services.rng()
 
       let hitChance =
         match formulaResult.DamageType with
         | DamageType.Neutral
         | DamageType.Physical ->
-          calculateHitChance attackerStats.AC defenderStats.HV
+          calculateHitChance
+            damageParams.attackerStats.AC
+            damageParams.defenderStats.HV
         | DamageType.Magical ->
-          calculateHitChance attackerStats.LK defenderStats.LK
+          calculateHitChance
+            damageParams.attackerStats.LK
+            damageParams.defenderStats.LK
 
       let isHit = hitRoll < hitChance
 
@@ -195,21 +85,23 @@ module Resolution =
       else
         // STEP 2-4: Calculate damage (includes base damage, modifiers, and final damage)
         // Apply critical hit (uses LK)
-        let critRoll = rng()
-        let isCritical = critRoll < float attackerStats.LK * 0.01
+        let critRoll = damageParams.services.rng()
+        let isCritical = critRoll < float damageParams.attackerStats.LK * 0.01
 
-        let damageMultiplier =
+        let damageBonus =
           if isCritical then
-            float(formulaResult.BaseDamage + formulaResult.ElementalDamage)
-            * 0.10
-            |> int
+            int(
+              float(formulaResult.BaseDamage + formulaResult.ElementalDamage)
+              * 0.10
+            )
           else
             0
 
         let finalElementalDamage =
           if formulaResult.ElementalDamage > 0 then
             let elementRes =
-              defenderStats.ElementResistances.TryFindV formulaResult.Element
+              damageParams.defenderStats.ElementResistances.TryFindV
+                formulaResult.Element
               |> ValueOption.defaultValue 0.0
 
             float formulaResult.ElementalDamage * (1.0 - elementRes) |> int
@@ -221,11 +113,11 @@ module Resolution =
         // Apply defense reduction
         let damageAfterDefense =
           match formulaResult.DamageType with
-          | DamageType.Physical -> totalDamage - defenderStats.DP
-          | DamageType.Magical -> totalDamage - defenderStats.MD
+          | DamageType.Physical -> totalDamage - damageParams.defenderStats.DP
+          | DamageType.Magical -> totalDamage - damageParams.defenderStats.MD
           | DamageType.Neutral -> totalDamage
 
-        let finalDamage = max 0 (damageAfterDefense + damageMultiplier)
+        let finalDamage = max 0 (damageAfterDefense + damageBonus)
 
         {
           Amount = int finalDamage
@@ -257,8 +149,7 @@ module Resolution =
   let checkTauntTarget(actorEffects: alist<ActiveEffect>) = adaptive {
     let tauntEffects =
       actorEffects
-      |> AList.filter(fun effect ->
-        effect.Definition.Kind = EffectKind.Taunt)
+      |> AList.filter(fun effect -> effect.Definition.Kind = EffectKind.Taunt)
 
     let! isEmpty = AList.isEmpty tauntEffects
 
@@ -284,7 +175,6 @@ module Resolution =
       | None -> return ValueNone // Fallback, should not happen
   }
 
-
   type ResolverFn = ResolverParams * ResolverActors -> aval<StateChange>
 
   module ValidateAction =
@@ -299,8 +189,7 @@ module Resolution =
       adaptive {
         let! hasSilence =
           actor.Effects
-          |> AList.exists(fun e ->
-            e.Definition.Kind = EffectKind.Silence)
+          |> AList.exists(fun e -> e.Definition.Kind = EffectKind.Silence)
 
         let isSpellAbility =
           match abilityDef.Cost with
@@ -408,7 +297,6 @@ module Resolution =
       }
 
   module Shared =
-
     let determineNewEffect
       (effectDef: EffectDefinition)
       (existingEffect: ActiveEffect)
@@ -436,8 +324,6 @@ module Resolution =
               NextTickIn =
                 effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
         }
-
-
 
     let processEffect
       (effectDef: EffectDefinition)
@@ -553,20 +439,15 @@ module Resolution =
       | ValueSome cost ->
         let updatedResources =
           match cost.Type with
-          | ResourceType.HP ->
-            let newAmount = actorComponents.Resources.HP - cost.Amount
-
-            {
+          | ResourceType.HP -> {
               actorComponents.Resources with
-                  HP = newAmount
+                  HP = actorComponents.Resources.HP - cost.Amount
             }
           | ResourceType.MP ->
-            let newAmount = actorComponents.Resources.MP - cost.Amount
-
-            {
-              actorComponents.Resources with
-                  MP = newAmount
-            }
+              {
+                actorComponents.Resources with
+                    MP = actorComponents.Resources.MP - cost.Amount
+              }
 
         {
           actorComponents with
@@ -674,83 +555,7 @@ module Resolution =
     }
 
   module AbilityResolution =
-    let processInvokeHooks
-      (rparams: ResolverParams)
-      (abilityId: int<AbilityId>)
-      (actorComponents: EntityComponents)
-      (actorStats: DerivedStats)
-      (targetStats: DerivedStats)
-      =
-      adaptive {
-        let! gameTime = rparams.gameTime
-
-        let hookContext = {
-          InvokerStats = actorStats
-          TargetStats = targetStats
-          AbilityId = abilityId
-          GameTime = gameTime
-          ResolvedDamage = ValueNone
-        }
-
-        return!
-          ProcessHook.processAll
-            OnAbilityInvoke
-            hookContext
-            actorComponents.Effects
-            rparams.services
-      }
-
-    let calculateBaseDamage
-      (rparams: ResolverParams)
-      (abilityDef: ActiveAbilityDefinition)
-      (actorStats: DerivedStats)
-      (targetStats: DerivedStats)
-      =
-      match abilityDef.FormulaId with
-      | ValueNone -> {
-          Amount = 0
-          IsCritical = false
-          IsEvaded = false
-        }
-      | ValueSome formulaId ->
-        calculateDamage
-          rparams.services.formulaStore
-          formulaId
-          actorStats
-          targetStats
-          rparams.services.rng
-
-    let processDamageReceivedHooks
-      (rparams: ResolverParams)
-      (abilityId: int<AbilityId>)
-      (damageResult: ResolvedDamage)
-      (actorStats: DerivedStats)
-      (targetComponents: EntityComponents)
-      (targetStats: DerivedStats)
-      =
-      adaptive {
-        let! gameTime = rparams.gameTime
-
-        let hookContext = {
-          InvokerStats = actorStats
-          TargetStats = targetStats
-          AbilityId = abilityId
-          GameTime = gameTime
-          ResolvedDamage = ValueSome damageResult
-        }
-
-        return!
-          ProcessHook.processAll
-            OnDamageReceived
-            hookContext
-            targetComponents.Effects
-            rparams.services
-      }
-
-    let applyDamageAndCheckDeath
-      (damage: int)
-      (targetComponents: EntityComponents)
-      =
+    let applyDamage (damage: int) (targetComponents: EntityComponents) =
       let newHp = max 0 (targetComponents.Resources.HP - damage)
 
       let updatedTargetWithDamage = {
@@ -759,33 +564,6 @@ module Resolution =
       }
 
       Shared.checkForDeath newHp updatedTargetWithDamage
-
-    let applyResourceChanges
-      (changes: ResourceChange[])
-      (entity: EntityComponents)
-      =
-      let mutable updatedResources = entity.Resources
-
-      for rc in changes do
-        match rc with
-        | Additive(struct (resType, amount)) ->
-          match resType with
-          | ResourceType.HP ->
-            updatedResources <- {
-              updatedResources with
-                  HP = updatedResources.HP + amount
-            }
-          | ResourceType.MP ->
-            updatedResources <- {
-              updatedResources with
-                  MP = updatedResources.MP + amount
-            }
-        | SetTo _ -> ()
-
-      {
-        entity with
-            Resources = updatedResources
-      }
 
     let resolve
       (abilityId: int<AbilityId>)
@@ -799,57 +577,31 @@ module Resolution =
 
         let! actorStats = rparams.derivedStats |> AMap.find actorId
         let! targetStats = rparams.derivedStats |> AMap.find targetId
-        let! gameTime = rparams.gameTime
 
-        // 1. OnAbilityInvoke hooks
-        let! invokeHookResult =
-          processInvokeHooks
-            rparams
-            abilityId
-            action.actorComponents
-            actorStats
-            targetStats
+        let calculateDamage =
+          calculateDamage {
+            services = rparams.services
+            attackerStats = actorStats
+            defenderStats = targetStats
+          }
 
         let baseDamageResult =
-          calculateBaseDamage
-            rparams
-            action.abilityDefinition
-            actorStats
-            targetStats
+          action.abilityDefinition.FormulaId
+          |> ValueOption.map calculateDamage
+          |> ValueOption.defaultValue {
+            Amount = 0
+            IsCritical = false
+            IsEvaded = false
+          }
 
-        let damageAfterInvoke: ResolvedDamage = {
-          baseDamageResult with
-              Amount =
-                baseDamageResult.Amount
-                + invokeHookResult.DamageModification.BaseDamage
-        }
-
-        // 2. OnDamageReceived hooks
-        let! damageReceivedResult =
-          processDamageReceivedHooks
-            rparams
-            abilityId
-            damageAfterInvoke
-            actorStats
-            action.targetComponents
-            targetStats
-
-        // 3. Apply shield absorption
-        let damageAfterReceived =
-          damageAfterInvoke.Amount
-          + damageReceivedResult.DamageModification.BaseDamage
-          |> max 0
-
-        // 4. Apply final damage and check for death
         let finalResources =
-          applyDamageAndCheckDeath damageAfterReceived action.targetComponents
+          applyDamage baseDamageResult.Amount action.targetComponents
 
         let targetAfterDamage = {
           action.targetComponents with
               Resources = finalResources
         }
 
-        // 5. Apply ability effects
         let! targetAfterEffects =
           Shared.applyAbilityEffects
             rparams.services.effectStore
@@ -857,11 +609,11 @@ module Resolution =
             actorId
             targetAfterDamage
 
-        // 6. Apply costs to actor
+        let! gameTime = rparams.gameTime
+
         let actorWithCost =
           Shared.applyResourceCost action.cost action.actorComponents
 
-        // 7. Update actor cooldowns
         let actorWithCooldown =
           Shared.updateCooldowns
             actorWithCost
@@ -869,50 +621,17 @@ module Resolution =
             gameTime
             action.abilityDefinition
 
-        // 8. OnAbilityComplete hooks
-        let completeHookContext = {
-          InvokerStats = actorStats
-          TargetStats = targetStats
-          AbilityId = abilityId
-          GameTime = gameTime
-          ResolvedDamage = ValueSome damageAfterInvoke
-        }
-
-
-        // 9. Apply resource and shield changes from all hooks
-        let actorAfterResourceChanges =
-          applyResourceChanges
-            invokeHookResult.ResourceChanges
-            actorWithCooldown
-
-        let targetWithResourceChanges =
-          applyResourceChanges
-            damageReceivedResult.ResourceChanges
-            targetAfterEffects
-
-        let! result =
-          ProcessHook.processAll
-            OnAbilityComplete
-            completeHookContext
-            actorWithCooldown.Effects
-            rparams.services
-
-        let actorAfterAllChanges =
-          applyResourceChanges result.ResourceChanges actorAfterResourceChanges
-
-
-
         return {
           entities =
             HashMap.ofList [
-              actorId, actorAfterAllChanges
-              targetId, targetWithResourceChanges
+              actorId, actorWithCooldown
+              targetId, targetAfterEffects
             ]
           gameTime = ValueNone
         }
       }
 
-  /// Resolves an ability command, calculating damage and generating events.
+  /// Resolves an ability command
   let resolveAbility(abilityId: int<AbilityId>) : ResolverFn =
     fun (rparams, ractors) -> adaptive {
       let! validationResult = validateAction rparams ractors abilityId
@@ -934,8 +653,6 @@ module Resolution =
         return! AbilityResolution.resolve abilityId rparams ractors action
     }
 
-
-
   let resolveUseAbility
     (action: UseAbilityAction)
     (rparams: ResolverParams)
@@ -952,7 +669,6 @@ module Resolution =
           gameTime = ValueNone
         }
       | ValueSome(Active abilityDef) ->
-
       // Determine actual targets based on ability targeting constraints
       let actualTargets =
         match abilityDef.Targeting with

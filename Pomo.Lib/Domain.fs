@@ -172,14 +172,6 @@ module Effects =
     | Permanent // For passive skill effects, never expires
 
   [<Struct>]
-  type EffectHook =
-    | OnAbilityInvoke
-    | OnDamageReceived
-    | OnResourceChange
-    | OnAbilityComplete
-    | OnTick
-
-  [<Struct>]
   type StatModifier =
     | Additive of addStat: Stat * adStatValue: int
     | Subtractive of subStat: Stat * subStatValue: int
@@ -201,7 +193,6 @@ module Effects =
     Stacking: StackingRule
     Duration: Duration
     Modifiers: EffectModifier[]
-    Hooks: EffectHook[]
     FormulaId: int<FormulaId> voption
   }
 
@@ -297,26 +288,6 @@ module Rules =
     Amount: int
     IsCritical: bool
     IsEvaded: bool
-  }
-
-  [<Struct>]
-  type HookContext = {
-    InvokerStats: Attributes.DerivedStats
-    TargetStats: Attributes.DerivedStats
-    AbilityId: int<AbilityId>
-    GameTime: int64<Tick>
-    ResolvedDamage: ResolvedDamage voption
-  }
-
-  [<Struct>]
-  type ResourceChange =
-    | Additive of addition: struct (ResourceType * int)
-    | SetTo of replace: struct (ResourceType * int)
-
-  [<Struct>]
-  type HookResult = {
-    DamageModification: Abilities.DamageResult
-    ResourceChanges: ResourceChange[]
   }
 
   [<Struct>]

@@ -133,16 +133,18 @@ type ``Derived Stats``() =
     let derived = TestHelpers.derivedOf state id
 
     let expectedAttack = baseAttrs.Power * 2
-    let expectedAccuracy = baseAttrs.Power + int (float baseAttrs.Power * 1.25)
+    let expectedAccuracy = baseAttrs.Power + int(float baseAttrs.Power * 1.25)
     let expectedDexterity = baseAttrs.Power
 
     let expectedMagicPotential = baseAttrs.Magic * 5
     let expectedMagicAttack = baseAttrs.Magic * 2
-    let expectedMagicDefense = baseAttrs.Magic + int(float baseAttrs.Magic * 1.25)
+
+    let expectedMagicDefense =
+      baseAttrs.Magic + int(float baseAttrs.Magic * 1.25)
 
     let expectedWeight = baseAttrs.Sense * 5
     let expectedDetectAbility = baseAttrs.Sense * 2
-    let expectedLuck = baseAttrs.Sense + int (float baseAttrs.Sense * 0.5)
+    let expectedLuck = baseAttrs.Sense + int(float baseAttrs.Sense * 0.5)
 
     let expectedHealthPoints = baseAttrs.Charm * 10
     let expectedDefense = baseAttrs.Charm + int(float baseAttrs.Charm * 1.25)
@@ -181,6 +183,7 @@ type ``Action Resolution``() =
       Sense = 5
       Charm = 16 // Increased charm to have a DP of 8
     }
+
     let state = TestHelpers.create(fun () -> 0.1)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
@@ -221,11 +224,31 @@ type ``Action Resolution``() =
     let spell = 6<AbilityId> // Fireball
 
     let attacker =
-      TestHelpers.makeEntity [ Classification.Player ] { Power = 10; Magic = 55; Sense = 10; Charm = 10 } 100 100 [
-        spell
-      ]
+      TestHelpers.makeEntity
+        [ Classification.Player ]
+        {
+          Power = 10
+          Magic = 55
+          Sense = 10
+          Charm = 10
+        }
+        100
+        100
+        [ spell ]
 
-    let target = TestHelpers.makeEntity [ Classification.Enemy ] { Power = 4; Magic = 3; Sense = 8; Charm = 16 } 80 30 []
+    let target =
+      TestHelpers.makeEntity
+        [ Classification.Enemy ]
+        {
+          Power = 4
+          Magic = 3
+          Sense = 8
+          Charm = 16
+        }
+        80
+        30
+        []
+
     TestHelpers.addEntity state attackerId attacker
     TestHelpers.addEntity state targetId target
 
@@ -311,6 +334,7 @@ type ``Action Resolution``() =
       Sense = 8
       Charm = 16 // Increased charm to have a DP of 8
     }
+
     let state = TestHelpers.create(fun _ -> 0.5)
     let attackerId = 100<EntityId>
     let targetId = 200<EntityId>
@@ -358,6 +382,7 @@ type ``Action Resolution``() =
       Sense = 8
       Charm = 16 // Increased charm to have a DP of 8
     }
+
     let state = TestHelpers.create(fun _ -> 0.5)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
@@ -410,6 +435,7 @@ type ``Action Resolution``() =
       Sense = 8
       Charm = 16 // Increased charm to have a DP of 8
     }
+
     let state = TestHelpers.create(fun _ -> 0.5)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
@@ -460,6 +486,7 @@ type ``Action Resolution``() =
       Sense = 8
       Charm = 16 // Increased charm to have a DP of 8
     }
+
     let state = TestHelpers.create(fun _ -> 0.5)
     let attackerId = 1<EntityId>
     let targetId = 2<EntityId>
@@ -512,7 +539,7 @@ type ``Action Resolution``() =
 // --------------------------------------------------
 type ``Combat Mechanics Properties``() =
 
-  [<Property(MaxTest = 50)>]
+  [<Property(MaxTest = 100)>]
   member _.``Physical hit chance follows AC vs HV formula``
     (attackerPower: PositiveInt)
     (defenderCharm: PositiveInt)
@@ -557,9 +584,7 @@ type ``Combat Mechanics Properties``() =
     let defenderDerived = TestHelpers.derivedOf state targetId
 
     let expectedHitChance =
-      Resolution.calculateHitChance
-        attackerDerived.AC
-        defenderDerived.HV
+      Resolution.calculateHitChance attackerDerived.AC defenderDerived.HV
 
     let shouldHit = rngValue < expectedHitChance
 
@@ -650,7 +675,7 @@ type ``Combat Mechanics Properties``() =
 
     actualHit = shouldHit
 
-  [<Property(MaxTest = 100)>]
+  [<Property(MaxTest = 50)>]
   member _.``Damage scales with attacker stats``
     (attackerPower: PositiveInt)
     (rngResult: NormalFloat)
@@ -709,33 +734,40 @@ type ``Combat Mechanics Properties``() =
     let actorStatsHigh = derivedStats[attackerIdHigh]
     let targetStats = derivedStats[targetId]
 
-    let rparams : Resolution.ResolverParams = {
-        entities = state.entities
-        enemies = GameState.getEnemies state
-        allies = GameState.getAllies state
-        derivedStats = GameState.getDerivedStats state
-        gameTime = state.gameTime
-        services = state.services
+    let rparams: Resolution.ResolverParams = {
+      entities = state.entities
+      enemies = GameState.getEnemies state
+      allies = GameState.getAllies state
+      derivedStats = GameState.getDerivedStats state
+      gameTime = state.gameTime
+      services = state.services
     }
 
-    let abilityDef =
-        match state.services.abilityStore.tryFind meleeId with
-        | ValueSome (Abilities.Active def) -> def
-        | _ -> failwith "Melee ability not found or not active"
+    let formulaId =
+      state.services.abilityStore.find meleeId
+      |> function
+        | Abilities.Active def -> def.FormulaId |> ValueOption.get
+        | _ -> failwith "Expected active ability"
 
     let damageLow =
-        Resolution.AbilityResolution.calculateBaseDamage
-            rparams
-            abilityDef
-            actorStatsLow
-            targetStats
+      Resolution.calculateDamage
+        {
+          services = rparams.services
+          attackerStats = actorStatsLow
+          defenderStats = targetStats
+        }
+        formulaId
 
     let damageHigh =
-        Resolution.AbilityResolution.calculateBaseDamage
-            rparams
-            abilityDef
-            actorStatsHigh
-            targetStats
+      Resolution.calculateDamage
+        {
+          services = rparams.services
+          attackerStats = actorStatsHigh
+          defenderStats = targetStats
+        }
+        formulaId
+
     if damageHigh.Amount > 0 then
       damageHigh.Amount > damageLow.Amount
-    else true
+    else
+      true

@@ -17,7 +17,6 @@ module EffectStore =
         Modifiers = [|
           EffectModifier.StaticMod(StatModifier.Additive(Power, 5))
         |]
-        Hooks = Array.empty
         FormulaId = ValueNone
       }
       2<EffectId>,
@@ -30,7 +29,6 @@ module EffectStore =
         Modifiers = [|
           EffectModifier.StaticMod(StatModifier.Additive(DP, -5))
         |]
-        Hooks = Array.empty
         FormulaId = ValueNone
       }
       // Phase 3 Effect Kinds for testing
@@ -42,7 +40,6 @@ module EffectStore =
         Duration = Timed(5000L<Tick>)
         Stacking = StackingRule.RefreshDuration
         Modifiers = Array.empty
-        Hooks = Array.empty
         FormulaId = ValueNone
       }
       101<EffectId>,
@@ -53,7 +50,6 @@ module EffectStore =
         Duration = Timed(8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
         Modifiers = Array.empty
-        Hooks = [| EffectHook.OnAbilityInvoke |]
         FormulaId = ValueNone
       }
       103<EffectId>,
@@ -64,7 +60,6 @@ module EffectStore =
         Duration = Timed(3000L<Tick>)
         Stacking = StackingRule.RefreshDuration
         Modifiers = Array.empty
-        Hooks = Array.empty
         FormulaId = ValueNone
       }
       104<EffectId>,
@@ -77,7 +72,6 @@ module EffectStore =
         Modifiers = [|
           EffectModifier.StaticMod(StatModifier.Subtractive(DX, 2))
         |]
-        Hooks = Array.empty
         FormulaId = ValueNone
       }
       105<EffectId>,
@@ -90,7 +84,6 @@ module EffectStore =
         Modifiers = [|
           EffectModifier.StaticMod(StatModifier.Subtractive(HP, 5))
         |]
-        Hooks = Array.empty
         FormulaId = ValueNone
       }
       106<EffectId>,
@@ -101,7 +94,6 @@ module EffectStore =
         Duration = Loop(2000L<Tick>, 8000L<Tick>)
         Stacking = StackingRule.RefreshDuration
         Modifiers = [| EffectModifier.StaticMod(StatModifier.Additive(HP, 5)) |]
-        Hooks = Array.empty
         FormulaId = ValueNone
       }
       107<EffectId>,
@@ -114,7 +106,6 @@ module EffectStore =
         Modifiers = [|
           EffectModifier.StaticMod(StatModifier.Multiplicative(MP, 1.2))
         |]
-        Hooks = Array.empty
         FormulaId = ValueNone
       }
       108<EffectId>,
@@ -127,10 +118,9 @@ module EffectStore =
         Modifiers = [|
           EffectModifier.StaticMod(StatModifier.Multiplicative(AP, 1.15))
         |]
-        Hooks = Array.empty
         FormulaId = ValueNone
       }
-      // Enhanced Effects for Testing
+      // Enhanced Effects for Testing (now inert without hooks but kept for future use)
       200<EffectId>,
       {
         Id = 200<EffectId>
@@ -143,9 +133,8 @@ module EffectStore =
             ResourceType.HP,
             ResourceType.HP,
             -0.10
-          ) // Cost 10% of HP
+          )
         |]
-        Hooks = [| OnAbilityInvoke |]
         FormulaId = ValueNone
       }
       202<EffectId>,
@@ -155,10 +144,7 @@ module EffectStore =
         Kind = EffectKind.Buff
         Duration = Timed(30000L<Tick>)
         Stacking = StackingRule.RefreshDuration
-        Modifiers = [|
-          EffectModifier.AbilityDamageMod(0.50) // 50% damage increase
-        |]
-        Hooks = [| OnDamageReceived |]
+        Modifiers = [| EffectModifier.AbilityDamageMod(0.50) |]
         FormulaId = ValueNone
       }
       201<EffectId>,
@@ -175,7 +161,6 @@ module EffectStore =
             0.5
           )
         |]
-        Hooks = [| OnAbilityComplete |]
         FormulaId = ValueNone
       }
     ]
@@ -252,7 +237,7 @@ module FormulaStore =
         Name = "HP Cost Calculation"
         Calculate =
           fun ctx -> {
-            BaseDamage = ctx.InvokerStats.HP / 10 // HP cost is 10% of current HP
+            BaseDamage = ctx.InvokerStats.HP / 10
             ElementalDamage = 0
             Element = Attributes.Neutral
             DamageType = DamageType.Physical

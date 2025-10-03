@@ -77,26 +77,34 @@ module GameState =
               | StatModifier.Additive(stat, value) ->
                 let addMap =
                   match HashMap.tryFindV stat addMap with
-                  | ValueSome existing -> HashMap.add stat (existing + value) addMap
+                  | ValueSome existing ->
+                    HashMap.add stat (existing + value) addMap
                   | ValueNone -> HashMap.add stat value addMap
+
                 addMap, subMap, mulMap, divMap
               | StatModifier.Subtractive(stat, value) ->
                 let subMap =
                   match HashMap.tryFindV stat subMap with
-                  | ValueSome existing -> HashMap.add stat (existing + value) subMap
+                  | ValueSome existing ->
+                    HashMap.add stat (existing + value) subMap
                   | ValueNone -> HashMap.add stat value subMap
+
                 addMap, subMap, mulMap, divMap
               | StatModifier.Multiplicative(stat, value) ->
                 let mulMap =
                   match HashMap.tryFindV stat mulMap with
-                  | ValueSome existing -> HashMap.add stat (existing * value) mulMap
+                  | ValueSome existing ->
+                    HashMap.add stat (existing * value) mulMap
                   | ValueNone -> HashMap.add stat value mulMap
+
                 addMap, subMap, mulMap, divMap
               | StatModifier.Divisive(stat, value) ->
                 let divMap =
                   match HashMap.tryFindV stat divMap with
-                  | ValueSome existing -> HashMap.add stat (existing * value) divMap
+                  | ValueSome existing ->
+                    HashMap.add stat (existing * value) divMap
                   | ValueNone -> HashMap.add stat value divMap
+
                 addMap, subMap, mulMap, divMap
             | _ -> addMap, subMap, mulMap, divMap)
           (HashMap.empty, HashMap.empty, HashMap.empty, HashMap.empty)
@@ -108,36 +116,35 @@ module GameState =
         let mulV = HashMap.tryFindV stat mulMap |> ValueOption.defaultValue 1.0
         let divV = HashMap.tryFindV stat divMap |> ValueOption.defaultValue 1.0
         let pre = current + addV - subV
-        let scaled = int (float pre * mulV / divV)
+        let scaled = int(float pre * mulV / divV)
         scaled
 
       // 1) Apply base stat modifiers (only to base stats)
-      let modifiedBase =
-        {
-          baseStats with
+      let modifiedBase = {
+        baseStats with
             Power = applyAll Power baseStats.Power
             Magic = applyAll Magic baseStats.Magic
             Sense = applyAll Sense baseStats.Sense
             Charm = applyAll Charm baseStats.Charm
-        }
+      }
 
       // 2) Compute derived stats from modified base
       let initialDerived = {
         // Power derived stats
         AP = modifiedBase.Power * 2
-        AC = modifiedBase.Power + int (float modifiedBase.Power * 1.25)
+        AC = modifiedBase.Power + int(float modifiedBase.Power * 1.25)
         DX = modifiedBase.Power
         // Magic derived stats
         MP = modifiedBase.Magic * 5
         MA = modifiedBase.Magic * 2
-        MD = modifiedBase.Magic + int (float modifiedBase.Magic * 1.25)
+        MD = modifiedBase.Magic + int(float modifiedBase.Magic * 1.25)
         // Sense derived stats
         WT = modifiedBase.Sense * 5
         DA = modifiedBase.Sense * 2
-        LK = modifiedBase.Sense + int (float modifiedBase.Sense * 0.5)
+        LK = modifiedBase.Sense + int(float modifiedBase.Sense * 0.5)
         // Charm derived stats
         HP = modifiedBase.Charm * 10
-        DP = modifiedBase.Charm + int (float modifiedBase.Charm * 1.25)
+        DP = modifiedBase.Charm + int(float modifiedBase.Charm * 1.25)
         HV = modifiedBase.Charm * 2
 
         // TODO: Grab elements from equipment, buffs, etc.
@@ -146,9 +153,8 @@ module GameState =
       }
 
       // 3) Apply derived stat static modifiers (all kinds)
-      let finalDerived =
-        {
-          initialDerived with
+      let finalDerived = {
+        initialDerived with
             HP = applyAll HP initialDerived.HP
             MP = applyAll MP initialDerived.MP
             AP = applyAll AP initialDerived.AP
@@ -161,7 +167,7 @@ module GameState =
             DP = applyAll DP initialDerived.DP
             AC = applyAll AC initialDerived.AC
             HV = applyAll HV initialDerived.HV
-        }
+      }
 
       return finalDerived
     }

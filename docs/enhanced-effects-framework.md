@@ -195,7 +195,6 @@ Add effect hooks to intercept different resolution phases:
 type EffectHook =
   | OnAbilityInvoke     // Before ability executes
   | OnDamageReceived    // When taking damage
-  | OnResourceChange    // When HP/MP changes
   | OnAbilityComplete   // After ability resolves
   | OnTick              // Periodic processing (existing DoT/HoT)
 ```
