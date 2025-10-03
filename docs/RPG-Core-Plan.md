@@ -240,15 +240,7 @@ Deliverable: Enhanced effects framework supporting complex, formula-driven inter
 
 **See**: `docs/enhanced-effects-framework.md` for detailed implementation plan.
 
-## Phase 5 — Save/Load
-
-1. Serializable World Snapshot
-
-   - Encode World and RNG state; versioned with schema evolution in mind
-
-Deliverable: Serializable world snapshot implementation. All game state and RNG can be encoded and restored for persistence and debugging.
-
-## Phase 6 — Content and Progression
+## Phase 5 — Content and Progression
 
 1. Entities and Archetypes
 
@@ -258,14 +250,9 @@ Deliverable: Serializable world snapshot implementation. All game state and RNG 
 
    - Items with modifiers; rarity affects ranges; equipment affects derived stats
 
-3. Progression Curves
-   - XP, level-up, stat points, skill unlocks.
-   - Profession system: Characters can `Promote` to the next `Stage` within their `Family` (e.g., Fire Mage I -> Fire Mage II), unlocking new abilities.
-   - Skill points can be used to acquire new skills that match the character's `Profession` and `Stage`.
+Deliverable: \<character> base kits with starter stats and abilities are present.
 
-Deliverable: \<character> base kits with starter stats and abilities are present. Items, equipment, and progression curves are defined in domain types. Equipment system and progression logic are planned for future implementation.
-
-## Phase 7 — Minimal Integration with MonoGame
+## Phase 6 — Minimal Integration with MonoGame
 
 1. Game Loop Hook
 
@@ -343,17 +330,6 @@ Deliverable: Minimal MonoGame integration present. Game loop hooks and input pla
 - ❌ Advanced effect categories (HP-cost amplification, barriers, resource conversion)
 - ❌ Enhanced resolution pipeline with effect processing
 
-**Blocked**: Phase 5 (Save/Load) - Enhanced effects must be implemented and serializable
-
-### 📋 NEXT PHASE: 5 - Save/Load and Determinism 4 - Ability/Spell System Enhancement
-
-**Current Capabilities:**
-
-- Basic single-target abilities (MeleeAttack, CastSpell)
-- Effect application and management
-- Resource costs and cooldown tracking
-- Status effect interactions
-
 **Phase 4 Goals:**
 
 - Enhanced targeting system (Self, Multi-target, AoE)
@@ -421,9 +397,8 @@ let apply (state: GameState) (cmd:Command) =
 - ✅ Phase 3.5: Architectural Refinement (DI)
 - 🎯 **CURRENT**: Phase 4 Preparation - Refactoring and alignment
 - ⏳ Phase 4: Enhanced Ability/Spell System
-- ⏳ Phase 5: Save/Load
-- ⏳ Phase 6: Content and Progression
-- ⏳ Phase 7: MonoGame Integration
+- ⏳ Phase 5: Content
+- ⏳ Phase 6: MonoGame Integration
 
 ## How to Integrate Into PomoGame (later)
 

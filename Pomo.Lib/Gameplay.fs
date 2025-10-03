@@ -60,41 +60,68 @@ module GameState =
     (effects: alist<ActiveEffect>)
     : aval<DerivedStats> =
     adaptive {
+      // Gather all effect modifiers from active effects
       let modifiers =
         effects
         |> AList.collect(fun effect ->
           getModifiersForEffect effectStore effect.EffectId |> AList.ofArray)
 
-      let additiveModifiers = getAdditiveModifiers modifiers
-      // 1. Apply base stat modifiers
-      let! modifiedBase =
-        additiveModifiers
-        |> AMap.fold
-          (fun acc stat value ->
-            let currentBase = acc
-            let v = value
+      // Aggregate static modifiers by Stat and kind
+      let! addMap, subMap, mulMap, divMap =
+        modifiers
+        |> AList.fold
+          (fun (addMap, subMap, mulMap, divMap) modifier ->
+            match modifier with
+            | EffectModifier.StaticMod statMod ->
+              match statMod with
+              | StatModifier.Additive(stat, value) ->
+                let addMap =
+                  match HashMap.tryFindV stat addMap with
+                  | ValueSome existing -> HashMap.add stat (existing + value) addMap
+                  | ValueNone -> HashMap.add stat value addMap
+                addMap, subMap, mulMap, divMap
+              | StatModifier.Subtractive(stat, value) ->
+                let subMap =
+                  match HashMap.tryFindV stat subMap with
+                  | ValueSome existing -> HashMap.add stat (existing + value) subMap
+                  | ValueNone -> HashMap.add stat value subMap
+                addMap, subMap, mulMap, divMap
+              | StatModifier.Multiplicative(stat, value) ->
+                let mulMap =
+                  match HashMap.tryFindV stat mulMap with
+                  | ValueSome existing -> HashMap.add stat (existing * value) mulMap
+                  | ValueNone -> HashMap.add stat value mulMap
+                addMap, subMap, mulMap, divMap
+              | StatModifier.Divisive(stat, value) ->
+                let divMap =
+                  match HashMap.tryFindV stat divMap with
+                  | ValueSome existing -> HashMap.add stat (existing * value) divMap
+                  | ValueNone -> HashMap.add stat value divMap
+                addMap, subMap, mulMap, divMap
+            | _ -> addMap, subMap, mulMap, divMap)
+          (HashMap.empty, HashMap.empty, HashMap.empty, HashMap.empty)
 
-            match stat with
-            | Power -> {
-                currentBase with
-                    Power = currentBase.Power + v
-              }
-            | Magic -> {
-                currentBase with
-                    Magic = currentBase.Magic + v
-              }
-            | Sense -> {
-                currentBase with
-                    Sense = currentBase.Sense + v
-              }
-            | Charm -> {
-                currentBase with
-                    Charm = currentBase.Charm + v
-              }
-            | _ -> currentBase)
-          baseStats
+      // Helper to apply aggregated modifiers to a given stat value
+      let inline applyAll stat current =
+        let addV = HashMap.tryFindV stat addMap |> ValueOption.defaultValue 0
+        let subV = HashMap.tryFindV stat subMap |> ValueOption.defaultValue 0
+        let mulV = HashMap.tryFindV stat mulMap |> ValueOption.defaultValue 1.0
+        let divV = HashMap.tryFindV stat divMap |> ValueOption.defaultValue 1.0
+        let pre = current + addV - subV
+        let scaled = int (float pre * mulV / divV)
+        scaled
 
-      // 2. Calculate initial derived stats from modified base stats
+      // 1) Apply base stat modifiers (only to base stats)
+      let modifiedBase =
+        {
+          baseStats with
+            Power = applyAll Power baseStats.Power
+            Magic = applyAll Magic baseStats.Magic
+            Sense = applyAll Sense baseStats.Sense
+            Charm = applyAll Charm baseStats.Charm
+        }
+
+      // 2) Compute derived stats from modified base
       let initialDerived = {
         // Power derived stats
         AP = modifiedBase.Power * 2
@@ -103,14 +130,14 @@ module GameState =
         // Magic derived stats
         MP = modifiedBase.Magic * 5
         MA = modifiedBase.Magic * 2
-        MD = modifiedBase.Magic + int(float modifiedBase.Magic * 1.25)
+        MD = modifiedBase.Magic + int (float modifiedBase.Magic * 1.25)
         // Sense derived stats
         WT = modifiedBase.Sense * 5
         DA = modifiedBase.Sense * 2
         LK = modifiedBase.Sense + int (float modifiedBase.Sense * 0.5)
         // Charm derived stats
         HP = modifiedBase.Charm * 10
-        DP = modifiedBase.Charm + int(float modifiedBase.Charm * 1.25)
+        DP = modifiedBase.Charm + int (float modifiedBase.Charm * 1.25)
         HV = modifiedBase.Charm * 2
 
         // TODO: Grab elements from equipment, buffs, etc.
@@ -118,65 +145,23 @@ module GameState =
         ElementResistances = FSharp.Data.Adaptive.HashMap.empty
       }
 
-      // 3. Apply derived stat modifiers
-      let! finalDerived =
-        additiveModifiers
-        |> AMap.fold
-          (fun acc stat value ->
-            let currentDerived: DerivedStats = acc
-            let v = value
-
-            match stat with
-            | HP -> {
-                currentDerived with
-                    HP = currentDerived.HP + v
-              }
-            | MP -> {
-                currentDerived with
-                    MP = currentDerived.MP + v
-              }
-            | AP -> {
-                currentDerived with
-                    AP = currentDerived.AP + v
-              }
-            | MA -> {
-                currentDerived with
-                    MA = currentDerived.MA + v
-              }
-            | MD -> {
-                currentDerived with
-                    MD = currentDerived.MD + v
-              }
-            | DA -> {
-                currentDerived with
-                    DA = currentDerived.DA + v
-              }
-            | DX -> {
-                currentDerived with
-                    DX = currentDerived.DX + v
-              }
-            | WT -> {
-                currentDerived with
-                    WT = currentDerived.WT + v
-              }
-            | LK -> {
-                currentDerived with
-                    LK = currentDerived.LK + v
-              }
-            | DP -> {
-                currentDerived with
-                    DP = currentDerived.DP + v
-              }
-            | AC -> {
-                currentDerived with
-                    AC = currentDerived.AC + v
-              }
-            | HV -> {
-                currentDerived with
-                    HV = currentDerived.HV + v
-              }
-            | _ -> currentDerived)
-          initialDerived
+      // 3) Apply derived stat static modifiers (all kinds)
+      let finalDerived =
+        {
+          initialDerived with
+            HP = applyAll HP initialDerived.HP
+            MP = applyAll MP initialDerived.MP
+            AP = applyAll AP initialDerived.AP
+            MA = applyAll MA initialDerived.MA
+            MD = applyAll MD initialDerived.MD
+            DA = applyAll DA initialDerived.DA
+            DX = applyAll DX initialDerived.DX
+            WT = applyAll WT initialDerived.WT
+            LK = applyAll LK initialDerived.LK
+            DP = applyAll DP initialDerived.DP
+            AC = applyAll AC initialDerived.AC
+            HV = applyAll HV initialDerived.HV
+        }
 
       return finalDerived
     }
