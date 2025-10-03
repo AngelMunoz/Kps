@@ -192,7 +192,6 @@ module Effects =
     | DynamicMod of formulaId: int<FormulaId>
     | AbilityDamageMod of abilityDamageValue: float
     | ResourceConversion of ResourceType * ResourceType * float
-    | ShieldGeneration of shieldFormula: int<FormulaId>
 
   [<Struct>]
   type EffectDefinition = {

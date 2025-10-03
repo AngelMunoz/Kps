@@ -2,6 +2,7 @@ namespace Pomo.Lib.Rules
 
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
+open Pomo.Lib.Domain.Effects
 open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.State
@@ -15,16 +16,15 @@ module Resolution =
     let processModifier
       (context: HookContext)
       (services: EngineServices)
-      (modifier: Effects.EffectModifier)
+      (modifier: EffectModifier)
       =
       match modifier with
-      | Effects.EffectModifier.StaticMod _ ->
-          // TODO: Handle static stat modifications if they can be triggered by hooks
-          {
-            DamageModification = DamageResult.Zero
-            ResourceChanges = Array.empty
-          }
-      | Effects.EffectModifier.DynamicMod formulaId ->
+      | EffectModifier.StaticMod _ ->
+        {
+          DamageModification = DamageResult.Zero
+          ResourceChanges = Array.empty
+        }
+      | EffectModifier.DynamicMod formulaId ->
         let formula = services.formulaStore.tryFind formulaId
 
         match formula with
@@ -44,7 +44,7 @@ module Resolution =
               DamageModification = DamageResult.Zero
               ResourceChanges = Array.empty
             }
-      | Effects.EffectModifier.AbilityDamageMod percent ->
+      | EffectModifier.AbilityDamageMod percent ->
         let damageMod =
           match context.ResolvedDamage with
           | ValueSome damage -> int(float damage.Amount * percent)
@@ -57,7 +57,7 @@ module Resolution =
           }
           ResourceChanges = Array.empty
         }
-      | Effects.EffectModifier.ResourceConversion(fromType, toType, ratio) ->
+      | EffectModifier.ResourceConversion(fromType, toType, ratio) ->
         // Calculate the conversion amount based on current resources
         let conversionAmount =
           match fromType with
@@ -71,32 +71,11 @@ module Resolution =
             ResourceChange.Additive(struct (toType, conversionAmount)) // Add to target
           |]
         }
-      | Effects.EffectModifier.ShieldGeneration formulaId ->
-        match services.formulaStore.tryFind formulaId with
-        | ValueSome formula ->
-          let formulaContext = {
-            InvokerStats = context.InvokerStats
-            InvokerElementalAttributes = context.InvokerStats.ElementAttributes
-            TargetElementalResistances = context.TargetStats.ElementResistances
-          }
-
-          let result = formula.Calculate formulaContext
-          let _ = result.BaseDamage + result.ElementalDamage
-
-          {
-            DamageModification = DamageResult.Zero
-            ResourceChanges = Array.empty
-          }
-        | ValueNone ->
-            {
-              DamageModification = DamageResult.Zero
-              ResourceChanges = Array.empty
-            }
 
     let processEffect
       (context: HookContext)
       (services: EngineServices)
-      (effect: Effects.ActiveEffect)
+      (effect: ActiveEffect)
       =
       effect.Definition.Modifiers
       |> Array.fold
@@ -115,9 +94,9 @@ module Resolution =
         }
 
     let processAll
-      (hook: Effects.EffectHook)
+      (hook: EffectHook)
       (context: HookContext)
-      (entityEffects: alist<Effects.ActiveEffect>)
+      (entityEffects: alist<ActiveEffect>)
       (services: EngineServices)
       =
       adaptive {
@@ -275,11 +254,11 @@ module Resolution =
   }
 
   /// Helper function to check if an actor is taunted and must target a specific entity
-  let checkTauntTarget(actorEffects: alist<Effects.ActiveEffect>) = adaptive {
+  let checkTauntTarget(actorEffects: alist<ActiveEffect>) = adaptive {
     let tauntEffects =
       actorEffects
       |> AList.filter(fun effect ->
-        effect.Definition.Kind = Effects.EffectKind.Taunt)
+        effect.Definition.Kind = EffectKind.Taunt)
 
     let! isEmpty = AList.isEmpty tauntEffects
 
@@ -311,7 +290,7 @@ module Resolution =
   module ValidateAction =
     let checkStun(actor: EntityComponents) =
       actor.Effects
-      |> AList.exists(fun e -> e.Definition.Kind = Effects.EffectKind.Stun)
+      |> AList.exists(fun e -> e.Definition.Kind = EffectKind.Stun)
 
     let checkSilence
       (actor: EntityComponents)
@@ -321,7 +300,7 @@ module Resolution =
         let! hasSilence =
           actor.Effects
           |> AList.exists(fun e ->
-            e.Definition.Kind = Effects.EffectKind.Silence)
+            e.Definition.Kind = EffectKind.Silence)
 
         let isSpellAbility =
           match abilityDef.Cost with
@@ -431,14 +410,14 @@ module Resolution =
   module Shared =
 
     let determineNewEffect
-      (effectDef: Effects.EffectDefinition)
-      (existingEffect: Effects.ActiveEffect)
+      (effectDef: EffectDefinition)
+      (existingEffect: ActiveEffect)
       =
       let stacking = effectDef.Stacking
 
       match stacking with
-      | Effects.NoStack -> ValueNone
-      | Effects.RefreshDuration ->
+      | NoStack -> ValueNone
+      | RefreshDuration ->
         ValueSome {
           existingEffect with
               RemainingTicks =
@@ -446,7 +425,7 @@ module Resolution =
               NextTickIn =
                 effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
         }
-      | Effects.AddStack maxStacks ->
+      | AddStack maxStacks ->
         let newStacks = min maxStacks (existingEffect.Stacks + 1)
 
         ValueSome {
@@ -461,7 +440,7 @@ module Resolution =
 
 
     let processEffect
-      (effectDef: Effects.EffectDefinition)
+      (effectDef: EffectDefinition)
       (targetComponents: EntityComponents)
       (actorId: int<EntityId>)
       (_: int<EntityId>)
@@ -498,7 +477,7 @@ module Resolution =
       (actorId: int<EntityId>)
       (targetComponents: EntityComponents)
       =
-      let processEffects(currentEffects: IndexList<Effects.ActiveEffect>) =
+      let processEffects(currentEffects: IndexList<ActiveEffect>) =
         let currentMap =
           currentEffects
           |> IndexList.fold
@@ -522,7 +501,7 @@ module Resolution =
                 | ValueNone -> ValueNone
               | ValueNone ->
                 // Create new effect instance
-                let newEff: Effects.ActiveEffect = {
+                let newEff: ActiveEffect = {
                   EffectId = effectDef.Id
                   SourceId = actorId
                   RemainingTicks =
@@ -715,7 +694,7 @@ module Resolution =
 
         return!
           ProcessHook.processAll
-            Effects.OnAbilityInvoke
+            OnAbilityInvoke
             hookContext
             actorComponents.Effects
             rparams.services
@@ -762,7 +741,7 @@ module Resolution =
 
         return!
           ProcessHook.processAll
-            Effects.OnDamageReceived
+            OnDamageReceived
             hookContext
             targetComponents.Effects
             rparams.services
@@ -913,7 +892,7 @@ module Resolution =
 
         let! result =
           ProcessHook.processAll
-            Effects.OnAbilityComplete
+            OnAbilityComplete
             completeHookContext
             actorWithCooldown.Effects
             rparams.services

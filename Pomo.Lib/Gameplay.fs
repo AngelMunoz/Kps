@@ -98,20 +98,20 @@ module GameState =
       let initialDerived = {
         // Power derived stats
         AP = modifiedBase.Power * 2
-        AC = modifiedBase.Power / 100
+        AC = modifiedBase.Power + int (float modifiedBase.Power * 1.25)
         DX = modifiedBase.Power
         // Magic derived stats
         MP = modifiedBase.Magic * 5
         MA = modifiedBase.Magic * 2
-        MD = modifiedBase.Magic
+        MD = modifiedBase.Magic + int(float modifiedBase.Magic * 1.25)
         // Sense derived stats
-        WT = modifiedBase.Sense
-        DA = modifiedBase.Sense
-        LK = modifiedBase.Sense
+        WT = modifiedBase.Sense * 5
+        DA = modifiedBase.Sense * 2
+        LK = modifiedBase.Sense + int (float modifiedBase.Sense * 0.5)
         // Charm derived stats
         HP = modifiedBase.Charm * 10
-        DP = modifiedBase.Charm / 2
-        HV = modifiedBase.Charm / 100
+        DP = modifiedBase.Charm + int(float modifiedBase.Charm * 1.25)
+        HV = modifiedBase.Charm * 2
 
         // TODO: Grab elements from equipment, buffs, etc.
         ElementAttributes = FSharp.Data.Adaptive.HashMap.empty
