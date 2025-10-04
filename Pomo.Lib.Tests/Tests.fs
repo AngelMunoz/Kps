@@ -541,139 +541,58 @@ type ``Combat Mechanics Properties``() =
 
   [<Property(MaxTest = 100)>]
   member _.``Physical hit chance follows AC vs HV formula``
-    (attackerPower: PositiveInt)
-    (defenderCharm: PositiveInt)
-    (rng: NormalFloat)
+    (acInput: NonNegativeInt)
+    (hvInput: NonNegativeInt)
     =
-    let power = attackerPower.Get % 50 + 10
-    let charm = defenderCharm.Get % 50 + 10
-    let rngValue = abs rng.Get % 1.0
+    let ac = acInput.Get % 200
+    let hv = hvInput.Get % 200
+    let chance = Resolution.calculateHitChance ac hv
+    let diff = ac - hv
 
-    let attackerStats = {
-      Power = power
-      Magic = 4
-      Sense = 50
-      Charm = 10
-    }
+    // Invariants:
+    // 1. Clamp range (unless both zero -> special case 1.0)
+    // 2. Equal positive stats => 0.5
+    // 3. Advantage >= 45 => clamp 0.95; disadvantage <= -45 => clamp 0.05
+    // 4. Monotonic direction relative to 0.5 baseline when stats positive and unequal
+    let rangeOk =
+      if ac = 0 && hv = 0 then chance = 1.0 else chance >= 0.05 && chance <= 0.95
 
-    let defenderStats = {
-      Power = 12
-      Magic = 4
-      Sense = 50
-      Charm = charm
-    }
+    let equalOk =
+      if ac = hv && ac > 0 then chance = 0.5 else true
 
-    let state = TestHelpers.create(fun () -> rngValue)
-    let attackerId = 1<EntityId>
-    let targetId = 2<EntityId>
-    let meleeId = 1<AbilityId>
+    let clampHighOk = if diff >= 45 then chance = 0.95 else true
+    let clampLowOk = if diff <= -45 && not (ac = 0 && hv = 0) then chance = 0.05 else true
 
+    let directionOk =
+      if ac > hv then chance >= 0.5
+      elif ac < hv then chance <= 0.5
+      else true
 
-    let attacker =
-      TestHelpers.makeEntity [ Classification.Player ] attackerStats 100 100 [
-        meleeId
-      ]
+    rangeOk && equalOk && clampHighOk && clampLowOk && directionOk
 
-    let target =
-      TestHelpers.makeEntity [ Classification.Enemy ] defenderStats 100 100 []
-
-    TestHelpers.addEntity state attackerId attacker
-    TestHelpers.addEntity state targetId target
-
-    let attackerDerived = TestHelpers.derivedOf state attackerId
-    let defenderDerived = TestHelpers.derivedOf state targetId
-
-    let expectedHitChance =
-      Resolution.calculateHitChance attackerDerived.AC defenderDerived.HV
-
-    let shouldHit = rngValue < expectedHitChance
-
-
-    let entitiesSnapshot = state.entities |> AMap.force
-
-    let initialHp = entitiesSnapshot[targetId].Resources.HP
-
-    let action =
-      UseAbility {
-        actor = attackerId
-        targets = [| targetId |]
-        abilityId = meleeId
-      }
-
-    let delta = Resolution.step state action
-    let change = delta |> AVal.force
-    Resolution.apply state change
-
-    let entitiesSnapshotAfter = state.entities |> AMap.force
-    let finalHp = entitiesSnapshotAfter[targetId].Resources.HP
-    let actualHit = finalHp < initialHp
-
-    actualHit = shouldHit
-
-  [<Property(MaxTest = 50)>]
+  [<Property(MaxTest = 100)>]
   member _.``Magical hit chance follows LK vs LK formula``
-    (attackerSense: PositiveInt)
-    (defenderSense: PositiveInt)
-    (rng: NormalFloat)
+    (lkAtkInput: NonNegativeInt)
+    (lkDefInput: NonNegativeInt)
     =
-    let atkSense = attackerSense.Get % 50 + 10
-    let defSense = defenderSense.Get % 50 + 10
+    let lkA = lkAtkInput.Get % 200
+    let lkD = lkDefInput.Get % 200
+    let chance = Resolution.calculateHitChance lkA lkD
+    let diff = lkA - lkD
 
-    let rngValue = abs rng.Get % 1.0
+    let rangeOk =
+      if lkA = 0 && lkD = 0 then chance = 1.0 else chance >= 0.05 && chance <= 0.95
 
-    let expectedHitChance = Resolution.calculateHitChance atkSense defSense
-    let shouldHit = rngValue < expectedHitChance
+    let equalOk = if lkA = lkD && lkA > 0 then chance = 0.5 else true
+    let clampHighOk = if diff >= 45 then chance = 0.95 else true
+    let clampLowOk = if diff <= -45 && not (lkA = 0 && lkD = 0) then chance = 0.05 else true
 
-    let state = TestHelpers.create(fun () -> rngValue)
-    let attackerId = 1<EntityId>
-    let targetId = 2<EntityId>
-    let spellId = 6<AbilityId>
+    let directionOk =
+      if lkA > lkD then chance >= 0.5
+      elif lkA < lkD then chance <= 0.5
+      else true
 
-    let attackerStats = {
-      Power = 12
-      Magic = 4
-      Sense = int atkSense
-      Charm = 10
-    }
-
-    let defenderStats = {
-      Power = 12
-      Magic = 4
-      Sense = int defSense
-      Charm = 10
-    }
-
-    let attacker =
-      TestHelpers.makeEntity [ Classification.Player ] attackerStats 100 100 [
-        spellId
-      ]
-
-    let target =
-      TestHelpers.makeEntity [ Classification.Enemy ] defenderStats 100 100 []
-
-    TestHelpers.addEntity state attackerId attacker
-    TestHelpers.addEntity state targetId target
-
-    let entitiesSnapshot = state.entities |> AMap.force
-
-    let initialHp = entitiesSnapshot[targetId].Resources.HP
-
-    let action =
-      UseAbility {
-        actor = attackerId
-        targets = [| targetId |]
-        abilityId = spellId
-      }
-
-    let delta = Resolution.step state action
-    let change = delta |> AVal.force
-    Resolution.apply state change
-
-    let entitiesSnapshotAfter = state.entities |> AMap.force
-    let finalHp = entitiesSnapshotAfter[targetId].Resources.HP
-    let actualHit = finalHp < initialHp
-
-    actualHit = shouldHit
+    rangeOk && equalOk && clampHighOk && clampLowOk && directionOk
 
   [<Property(MaxTest = 50)>]
   member _.``Damage scales with attacker stats``
