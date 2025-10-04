@@ -170,55 +170,55 @@ Formulas are referenced by abilities through FormulaId and are not hardcoded to 
 
 Damage calculation is done in 4 steps:
 
-1. **Validation & Hit/Miss Check**:
+1.  **Validation & Hit/Miss Check**:
 
-- Validate action availability:
-  - Has enough resources?
-  - Is it on cooldown?
-  - Is the entity able to perform the action?
-    - Stunned -> No actions
-    - Silenced -> No MP-based abilities
-  - Is the target valid?
-  - Is the actor alive?
-- Hit or Miss calculation:
-  - A base hit chance of 50% is adjusted by the difference between attacker and defender stats.
-  - The formula is: `chance = 0.5 + (attackerStat - defenderStat) / 100.0`.
-  - The final chance is clamped between 5% and 95%.
-  - If Physical damage: uses Attacker's AC vs Defender's HV.
-  - If Magical damage: uses Attacker's LK vs Defender's LK.
-  - Neutral damage always hits.
+    - Validate action availability:
+      - Has enough resources?
+      - Is it on cooldown?
+      - Is the entity able to perform the action?
+        - Stunned -> No actions
+        - Silenced -> No MP-based abilities
+      - Is the target valid?
+      - Is the actor alive?
+    - Hit or Miss calculation:
+      - A base hit chance of 50% is adjusted by the difference between attacker and defender stats.
+      - The formula is: `chance = 0.5 + (attackerStat - defenderStat) / 100.0`.
+      - The final chance is clamped between 5% and 95%.
+      - If Physical damage: uses Attacker's AC vs Defender's HV.
+      - If Magical damage: uses Attacker's LK vs Defender's LK.
+      - Neutral damage always hits.
 
-2. **Formula-Based Damage Calculation**:
+2.  **Formula-Based Damage Calculation**:
 
-- Build CalculationContext:
-  - InvokerStats (DerivedStats)
-  - InvokerElementalAttributes (HashMap<Element, float>)
-  - TargetElementalResistances (HashMap<Element, float>)
-- Invoke formula with context to get DamageResult:
-  - BaseDamage: int
-  - ElementalDamage: int
-  - Element: Element type
-  - DamageType: Physical or Magical
+    - Build CalculationContext:
+      - InvokerStats (DerivedStats)
+      - InvokerElementalAttributes (HashMap<Element, float>)
+      - TargetElementalResistances (HashMap<Element, float>)
+    - Invoke formula with context to get DamageResult:
+      - BaseDamage: int
+      - ElementalDamage: int
+      - Element: Element type
+      - DamageType: Physical or Magical
 
-3. **Apply Damage Modifiers**:
+3.  **Apply Damage Modifiers**:
 
-- Critical Hit Calculation:
-  - Roll based on invoker's LK stat (LK \* 0.01 chance)
-  - Critical bonus: 10% of (BaseDamage + ElementalDamage)
-- Elemental Resistance:
-  - Apply target's elemental resistance to elemental damage
-  - FinalElementalDamage = ElementalDamage \* (1.0 - resistance)
-  - Neutral element ignores resistances
+    - Elemental Resistance:
+      - Apply target's elemental resistance to elemental damage
+      - FinalElementalDamage = ElementalDamage \* (1.0 - resistance)
+      - Neutral element ignores resistances
 
-4. **Apply Final Damage**:
+4.  **Apply Final Damage**:
 
-- Calculate total damage: BaseDamage + FinalElementalDamage
-- Apply defense reduction based on damage type:
-  - Physical Damage: `totalDamage - defender.DP`
-  - Magical Damage: `totalDamage - defender.MD`
-- Apply critical hit bonus.
-- Subtract final damage from target's HP.
-- Check for death (HP <= 0)
+    - Calculate total damage: BaseDamage + FinalElementalDamage
+    - Apply defense reduction based on damage type:
+      - Physical Damage: `totalDamage - defender.DP`
+      - Magical Damage: `totalDamage - defender.MD`
+    - Critical Hit Calculation:
+      - Roll based on invoker's LK stat (LK \* 0.01 chance)
+      - Critical bonus: 10% of (BaseDamage + ElementalDamage)
+    - Apply critical hit bonus to the damage after defense reduction.
+    - Subtract final damage from target's HP.
+    - Check for death (HP <= 0)
 
 ### Resource System
 

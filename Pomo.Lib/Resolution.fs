@@ -64,7 +64,7 @@ module Resolution =
 
       let hitChance =
         match formulaResult.DamageType with
-        | DamageType.Neutral
+        | DamageType.Neutral -> 1.0
         | DamageType.Physical ->
           calculateHitChance
             damageParams.attackerStats.AC
