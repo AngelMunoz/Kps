@@ -1,4 +1,5 @@
 namespace Pomo.Lib.FormulaParser
+#nowarn "3391"
 
 open System
 open System.Collections.Concurrent
@@ -60,8 +61,8 @@ exception FormulaException of FormulaError
 module FormulaParser =
 
   // Helper for comparing a ReadOnlySpan<char> with a string without allocation
-  let inline spanEquals (span: ReadOnlySpan<char>) (s: string) =
-    span.Equals(s.AsSpan(), StringComparison.OrdinalIgnoreCase)
+  let inline spanEquals (span: ReadOnlySpan<char>) (s: ReadOnlySpan<char>) =
+    span.Equals(s, StringComparison.OrdinalIgnoreCase)
 
   let inline classifyVar(token: ReadOnlySpan<char>) : VarId =
     // Match by length first to reduce comparisons
