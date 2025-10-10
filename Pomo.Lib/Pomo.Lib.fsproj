@@ -6,7 +6,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Domain.fs" /><Compile Include="DomainExtensions.fs" />
+    <Compile Include="Domain.fs" />
+    <Compile Include="DomainExtensions.fs" />
+    <Compile Include="FormulaParser.fs" />
     <Compile Include="Effects.fs" />
     <Compile Include="Content.fs" />
     <Compile Include="Gameplay.fs" />
