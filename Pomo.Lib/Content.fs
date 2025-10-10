@@ -120,7 +120,7 @@ module EffectStore =
         |]
         FormulaId = ValueNone
       }
-      // Enhanced Effects for Testing (now inert without hooks but kept for future use)
+      // Enhanced Effects for Testing (not wired into the linear pipeline yet; kept for future use)
       200<EffectId>,
       {
         Id = 200<EffectId>

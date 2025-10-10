@@ -222,9 +222,8 @@ Deliverable: Ability system implemented with the following sample abilities:
 
 **CRITICAL: Required before Phase 5**
 
-1. Effect Hook System
-   - OnAbilityInvoke, OnDamageReceived, OnResourceChange, OnAbilityComplete hooks
-   - Dynamic effect processing at different resolution phases
+1. Enhanced Resolution Simplification
+   - Process ability costs, damage calculation, and effect modifiers within a straightforward resolution flow (pre/compute/apply) without hook infrastructure
 
 2. Formula-Based Effect Modifiers
    - Replace static modifiers with dynamic formula references
@@ -325,10 +324,9 @@ Deliverable: Minimal MonoGame integration present. Game loop hooks and input pla
 **Status**: 🎯 **IN PROGRESS** - Required before Phase 5
 
 **Remaining Work**:
-- ❌ Effect hook system implementation
 - ❌ Dynamic effect modifiers with formula support
-- ❌ Advanced effect categories (HP-cost amplification, barriers, resource conversion)
-- ❌ Enhanced resolution pipeline with effect processing
+- ❌ Advanced effect categories (HP-cost amplification, resource conversion)
+- ❌ Resolution improvements to support these mechanics without hooks
 
 **Phase 4 Goals:**
 

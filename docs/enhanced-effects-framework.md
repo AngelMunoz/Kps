@@ -12,7 +12,6 @@ This document tracks the design and implementation of an enhanced effects framew
 
 - When active, invoking abilities consumes % of ability's base damage from user's HP
 - Increases ability's final damage proportionally
-- **Hook**: OnAbilityInvoke (pre-execution)
 
 ### 2. Resource Conversion
 
@@ -20,7 +19,6 @@ This document tracks the design and implementation of an enhanced effects framew
 
 - Converts between resource types using formulas
 - Instant effect with calculated exchange rates
-- **Hook**: Instant (direct resource manipulation)
 
 ### 4. Distance-Based Damage
 
@@ -28,7 +26,6 @@ This document tracks the design and implementation of an enhanced effects framew
 
 - AoE/MultiHit with distance-modified damage
 - Damage calculation includes spatial factors
-- **Hook**: OnAbilityInvoke + custom targeting (future)
 
 ## AbilityContext Flow
 
@@ -42,13 +39,10 @@ graph TD
     C -->|Valid| D[Build AbilityContext]
     C -->|Invalid| E[Return Empty StateChange]
 
-    D --> F[Process OnAbilityInvoke Effects]
-    F --> G[Calculate Base Damage]
+    D --> G[Calculate Base Damage]
     G --> H[Apply Effect Modifiers]
-    H --> I[Process OnDamageReceived Effects]
-    I --> J[Apply Final Damage]
-    J --> K[Process OnAbilityComplete Effects]
-    K --> L[Return StateChange]
+    H --> J[Apply Final Damage and Effects]
+    J --> L[Return StateChange]
 
     subgraph "Current System"
         B --> G2[Calculate Damage Directly]
@@ -58,9 +52,8 @@ graph TD
 
     subgraph "Enhanced System"
         B1 --> D
-        D --> F
-        F --> G
-        H --> I
+        D --> G
+        G --> H
     end
 ```
 
@@ -68,13 +61,10 @@ graph TD
 
 ```mermaid
 graph LR
-    A[Initial Context] --> B[OnAbilityInvoke Effects]
-    B --> C[Updated Context + HP Cost]
-    C --> D[Damage Calculation]
-    D --> E[Context + Damage Result]
-    E --> F[OnDamageReceived Effects]
-    F --> G[OnAbilityComplete Effects]
-    G --> I[Final Context + Events]
+    A[Initial Context] --> C[Apply Costs and Pre-Calc Adjustments]
+    C --> D[Damage/Effect Calculation]
+    D --> E[Apply Result to State]
+    E --> I[Final Context + Events]
 ```
 
 ### AbilityContext Construction Point
@@ -151,8 +141,8 @@ type Duration =
 **Integration with Enhanced Effects:**
 
 - **Passive abilities**: Create `Permanent` duration effects when learned
-- **Active abilities**: Use existing resolution pipeline with effect hooks
-- **Requirements**: Validated during `OnAbilityInvoke` hook
+- **Active abilities**: Use the existing resolution pipeline (no hook infrastructure)
+- **Requirements**: Validated during standard ability validation
 - **Permanent effects**: Skip tick processing, never expire
 
 **Example - Gun Carrier System:**
@@ -186,18 +176,9 @@ Active {
 }
 ```
 
-### Step 1: Effect Hook System ✅ (Implemented in Domain.fs and Resolution.fs)
+### Step 1: Resolution Simplification ✅
 
-Add effect hooks to intercept different resolution phases:
-
-```fsharp
-[<Struct>]
-type EffectHook =
-  | OnAbilityInvoke     // Before ability executes
-  | OnDamageReceived    // When taking damage
-  | OnAbilityComplete   // After ability resolves
-  | OnTick              // Periodic processing (existing DoT/HoT)
-```
+Adopt a straightforward, linear resolution approach (pre/compute/apply) without introducing a hook infrastructure.
 
 ### Step 2: Dynamic Effect Modifiers ✅ (Implemented in Domain.fs, partial support in Resolution.fs)
 
@@ -229,28 +210,23 @@ type AbilityContext = {
 ```
 
 
-### Step 5: Enhanced Effect Processing Pipeline ⏳
+### Step 5: Linear Effect Processing Pipeline ⏳
 
-Modify resolution to process effects at different hooks:
+Modify resolution to process effects in a simple, linear flow:
 
-1. **Pre-Ability Processing**:
+1. Pre-Resolution:
 
-   - Process `OnAbilityInvoke` effects
-   - Apply HP costs for damage amplification
-   - Calculate damage bonuses
+   - Apply resource costs (including HP-cost amplification rules)
+   - Gather relevant modifiers and context
 
-2. **Ability Execution**:
+2. Ability Execution:
 
-   - Apply base damage with effect modifiers
-   - Process formula-based enhancements
+   - Calculate base values
+   - Apply dynamic modifiers and formulas
 
-3. **Damage Reception**:
+3. Apply Results:
 
-   - Process `OnDamageReceived` effects
-   - Handle damage reflection
-
-4. **Post-Ability Processing**:
-   - Process `OnAbilityComplete` effects
+   - Apply damage/heal and state updates
    - Apply resource conversion mechanics
 
 ### Step 6: Effect Definition Extensions ✅ (EffectDefinition extended in Domain.fs)
@@ -266,7 +242,6 @@ type EffectDefinition = {
   Stacking: StackingRule
   Duration: Duration
   Modifiers: IndexList<EffectModifier>
-  Hooks: IndexList<EffectHook>          // NEW: When effect activates
   FormulaId: int<FormulaId> voption     // NEW: Dynamic calculations
 }
 ```
@@ -278,9 +253,9 @@ type EffectDefinition = {
 **Status**: 🎯 **REQUIRED BEFORE PHASE 5**
 
 1. **Step 0.5**: Passive skills and ability requirements
-2. **Step 1-2**: Core effect hooks and dynamic modifiers
+2. **Step 1-2**: Dynamic modifiers and formula integration
 3. **Step 3**: Ability context system
-5. **Step 5**: Enhanced processing pipeline
+5. **Step 5**: Linear processing pipeline
 6. **Step 6**: Effect definition extensions
 
 ### Example Implementations
@@ -297,7 +272,6 @@ type EffectDefinition = {
   Modifiers = IndexList.ofList [
     AbilityDamageMod(0.10)  // 10% damage increase
   ]
-  Hooks = IndexList.ofList [OnAbilityInvoke]
   FormulaId = ValueSome 100<FormulaId>  // HP cost calculation
 }
 ```
@@ -309,12 +283,12 @@ type EffectDefinition = {
 - Add `AbilityKind` pattern matching in `validateAction`
 - Add ability requirement validation (only for `Active` abilities)
 - Skip tick processing for `Permanent` duration effects
-- Extend `resolveAbility` to process effect hooks
-- Implement pre/post ability effect processing
+- Extend `resolveAbility` with a clear pre/compute/apply flow
+- Implement HP-cost amplification, dynamic modifiers, and resource conversion within this flow
 
 ### Effects.fs Changes
 
-- Add hook-based effect processing
+- Provide helpers/utilities for linear effect processing
 - Add dynamic modifier calculations
 
 ### Domain.fs Changes
@@ -332,7 +306,6 @@ type EffectDefinition = {
 
 - Passive skill effect creation
 - Ability requirement validation
-- Effect hook processing
 - Resource conversion accuracy
 - Dynamic modifier calculations
 
@@ -356,7 +329,6 @@ type EffectDefinition = {
 2. ✅ Backward compatibility with existing effects maintained
 3. ✅ Performance impact minimal (adaptive collections)
 4. ✅ Formula-based effects work with existing formula system
-6. ✅ Effect hooks process at correct resolution phases
 
 ## Dependencies
 
