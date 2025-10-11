@@ -1,6 +1,8 @@
 namespace Pomo.Lib.Tests
 
 open Xunit
+open System
+open FSharp.UMX
 open FSharp.Data.Adaptive
 open Pomo.Lib
 open Pomo.Lib.Domain
@@ -14,12 +16,6 @@ open Pomo.Lib.Domain.Rules
 module private Phase3Helpers =
 
   let create(rng: unit -> float) =
-    let _ = AbilityStore.definitions |> HashMap.ofMap |> AMap.ofHashMap
-
-    let _ =
-      AList.constant(fun () ->
-        [ for KeyValue(_, v) in AbilityStore.definitions -> v ]
-        |> IndexList.ofList)
 
     Gameplay.GameState.create' {
       effectStore =
@@ -63,7 +59,7 @@ module private Phase3Helpers =
   }
 
   let makeEntity
-    (id: int<EntityId>)
+    (id: Guid<EntityId>)
     (baseStats: BaseAttributes)
     hp
     mp
@@ -110,12 +106,12 @@ module private Phase3Helpers =
 
   let addEntity
     (state: Gameplay.GameState)
-    (id: int<EntityId>)
+    (id: Guid<EntityId>)
     (all: EntityComponents)
     =
     transact(fun _ -> state.entities.Add(id, all) |> ignore)
 
-  let derivedOf (state: Gameplay.GameState) (id: int<EntityId>) =
+  let derivedOf (state: Gameplay.GameState) (id: Guid<EntityId>) =
     Gameplay.GameState.getDerivedStats state |> AMap.force |> (fun m -> m[id])
 
 open Phase3Helpers
@@ -131,8 +127,8 @@ type ``Phase3 - Stun``() =
   member _.``T2 Stun prevents all actions``() =
     // Arrange
     let state = create(fun () -> 0.5)
-    let attackerId = 1<EntityId>
-    let targetId = 2<EntityId>
+    let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 1<AbilityId>
     let stunEffectId = 100<EffectId> // Stun
 
@@ -179,8 +175,8 @@ type ``Phase3 - Silence``() =
   member _.``T3 Silence blocks MP abilities``() =
     // Arrange
     let state = create(fun () -> 0.5)
-    let attackerId = 1<EntityId>
-    let targetId = 2<EntityId>
+    let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 8<AbilityId> // Basic Melee Attack
     let silence = 9<AbilityId> // Silence Spell
     let meeleWithcost = 1<AbilityId> // Melee with MP cost
@@ -311,9 +307,9 @@ type ``Phase3 - Taunt``() =
   member _.``T4 Taunt redirection forces target to taunter``() =
     // Arrange
     let state = create(fun () -> 0.1)
-    let attackerId = 1<EntityId>
-    let intendedTargetId = 2<EntityId>
-    let taunterId = 3<EntityId>
+    let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let intendedTargetId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let taunterId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 1<AbilityId>
     let tauntEffectId = 103<EffectId> // Taunt
 
@@ -393,8 +389,8 @@ type ``Phase3 - Effect Stacking``() =
   member _.``T5 NoStack ignores second application``() =
     // Arrange
     let state = create(fun () -> 0.5)
-    let casterId = 1<EntityId>
-    let targetId = 2<EntityId>
+    let casterId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let spellId = 3<AbilityId> // A spell that applies a NoStack effect
     let noStackEffectId = 104<EffectId> // Assuming this is a NoStack effect
 
@@ -454,8 +450,8 @@ type ``Phase3 - Effect Stacking``() =
   member _.``T6 RefreshDuration resets timer, stack count unchanged``() =
     // Arrange
     let state = create(fun () -> 0.5)
-    let casterId = 1<EntityId>
-    let targetId = 2<EntityId>
+    let casterId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let spellId = 4<AbilityId> // A spell that applies a RefreshDuration effect
     let refreshEffectId = 1<EffectId> // Minor Strength Buff
 
@@ -534,8 +530,8 @@ type ``Phase3 - Effect Stacking``() =
   member _.``T8 DoT ticking applies periodic damage and expires``() =
     // Arrange
     let state = create(fun () -> 0.5)
-    let casterId = 1<EntityId>
-    let targetId = 2<EntityId>
+    let casterId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let spellId = 6<AbilityId> // Poison Spell
     let _ = 105<EffectId> // Poison
 
@@ -605,8 +601,8 @@ type ``Phase3 - Effect Stacking``() =
   member _.``T9 HoT ticking applies periodic healing and expires``() =
     // Arrange
     let state = create(fun () -> 0.5)
-    let casterId = 1<EntityId>
-    let targetId = 2<EntityId>
+    let casterId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let spellId = 7<AbilityId> // Regen Spell
     let _ = 106<EffectId> // Regeneration
 
@@ -684,8 +680,8 @@ type ``Phase3 - Determinism``() =
     let state1 = create rng1
     let state2 = create rng2
 
-    let attackerId = 1<EntityId>
-    let targetId = 2<EntityId>
+    let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 1<AbilityId>
 
     let attacker1 =
@@ -752,8 +748,8 @@ type ``Phase3 - Cooldown Management``() =
     =
     // Arrange
     let state = create(fun () -> 0.5)
-    let attackerId = 1<EntityId>
-    let targetId = 2<EntityId>
+    let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 1<AbilityId>
     let spell = 2<AbilityId>
 

@@ -1,5 +1,7 @@
 namespace Pomo.Lib.Gameplay
 
+open System
+open FSharp.UMX
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Components
@@ -10,7 +12,7 @@ open Pomo.Lib.Domain.State
 open Pomo.Lib.Domain.AggregatedEffects
 
 type GameState = {
-  entities: cmap<int<EntityId>, EntityComponents>
+  entities: cmap<Guid<EntityId>, EntityComponents>
   gameTime: cval<int64<Tick>>
   services: Services.EngineServices
 }
@@ -54,31 +56,43 @@ module GameState =
       c.Factions |> HashSet.contains Classification.Ally
       || c.Factions |> HashSet.contains Classification.Enemy)
 
-  let private aggregateEquipment (equipment: HashMap<Inventory.Slot, Inventory.Equipment>) =
+  let private aggregateEquipment
+    (equipment: HashMap<Inventory.Slot, Inventory.Equipment>)
+    =
     let mutable equipmentStatBonuses = HashMap.empty<Stat, int>
     let mutable equipmentElementalAttributes = HashMap.empty<Element, float>
     let mutable equipmentElementalResistances = HashMap.empty<Element, float>
 
     for item in equipment |> HashMap.toValueArray do
       for bonus in item.StatBonuses do
-        equipmentStatBonuses <- equipmentStatBonuses |> HashMap.alterV bonus.Stat (fun existing ->
-          match existing with
-          | ValueSome value -> ValueSome (value + bonus.Value)
-          | ValueNone -> ValueSome bonus.Value)
+        equipmentStatBonuses <-
+          equipmentStatBonuses
+          |> HashMap.alterV bonus.Stat (fun existing ->
+            match existing with
+            | ValueSome value -> ValueSome(value + bonus.Value)
+            | ValueNone -> ValueSome bonus.Value)
 
-      for struct(element, value) in item.ElementalAttributes |> HashMap.toArrayV do
-        equipmentElementalAttributes <- equipmentElementalAttributes |> HashMap.alterV element (fun existing ->
-          match existing with
-          | ValueSome existingValue -> ValueSome (existingValue + value)
-          | ValueNone -> ValueSome value)
+      for struct (element, value) in
+        item.ElementalAttributes |> HashMap.toArrayV do
+        equipmentElementalAttributes <-
+          equipmentElementalAttributes
+          |> HashMap.alterV element (fun existing ->
+            match existing with
+            | ValueSome existingValue -> ValueSome(existingValue + value)
+            | ValueNone -> ValueSome value)
 
-      for struct(element, value) in item.ElementalResistances |> HashMap.toArrayV do
-        equipmentElementalResistances <- equipmentElementalResistances |> HashMap.alterV element (fun existing ->
-          match existing with
-          | ValueSome existingValue -> ValueSome (existingValue + value)
-          | ValueNone -> ValueSome value)
+      for struct (element, value) in
+        item.ElementalResistances |> HashMap.toArrayV do
+        equipmentElementalResistances <-
+          equipmentElementalResistances
+          |> HashMap.alterV element (fun existing ->
+            match existing with
+            | ValueSome existingValue -> ValueSome(existingValue + value)
+            | ValueNone -> ValueSome value)
 
-    struct(equipmentStatBonuses, equipmentElementalAttributes, equipmentElementalResistances)
+    struct (equipmentStatBonuses,
+            equipmentElementalAttributes,
+            equipmentElementalResistances)
 
   let private applyModifiers
     (services: Services.EngineServices)
@@ -88,13 +102,15 @@ module GameState =
     : aval<DerivedStats> =
 
     adaptive {
-      let struct(equipmentStatBonuses, equipmentElementalAttributes, equipmentElementalResistances) =
+      let struct (equipmentStatBonuses, equipmentElementalAttributes,
+                  equipmentElementalResistances) =
         aggregateEquipment equipment
       // Gather all effect modifiers from active effects
       let modifiers =
         effects
         |> AList.collect(fun effect ->
-          getModifiersForEffect services.effectStore effect.EffectId |> AList.ofArray)
+          getModifiersForEffect services.effectStore effect.EffectId
+          |> AList.ofArray)
 
       // Aggregate static modifiers by Stat and kind
       let! addMap, subMap, mulMap, divMap =
@@ -145,7 +161,11 @@ module GameState =
         let subV = HashMap.tryFindV stat subMap |> ValueOption.defaultValue 0
         let mulV = HashMap.tryFindV stat mulMap |> ValueOption.defaultValue 1.0
         let divV = HashMap.tryFindV stat divMap |> ValueOption.defaultValue 1.0
-        let equipBonus = HashMap.tryFindV stat equipmentStatBonuses |> ValueOption.defaultValue 0
+
+        let equipBonus =
+          HashMap.tryFindV stat equipmentStatBonuses
+          |> ValueOption.defaultValue 0
+
         let pre = current + addV - subV + equipBonus
         let scaled = int(float pre * mulV / divV)
         scaled
@@ -198,9 +218,11 @@ module GameState =
                   InvokerElementalAttributes = initialDerived.ElementAttributes
                   TargetElementalResistances = HashMap.empty
                 }
+
                 let result = formula.Calculate context
                 // Use BaseDamage as the stat modifier value
                 let value = result.BaseDamage
+
                 match HashMap.tryFindV stat dynAddMap with
                 | ValueSome existing ->
                   HashMap.add stat (existing + value) dynAddMap
@@ -221,7 +243,9 @@ module GameState =
 
       // Helper to apply all modifiers (including dynamic) to derived stats
       let inline applyAllWithDynamic stat current =
-        let addV = HashMap.tryFindV stat finalAddMap |> ValueOption.defaultValue 0
+        let addV =
+          HashMap.tryFindV stat finalAddMap |> ValueOption.defaultValue 0
+
         let subV = HashMap.tryFindV stat subMap |> ValueOption.defaultValue 0
         let mulV = HashMap.tryFindV stat mulMap |> ValueOption.defaultValue 1.0
         let divV = HashMap.tryFindV stat divMap |> ValueOption.defaultValue 1.0
@@ -290,7 +314,7 @@ module GameState =
       rng = fun () -> System.Random().NextDouble()
     }
 
-  let getDerivedStats(state: GameState) : amap<int<EntityId>, DerivedStats> =
+  let getDerivedStats(state: GameState) =
     state.entities
     |> AMap.mapA(fun _ c ->
       applyModifiers state.services c.BaseStats c.Effects c.Equipment)
@@ -356,13 +380,13 @@ module GameState =
       for entityId, updatedComponents in change.entities do
         state.entities[entityId] <- updatedComponents)
 
-  let aAlive entities : aset<int<EntityId>> =
+  let aAlive entities =
     entities
     |> AMap.toASet
     |> ASet.filter(fun (_, c) -> c.Resources.Status = Status.Alive)
     |> ASet.map fst
 
-  let aReadyAbilities entities gameTime : aset<int<EntityId> * int<AbilityId>> =
+  let aReadyAbilities entities gameTime =
     let allCoolDowns =
       entities
       |> AMap.toASet

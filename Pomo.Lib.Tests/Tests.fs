@@ -1,12 +1,14 @@
 ﻿namespace Pomo.Lib.Tests
 
-open Pomo.Lib.Domain.State
 open Xunit
+open System
+open FSharp.UMX
 open FsCheck
 open FsCheck.FSharp
 open FsCheck.Xunit
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
+open Pomo.Lib.Domain.State
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Gameplay
@@ -110,10 +112,14 @@ module private TestHelpers =
       Equipment = HashMap.empty
     }
 
-  let addEntity (state: GameState) (id: int<EntityId>) (all: EntityComponents) =
+  let addEntity
+    (state: GameState)
+    (id: Guid<EntityId>)
+    (all: EntityComponents)
+    =
     transact(fun _ -> state.entities.Add(id, all) |> ignore)
 
-  let derivedOf (state: GameState) (id: int<EntityId>) =
+  let derivedOf (state: GameState) (id: Guid<EntityId>) =
     GameState.getDerivedStats state |> AMap.force |> (fun m -> m[id])
 
 // --------------------------------------------------
@@ -125,7 +131,7 @@ type ``Derived Stats``() =
     (baseAttrs: BaseAttributes)
     =
     let state = TestHelpers.create(fun _ -> 0.5)
-    let id = 1<EntityId>
+    let id = Guid.NewGuid() |> UMX.tag<EntityId>
 
     let entity =
       TestHelpers.makeEntity [ Classification.Player ] baseAttrs 100 100 []
@@ -186,8 +192,8 @@ type ``Action Resolution``() =
     }
 
     let state = TestHelpers.create(fun () -> 0.1)
-    let attackerId = 1<EntityId>
-    let targetId = 2<EntityId>
+    let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 8<AbilityId> // Basic Melee Attack No Cost and No Effects
 
     let attacker =
@@ -220,8 +226,8 @@ type ``Action Resolution``() =
   [<Fact>]
   member _.``Magic attack applies expected damage with MD``() =
     let state = TestHelpers.create(fun () -> 0.1)
-    let attackerId = 1<EntityId>
-    let targetId = 2<EntityId>
+    let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let spell = 6<AbilityId> // Fireball
 
     let attacker =
@@ -272,8 +278,8 @@ type ``Action Resolution``() =
   [<Fact>]
   member _.``Spell casting applies damage, costs MP, and can kill target``() =
     let state = TestHelpers.create(fun () -> 0.5)
-    let casterId = 10<EntityId>
-    let victimId = 11<EntityId>
+    let casterId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let victimId = Guid.NewGuid() |> UMX.tag<EntityId>
     let spell = 2<AbilityId>
 
     let casterBase = {
@@ -337,8 +343,8 @@ type ``Action Resolution``() =
     }
 
     let state = TestHelpers.create(fun _ -> 0.5)
-    let attackerId = 100<EntityId>
-    let targetId = 200<EntityId>
+    let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 1<AbilityId>
 
     let attacker =
@@ -385,8 +391,8 @@ type ``Action Resolution``() =
     }
 
     let state = TestHelpers.create(fun _ -> 0.5)
-    let attackerId = 1<EntityId>
-    let targetId = 2<EntityId>
+    let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 1<AbilityId>
 
     let attacker =
@@ -438,8 +444,8 @@ type ``Action Resolution``() =
     }
 
     let state = TestHelpers.create(fun _ -> 0.5)
-    let attackerId = 1<EntityId>
-    let targetId = 2<EntityId>
+    let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 1<AbilityId>
 
     let attacker =
@@ -489,8 +495,8 @@ type ``Action Resolution``() =
     }
 
     let state = TestHelpers.create(fun _ -> 0.5)
-    let attackerId = 1<EntityId>
-    let targetId = 2<EntityId>
+    let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 1<AbilityId>
 
     let attacker =
@@ -556,13 +562,20 @@ type ``Combat Mechanics Properties``() =
     // 3. Advantage >= 45 => clamp 0.95; disadvantage <= -45 => clamp 0.05
     // 4. Monotonic direction relative to 0.5 baseline when stats positive and unequal
     let rangeOk =
-      if ac = 0 && hv = 0 then chance = 1.0 else chance >= 0.05 && chance <= 0.95
+      if ac = 0 && hv = 0 then
+        chance = 1.0
+      else
+        chance >= 0.05 && chance <= 0.95
 
-    let equalOk =
-      if ac = hv && ac > 0 then chance = 0.5 else true
+    let equalOk = if ac = hv && ac > 0 then chance = 0.5 else true
 
     let clampHighOk = if diff >= 45 then chance = 0.95 else true
-    let clampLowOk = if diff <= -45 && not (ac = 0 && hv = 0) then chance = 0.05 else true
+
+    let clampLowOk =
+      if diff <= -45 && not(ac = 0 && hv = 0) then
+        chance = 0.05
+      else
+        true
 
     let directionOk =
       if ac > hv then chance >= 0.5
@@ -574,11 +587,18 @@ type ``Combat Mechanics Properties``() =
   [<Fact>]
   member _.``DynamicMod applies formula-calculated stat boost``() =
     let state = TestHelpers.create(fun () -> 0.5)
-    let playerId = 1<EntityId>
+    let playerId = Guid.NewGuid() |> UMX.tag<EntityId>
 
     // Player with Magic = 10 -> MA = 20 -> expected AP boost = 20/2 = 10
-    let baseStats = { Power = 5; Magic = 10; Sense = 5; Charm = 10 }
-    let player = TestHelpers.makeEntity [Classification.Player] baseStats 100 100 []
+    let baseStats = {
+      Power = 5
+      Magic = 10
+      Sense = 5
+      Charm = 10
+    }
+
+    let player =
+      TestHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
 
     TestHelpers.addEntity state playerId player
 
@@ -596,12 +616,14 @@ type ``Combat Mechanics Properties``() =
       Definition = state.services.effectStore.find 300<EffectId>
     }
 
-    transact (fun _ ->
+    transact(fun _ ->
       let currentComponents = state.entities[playerId]
-      state.entities[playerId] <- {
-        currentComponents with
-          Effects = AList.ofList [dynamicEffect]
-      })
+
+      state.entities[playerId] <-
+        {
+          currentComponents with
+              Effects = AList.ofList [ dynamicEffect ]
+        })
 
     // Get stats after applying DynamicMod effect
     let finalStats = GameState.getDerivedStats state |> AMap.force
@@ -614,11 +636,18 @@ type ``Combat Mechanics Properties``() =
   [<Fact>]
   member _.``DynamicMod evaluates with correct invoker stats``() =
     let state = TestHelpers.create(fun () -> 0.5)
-    let playerId = 1<EntityId>
+    let playerId = Guid.NewGuid() |> UMX.tag<EntityId>
 
     // Player with Magic = 20 -> MA = 40 -> expected AP boost = 40/2 = 20
-    let baseStats = { Power = 5; Magic = 20; Sense = 5; Charm = 10 }
-    let player = TestHelpers.makeEntity [Classification.Player] baseStats 100 100 []
+    let baseStats = {
+      Power = 5
+      Magic = 20
+      Sense = 5
+      Charm = 10
+    }
+
+    let player =
+      TestHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
 
     TestHelpers.addEntity state playerId player
 
@@ -634,12 +663,14 @@ type ``Combat Mechanics Properties``() =
       Definition = state.services.effectStore.find 300<EffectId>
     }
 
-    transact (fun _ ->
+    transact(fun _ ->
       let currentComponents = state.entities[playerId]
-      state.entities[playerId] <- {
-        currentComponents with
-          Effects = AList.ofList [dynamicEffect]
-      })
+
+      state.entities[playerId] <-
+        {
+          currentComponents with
+              Effects = AList.ofList [ dynamicEffect ]
+        })
 
     let finalStats = GameState.getDerivedStats state |> AMap.force
     let finalAP = finalStats[playerId].AP
@@ -650,10 +681,17 @@ type ``Combat Mechanics Properties``() =
   [<Fact>]
   member _.``Multiple DynamicMod effects stack correctly``() =
     let state = TestHelpers.create(fun () -> 0.5)
-    let playerId = 1<EntityId>
+    let playerId = Guid.NewGuid() |> UMX.tag<EntityId>
 
-    let baseStats = { Power = 5; Magic = 10; Sense = 5; Charm = 10 }
-    let player = TestHelpers.makeEntity [Classification.Player] baseStats 100 100 []
+    let baseStats = {
+      Power = 5
+      Magic = 10
+      Sense = 5
+      Charm = 10
+    }
+
+    let player =
+      TestHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
 
     TestHelpers.addEntity state playerId player
 
@@ -679,12 +717,14 @@ type ``Combat Mechanics Properties``() =
       Definition = state.services.effectStore.find 300<EffectId>
     }
 
-    transact (fun _ ->
+    transact(fun _ ->
       let currentComponents = state.entities[playerId]
-      state.entities[playerId] <- {
-        currentComponents with
-          Effects = AList.ofList [effect1; effect2]
-      })
+
+      state.entities[playerId] <-
+        {
+          currentComponents with
+              Effects = AList.ofList [ effect1; effect2 ]
+        })
 
     let finalStats = GameState.getDerivedStats state |> AMap.force
     let finalAP = finalStats[playerId].AP
@@ -696,11 +736,18 @@ type ``Combat Mechanics Properties``() =
   [<Fact>]
   member _.``DynamicMod can target MA``() =
     let state = TestHelpers.create(fun () -> 0.5)
-    let playerId = 1<EntityId>
+    let playerId = Guid.NewGuid() |> UMX.tag<EntityId>
 
     // Player with Magic = 20 -> MA = 40 -> expected MA boost = 40/2 = 20
-    let baseStats = { Power = 5; Magic = 20; Sense = 5; Charm = 10 }
-    let player = TestHelpers.makeEntity [Classification.Player] baseStats 100 100 []
+    let baseStats = {
+      Power = 5
+      Magic = 20
+      Sense = 5
+      Charm = 10
+    }
+
+    let player =
+      TestHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
 
     TestHelpers.addEntity state playerId player
 
@@ -716,12 +763,14 @@ type ``Combat Mechanics Properties``() =
       Definition = state.services.effectStore.find 301<EffectId>
     }
 
-    transact (fun _ ->
+    transact(fun _ ->
       let currentComponents = state.entities[playerId]
-      state.entities[playerId] <- {
-        currentComponents with
-          Effects = AList.ofList [dynamicEffect]
-      })
+
+      state.entities[playerId] <-
+        {
+          currentComponents with
+              Effects = AList.ofList [ dynamicEffect ]
+        })
 
     let finalStats = GameState.getDerivedStats state |> AMap.force
     let finalMA = finalStats[playerId].MA
@@ -732,11 +781,18 @@ type ``Combat Mechanics Properties``() =
   [<Fact>]
   member _.``DynamicMod targeting different stats stacks independently``() =
     let state = TestHelpers.create(fun () -> 0.5)
-    let playerId = 1<EntityId>
+    let playerId = Guid.NewGuid() |> UMX.tag<EntityId>
 
     // Player with Magic = 10 -> MA = 20 -> boost = 20/2 = 10
-    let baseStats = { Power = 5; Magic = 10; Sense = 5; Charm = 10 }
-    let player = TestHelpers.makeEntity [Classification.Player] baseStats 100 100 []
+    let baseStats = {
+      Power = 5
+      Magic = 10
+      Sense = 5
+      Charm = 10
+    }
+
+    let player =
+      TestHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
 
     TestHelpers.addEntity state playerId player
 
@@ -763,12 +819,14 @@ type ``Combat Mechanics Properties``() =
       Definition = state.services.effectStore.find 301<EffectId>
     }
 
-    transact (fun _ ->
+    transact(fun _ ->
       let currentComponents = state.entities[playerId]
-      state.entities[playerId] <- {
-        currentComponents with
-          Effects = AList.ofList [apEffect; maEffect]
-      })
+
+      state.entities[playerId] <-
+        {
+          currentComponents with
+              Effects = AList.ofList [ apEffect; maEffect ]
+        })
 
     let finalStats = GameState.getDerivedStats state |> AMap.force
     let finalAP = finalStats[playerId].AP
@@ -790,11 +848,19 @@ type ``Combat Mechanics Properties``() =
     let diff = lkA - lkD
 
     let rangeOk =
-      if lkA = 0 && lkD = 0 then chance = 1.0 else chance >= 0.05 && chance <= 0.95
+      if lkA = 0 && lkD = 0 then
+        chance = 1.0
+      else
+        chance >= 0.05 && chance <= 0.95
 
     let equalOk = if lkA = lkD && lkA > 0 then chance = 0.5 else true
     let clampHighOk = if diff >= 45 then chance = 0.95 else true
-    let clampLowOk = if diff <= -45 && not (lkA = 0 && lkD = 0) then chance = 0.05 else true
+
+    let clampLowOk =
+      if diff <= -45 && not(lkA = 0 && lkD = 0) then
+        chance = 0.05
+      else
+        true
 
     let directionOk =
       if lkA > lkD then chance >= 0.5
@@ -813,9 +879,9 @@ type ``Combat Mechanics Properties``() =
 
     let state = TestHelpers.create(fun () -> rngValue)
 
-    let attackerIdLow = 1<EntityId>
-    let attackerIdHigh = 2<EntityId>
-    let targetId = 10<EntityId>
+    let attackerIdLow = Guid.NewGuid() |> UMX.tag<EntityId>
+    let attackerIdHigh = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let meleeId = 1<AbilityId>
 
     let lowStats = {

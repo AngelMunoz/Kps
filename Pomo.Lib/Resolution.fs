@@ -1,5 +1,7 @@
 namespace Pomo.Lib.Rules
 
+open System
+open FSharp.UMX
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Effects
@@ -12,7 +14,7 @@ open Pomo.Lib.Domain.Services
 open Pomo.Lib.Domain.Abilities
 
 module Resolution =
-  let calculateHitChance (attackerStat: int) (defenderStat: int) =
+  let calculateHitChance attackerStat defenderStat =
     let attackerValue = float attackerStat
     let defenderValue = float defenderStat
 
@@ -47,129 +49,129 @@ module Resolution =
     attackerEffects: alist<ActiveEffect>
   }
 
-  let calculateDamage (damageParams: DamageParams) (formulaId: int<FormulaId>) =
-    adaptive {
-      match damageParams.services.formulaStore.tryFind formulaId with
-      | ValueSome formula ->
+  let calculateDamage damageParams formulaId = adaptive {
+    match damageParams.services.formulaStore.tryFind formulaId with
+    | ValueSome formula ->
 
-        let formulaResult =
-          formula.Calculate {
-            InvokerStats = damageParams.attackerStats
-            InvokerElementalAttributes =
-              damageParams.attackerStats.ElementAttributes
-            TargetElementalResistances =
-              damageParams.defenderStats.ElementResistances
-          }
+      let formulaResult =
+        formula.Calculate {
+          InvokerStats = damageParams.attackerStats
+          InvokerElementalAttributes =
+            damageParams.attackerStats.ElementAttributes
+          TargetElementalResistances =
+            damageParams.defenderStats.ElementResistances
+        }
 
-        // STEP 1: Hit/Miss calculation based on damage type
-        let hitRoll = damageParams.services.rng()
+      // STEP 1: Hit/Miss calculation based on damage type
+      let hitRoll = damageParams.services.rng()
 
-        let hitChance =
-          match formulaResult.DamageType with
-          | DamageType.Neutral -> 1.0
-          | DamageType.Physical ->
-            calculateHitChance
-              damageParams.attackerStats.AC
-              damageParams.defenderStats.HV
-          | DamageType.Magical ->
-            calculateHitChance
-              damageParams.attackerStats.LK
-              damageParams.defenderStats.LK
+      let hitChance =
+        match formulaResult.DamageType with
+        | DamageType.Neutral -> 1.0
+        | DamageType.Physical ->
+          calculateHitChance
+            damageParams.attackerStats.AC
+            damageParams.defenderStats.HV
+        | DamageType.Magical ->
+          calculateHitChance
+            damageParams.attackerStats.LK
+            damageParams.defenderStats.LK
 
-        let isHit = hitRoll < hitChance
+      let isHit = hitRoll < hitChance
 
-        if not isHit then
-          return {
-            Amount = 0
-            IsCritical = false
-            IsEvaded = true
-          }
-        else
-          // STEP 2-4: Calculate damage (includes base damage, modifiers, and final damage)
-          // Apply critical hit (uses LK)
-          let critRoll = damageParams.services.rng()
-          let isCritical = critRoll < float damageParams.attackerStats.LK * 0.01
-
-          let damageBonus =
-            if isCritical then
-              int(
-                float(formulaResult.BaseDamage + formulaResult.ElementalDamage)
-                * 0.10
-              )
-            else
-              0
-
-          let finalElementalDamage =
-            if formulaResult.ElementalDamage > 0 then
-              let elementRes =
-                damageParams.defenderStats.ElementResistances.TryFindV
-                  formulaResult.Element
-                |> ValueOption.defaultValue 0.0
-
-              float formulaResult.ElementalDamage * (1.0 - elementRes) |> int
-            else
-              0
-
-          let totalDamage = formulaResult.BaseDamage + finalElementalDamage
-
-          // Apply defense reduction
-          let damageAfterDefense =
-            match formulaResult.DamageType with
-            | DamageType.Physical -> totalDamage - damageParams.defenderStats.DP
-            | DamageType.Magical -> totalDamage - damageParams.defenderStats.MD
-            | DamageType.Neutral -> totalDamage
-
-          // Apply AbilityDamageMod from active effects
-          let! abilityDamageMod =
-            damageParams.attackerEffects
-            |> AList.fold
-              (fun acc effect ->
-                effect.Definition.Modifiers
-                |> Array.fold
-                  (fun modAcc modifier ->
-                    match modifier with
-                    | EffectModifier.AbilityDamageMod value -> modAcc + value
-                    | _ -> modAcc)
-                  acc)
-              0.0
-
-          let damageWithModifier =
-            if abilityDamageMod > 0.0 then
-              damageAfterDefense + int(float damageAfterDefense * abilityDamageMod)
-            else
-              damageAfterDefense
-
-          let finalDamage = max 0 (damageWithModifier + damageBonus)
-
-          return {
-            Amount = int finalDamage
-            IsCritical = isCritical
-            IsEvaded = false
-          }
-      | ValueNone ->
+      if not isHit then
         return {
           Amount = 0
           IsCritical = false
+          IsEvaded = true
+        }
+      else
+        // STEP 2-4: Calculate damage (includes base damage, modifiers, and final damage)
+        // Apply critical hit (uses LK)
+        let critRoll = damageParams.services.rng()
+        let isCritical = critRoll < float damageParams.attackerStats.LK * 0.01
+
+        let damageBonus =
+          if isCritical then
+            int(
+              float(formulaResult.BaseDamage + formulaResult.ElementalDamage)
+              * 0.10
+            )
+          else
+            0
+
+        let finalElementalDamage =
+          if formulaResult.ElementalDamage > 0 then
+            let elementRes =
+              damageParams.defenderStats.ElementResistances.TryFindV
+                formulaResult.Element
+              |> ValueOption.defaultValue 0.0
+
+            float formulaResult.ElementalDamage * (1.0 - elementRes) |> int
+          else
+            0
+
+        let totalDamage = formulaResult.BaseDamage + finalElementalDamage
+
+        // Apply defense reduction
+        let damageAfterDefense =
+          match formulaResult.DamageType with
+          | DamageType.Physical -> totalDamage - damageParams.defenderStats.DP
+          | DamageType.Magical -> totalDamage - damageParams.defenderStats.MD
+          | DamageType.Neutral -> totalDamage
+
+        // Apply AbilityDamageMod from active effects
+        let! abilityDamageMod =
+          damageParams.attackerEffects
+          |> AList.fold
+            (fun acc effect ->
+              effect.Definition.Modifiers
+              |> Array.fold
+                (fun modAcc modifier ->
+                  match modifier with
+                  | EffectModifier.AbilityDamageMod value -> modAcc + value
+                  | _ -> modAcc)
+                acc)
+            0.0
+
+        let damageWithModifier =
+          if abilityDamageMod > 0.0 then
+            damageAfterDefense
+            + int(float damageAfterDefense * abilityDamageMod)
+          else
+            damageAfterDefense
+
+        let finalDamage = max 0 (damageWithModifier + damageBonus)
+
+        return {
+          Amount = int finalDamage
+          IsCritical = isCritical
           IsEvaded = false
         }
-    }
+    | ValueNone ->
+      return {
+        Amount = 0
+        IsCritical = false
+        IsEvaded = false
+      }
+  }
 
   type ResolverParams = {
-    entities: amap<int<EntityId>, EntityComponents>
-    enemies: amap<int<EntityId>, EntityComponents>
-    allies: amap<int<EntityId>, EntityComponents>
-    derivedStats: amap<int<EntityId>, DerivedStats>
+    entities: amap<Guid<EntityId>, EntityComponents>
+    enemies: amap<Guid<EntityId>, EntityComponents>
+    allies: amap<Guid<EntityId>, EntityComponents>
+    derivedStats: amap<Guid<EntityId>, DerivedStats>
     gameTime: cval<int64<Tick>>
     services: EngineServices
   }
 
   type ResolverActors = {
-    actor: int<EntityId>
-    target: int<EntityId>
+    actor: Guid<EntityId>
+    target: Guid<EntityId>
   }
 
   /// Helper function to check if an actor is taunted and must target a specific entity
-  let checkTauntTarget(actorEffects: alist<ActiveEffect>) = adaptive {
+  let checkTauntTarget actorEffects = adaptive {
     let tauntEffects =
       actorEffects
       |> AList.filter(fun effect -> effect.Definition.Kind = EffectKind.Taunt)
@@ -205,42 +207,30 @@ module Resolution =
       actor.Effects
       |> AList.exists(fun e -> e.Definition.Kind = EffectKind.Stun)
 
-    let checkSilence
-      (actor: EntityComponents)
-      (abilityDef: ActiveAbilityDefinition)
-      =
-      adaptive {
-        let! hasSilence =
-          actor.Effects
-          |> AList.exists(fun e -> e.Definition.Kind = EffectKind.Silence)
+    let checkSilence (actor: EntityComponents) abilityDef = adaptive {
+      let! hasSilence =
+        actor.Effects
+        |> AList.exists(fun e -> e.Definition.Kind = EffectKind.Silence)
 
-        let isSpellAbility =
-          match abilityDef.Cost with
-          | ValueSome c when c.Type = ResourceType.MP -> true
-          | _ -> false
+      let isSpellAbility =
+        match abilityDef.Cost with
+        | ValueSome c when c.Type = ResourceType.MP -> true
+        | _ -> false
 
-        return hasSilence && isSpellAbility
-      }
+      return hasSilence && isSpellAbility
+    }
 
-    let checkCooldown
-      (actor: EntityComponents)
-      (abilityId: int<AbilityId>)
-      (gameTime: int64<Tick> aval)
-      =
-      adaptive {
-        let! cooldowns = actor.AbilityCooldowns |> AMap.tryFind abilityId
-        let! gameTime = gameTime
+    let checkCooldown (actor: EntityComponents) abilityId gameTime = adaptive {
+      let! cooldowns = actor.AbilityCooldowns |> AMap.tryFind abilityId
+      let! gameTime = gameTime
 
-        return
-          match cooldowns with
-          | Some readyTime -> gameTime < readyTime
-          | None -> false
-      }
+      return
+        match cooldowns with
+        | Some readyTime -> gameTime < readyTime
+        | None -> false
+    }
 
-    let checkResourceCost
-      (actor: EntityComponents)
-      (abilityDef: ActiveAbilityDefinition)
-      =
+    let checkResourceCost (actor: EntityComponents) abilityDef =
       match abilityDef.Cost with
       | ValueSome c ->
         let hasEnough =
@@ -253,9 +243,8 @@ module Resolution =
 
     let checkAbilityRequirements
       (actor: EntityComponents)
-      (actorStats: DerivedStats)
-      (requirements: AbilityRequirement[])
-      (_: EngineServices)
+      actorStats
+      requirements
       =
       adaptive {
         let! hasAllRequirements =
@@ -293,31 +282,26 @@ module Resolution =
         return hasAllRequirements
       }
 
-    let resolveTaunt
-      (rparams: ResolverParams)
-      (ractors: ResolverActors)
-      (initialTarget: EntityComponents)
-      =
-      adaptive {
-        let! actor = rparams.entities |> AMap.tryFind ractors.actor
+    let resolveTaunt rparams ractors initialTarget = adaptive {
+      let! actor = rparams.entities |> AMap.tryFind ractors.actor
 
-        match actor with
-        | None -> return struct (ractors.target, initialTarget)
-        | Some actor ->
+      match actor with
+      | None -> return struct (ractors.target, initialTarget)
+      | Some actor ->
 
-        let! forcedTargetId = checkTauntTarget actor.Effects
+      let! forcedTargetId = checkTauntTarget actor.Effects
 
-        match forcedTargetId with
-        | ValueNone -> return struct (ractors.target, initialTarget)
-        | ValueSome targetId ->
+      match forcedTargetId with
+      | ValueNone -> return struct (ractors.target, initialTarget)
+      | ValueSome targetId ->
 
-        let! newTarget = rparams.entities |> AMap.tryFind targetId
+      let! newTarget = rparams.entities |> AMap.tryFind targetId
 
-        return
-          match newTarget with
-          | Some t -> struct (targetId, t)
-          | None -> struct (ractors.target, initialTarget)
-      }
+      return
+        match newTarget with
+        | Some t -> struct (targetId, t)
+        | None -> struct (ractors.target, initialTarget)
+    }
 
   module Shared =
     let determineNewEffect
@@ -348,42 +332,10 @@ module Resolution =
                 effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
         }
 
-    let processEffect
-      (effectDef: EffectDefinition)
-      (targetComponents: EntityComponents)
-      (actorId: int<EntityId>)
-      (_: int<EntityId>)
-      =
-      adaptive {
-        let! existingEffect = adaptive {
-          let! effects = targetComponents.Effects |> AList.toAVal
-
-          return
-            effects |> IndexList.tryFind(fun _ e -> e.EffectId = effectDef.Id)
-        }
-
-        let newEffect =
-          match existingEffect with
-          | Some e -> determineNewEffect effectDef e
-          | None ->
-            ValueSome {
-              EffectId = effectDef.Id
-              SourceId = actorId
-              RemainingTicks =
-                effectDef.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
-              NextTickIn =
-                effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
-              Stacks = 1
-              Definition = effectDef
-            }
-
-        return newEffect
-      }
-
     let applyAbilityEffects
       (effectStore: IEffectStore)
       (abilityDef: ActiveAbilityDefinition)
-      (actorId: int<EntityId>)
+      actorId
       (targetComponents: EntityComponents)
       =
       let processEffects(currentEffects: IndexList<ActiveEffect>) =
@@ -484,10 +436,11 @@ module Resolution =
                 actorComponents.Resources with
                     HP = actorComponents.Resources.HP - cost.Amount
               }
-            | ResourceType.MP -> {
-                actorComponents.Resources with
-                    MP = actorComponents.Resources.MP - cost.Amount
-              }
+            | ResourceType.MP ->
+                {
+                  actorComponents.Resources with
+                      MP = actorComponents.Resources.MP - cost.Amount
+                }
           | ValueNone -> actorComponents.Resources
 
         // Apply ResourceConversion modifiers
@@ -499,11 +452,16 @@ module Resolution =
               | ResourceType.HP, ResourceType.HP when ratio < 0.0 ->
                 // HP-cost amplification: consume HP based on damage dealt
                 let hpCost = int(float damageAmount * abs ratio)
-                { resources with HP = resources.HP - hpCost }
+
+                {
+                  resources with
+                      HP = resources.HP - hpCost
+                }
               | ResourceType.MP, ResourceType.HP when ratio > 0.0 ->
                 // MP to HP conversion: convert MP to HP
                 let mpToConvert = resources.MP
                 let hpGained = int(float mpToConvert * ratio)
+
                 {
                   resources with
                       MP = 0
@@ -513,6 +471,7 @@ module Resolution =
                 // HP to MP conversion
                 let hpToConvert = resources.HP
                 let mpGained = int(float hpToConvert * ratio)
+
                 {
                   resources with
                       HP = 0
@@ -529,9 +488,9 @@ module Resolution =
 
     let updateCooldowns
       (actorComponents: EntityComponents)
-      (abilityId: int<AbilityId>)
-      (gameTime: int64<Tick>)
-      (abilityDef: ActiveAbilityDefinition)
+      abilityId
+      gameTime
+      abilityDef
       =
       {
         actorComponents with
@@ -544,7 +503,7 @@ module Resolution =
   [<Struct>]
   type ValidatedActionResult = {
     actor: EntityComponents
-    target: int<EntityId>
+    target: Guid<EntityId>
     targetComponents: EntityComponents
     cost: ResourceCost voption
     abilityDefinition: ActiveAbilityDefinition
@@ -566,7 +525,7 @@ module Resolution =
   let validateAction
     (rparams: ResolverParams)
     (ractors: ResolverActors)
-    (abilityId: int<AbilityId>)
+    abilityId
     =
     adaptive {
       let! actor = rparams.entities |> AMap.tryFind ractors.actor
@@ -597,7 +556,6 @@ module Resolution =
             actor
             actorStats
             abilityDef.Requirements
-            rparams.services
 
         if isStunned then
           return Stunned

@@ -1,4 +1,5 @@
 namespace Pomo.Lib.FormulaParser
+
 #nowarn "3391"
 
 open System

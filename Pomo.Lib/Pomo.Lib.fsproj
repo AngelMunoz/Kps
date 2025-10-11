@@ -13,6 +13,7 @@
     <Compile Include="Content.fs" />
     <Compile Include="Gameplay.fs" />
     <Compile Include="Resolution.fs" />
+    <Compile Include="GameStateOperations.fs" />
   </ItemGroup>
 
   <ItemGroup>

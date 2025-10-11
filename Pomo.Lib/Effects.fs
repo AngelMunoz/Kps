@@ -1,5 +1,7 @@
 namespace Pomo.Lib.Effects
 
+open System
+open FSharp.UMX
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Effects
@@ -9,7 +11,7 @@ module StatusEffects =
   let applyEffect
     (targetEffects: ActiveEffect alist)
     (effectToApply: EffectDefinition)
-    (sourceId: int<EntityId>)
+    sourceId
     =
 
     adaptive {

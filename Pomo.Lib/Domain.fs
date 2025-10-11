@@ -1,6 +1,8 @@
 namespace Pomo.Lib.Domain
 
+open System
 open FSharp.Data.Adaptive
+open FSharp.UMX
 
 // All measure types defined at the top
 [<Measure>]
@@ -158,10 +160,7 @@ module Inventory =
     | Legendary
 
   [<Struct>]
-  type ItemStatBonus = {
-    Stat: Stat
-    Value: int
-  }
+  type ItemStatBonus = { Stat: Stat; Value: int }
 
   [<Struct>]
   type Equipment = {
@@ -227,7 +226,7 @@ module Effects =
   [<Struct>]
   type ActiveEffect = {
     EffectId: int<EffectId> // Corresponds to a definition
-    SourceId: int<EntityId>
+    SourceId: Guid<EntityId>
     RemainingTicks: int64<Tick>
     NextTickIn: int64<Tick>
     Stacks: int
@@ -329,8 +328,8 @@ module Rules =
 
   [<Struct>]
   type UseAbilityAction = {
-    actor: int<EntityId>
-    targets: int<EntityId>[]
+    actor: Guid<EntityId>
+    targets: Guid<EntityId>[]
     abilityId: int<AbilityId>
   }
 
@@ -381,6 +380,6 @@ module State =
 
   [<Struct>]
   type StateChange = {
-    entities: HashMap<int<EntityId>, EntityComponents>
+    entities: HashMap<Guid<EntityId>, EntityComponents>
     gameTime: int64<Tick> voption
   }

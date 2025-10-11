@@ -272,7 +272,7 @@ module FormulaStore =
         Name = "Magic-based AP Boost"
         Calculate =
           fun ctx -> {
-            BaseDamage = ctx.InvokerStats.MA / 2  // AP boost = half of Magic Attack
+            BaseDamage = ctx.InvokerStats.MA / 2 // AP boost = half of Magic Attack
             ElementalDamage = 0
             Element = Attributes.Neutral
             DamageType = DamageType.Neutral
@@ -445,85 +445,166 @@ module CharacterKitStore =
       {
         Profession = { Family = Power; Stage = First }
         Name = "Warrior Initiate"
-        BaseStats = { Power = 15; Magic = 5; Sense = 8; Charm = 12 }
+        BaseStats = {
+          Power = 15
+          Magic = 5
+          Sense = 8
+          Charm = 12
+        }
         StarterAbilities = [| 8<AbilityId> |]
       }
       { Family = Power; Stage = Second },
       {
         Profession = { Family = Power; Stage = Second }
         Name = "Veteran Fighter"
-        BaseStats = { Power = 22; Magic = 7; Sense = 12; Charm = 17 }
+        BaseStats = {
+          Power = 22
+          Magic = 7
+          Sense = 12
+          Charm = 17
+        }
         StarterAbilities = [| 8<AbilityId>; 1<AbilityId> |]
       }
       { Family = Power; Stage = Third },
       {
         Profession = { Family = Power; Stage = Third }
         Name = "Battle Master"
-        BaseStats = { Power = 30; Magic = 10; Sense = 15; Charm = 22 }
+        BaseStats = {
+          Power = 30
+          Magic = 10
+          Sense = 15
+          Charm = 22
+        }
         StarterAbilities = [| 8<AbilityId>; 1<AbilityId>; 100<AbilityId> |]
       }
       { Family = Magic; Stage = First },
       {
         Profession = { Family = Magic; Stage = First }
         Name = "Apprentice Mage"
-        BaseStats = { Power = 5; Magic = 15; Sense = 10; Charm = 8 }
+        BaseStats = {
+          Power = 5
+          Magic = 15
+          Sense = 10
+          Charm = 8
+        }
         StarterAbilities = [| 2<AbilityId>; 4<AbilityId> |]
       }
       { Family = Magic; Stage = Second },
       {
         Profession = { Family = Magic; Stage = Second }
         Name = "Adept Sorcerer"
-        BaseStats = { Power = 8; Magic = 22; Sense = 14; Charm = 12 }
+        BaseStats = {
+          Power = 8
+          Magic = 22
+          Sense = 14
+          Charm = 12
+        }
         StarterAbilities = [| 2<AbilityId>; 4<AbilityId>; 6<AbilityId> |]
       }
       { Family = Magic; Stage = Third },
       {
         Profession = { Family = Magic; Stage = Third }
         Name = "Archmage"
-        BaseStats = { Power = 10; Magic = 30; Sense = 18; Charm = 15 }
-        StarterAbilities = [| 2<AbilityId>; 4<AbilityId>; 6<AbilityId>; 9<AbilityId> |]
+        BaseStats = {
+          Power = 10
+          Magic = 30
+          Sense = 18
+          Charm = 15
+        }
+        StarterAbilities = [|
+          2<AbilityId>
+          4<AbilityId>
+          6<AbilityId>
+          9<AbilityId>
+        |]
       }
       { Family = Sense; Stage = First },
       {
         Profession = { Family = Sense; Stage = First }
         Name = "Scout Novice"
-        BaseStats = { Power = 10; Magic = 8; Sense = 15; Charm = 10 }
+        BaseStats = {
+          Power = 10
+          Magic = 8
+          Sense = 15
+          Charm = 10
+        }
         StarterAbilities = [| 8<AbilityId>; 3<AbilityId> |]
       }
       { Family = Sense; Stage = Second },
       {
         Profession = { Family = Sense; Stage = Second }
         Name = "Skilled Ranger"
-        BaseStats = { Power = 14; Magic = 12; Sense = 22; Charm = 14 }
+        BaseStats = {
+          Power = 14
+          Magic = 12
+          Sense = 22
+          Charm = 14
+        }
         StarterAbilities = [| 8<AbilityId>; 3<AbilityId>; 6<AbilityId> |]
       }
       { Family = Sense; Stage = Third },
       {
         Profession = { Family = Sense; Stage = Third }
         Name = "Master Scout"
-        BaseStats = { Power = 18; Magic = 15; Sense = 30; Charm = 18 }
-        StarterAbilities = [| 8<AbilityId>; 3<AbilityId>; 6<AbilityId>; 9<AbilityId> |]
+        BaseStats = {
+          Power = 18
+          Magic = 15
+          Sense = 30
+          Charm = 18
+        }
+        StarterAbilities = [|
+          8<AbilityId>
+          3<AbilityId>
+          6<AbilityId>
+          9<AbilityId>
+        |]
       }
       { Family = Charm; Stage = First },
       {
         Profession = { Family = Charm; Stage = First }
         Name = "Defender Trainee"
-        BaseStats = { Power = 8; Magic = 7; Sense = 8; Charm = 15 }
+        BaseStats = {
+          Power = 8
+          Magic = 7
+          Sense = 8
+          Charm = 15
+        }
         StarterAbilities = [| 8<AbilityId>; 5<AbilityId>; 7<AbilityId> |]
       }
       { Family = Charm; Stage = Second },
       {
         Profession = { Family = Charm; Stage = Second }
         Name = "Guardian Knight"
-        BaseStats = { Power = 12; Magic = 10; Sense = 12; Charm = 22 }
-        StarterAbilities = [| 8<AbilityId>; 5<AbilityId>; 7<AbilityId>; 4<AbilityId> |]
+        BaseStats = {
+          Power = 12
+          Magic = 10
+          Sense = 12
+          Charm = 22
+        }
+        StarterAbilities = [|
+          8<AbilityId>
+          5<AbilityId>
+          7<AbilityId>
+          4<AbilityId>
+        |]
       }
       { Family = Charm; Stage = Third },
       {
         Profession = { Family = Charm; Stage = Third }
         Name = "Protector Paragon"
-        BaseStats = { Power = 15; Magic = 13; Sense = 15; Charm = 30 }
-        StarterAbilities = [| 8<AbilityId>; 5<AbilityId>; 7<AbilityId>; 4<AbilityId>; 101<AbilityId> |]
+        BaseStats = {
+          Power = 15
+          Magic = 13
+          Sense = 15
+          Charm = 30
+        }
+        StarterAbilities = [|
+          8<AbilityId>
+          5<AbilityId>
+          7<AbilityId>
+          4<AbilityId>
+          101<AbilityId>
+        |]
       }
     ]
 
@@ -580,7 +661,11 @@ module EquipmentStore =
         Name = "Mystic Robes"
         Slot = Chest
         Rarity = Rare
-        StatBonuses = [| { Stat = MA; Value = 12 }; { Stat = MD; Value = 10 }; { Stat = MP; Value = 50 } |]
+        StatBonuses = [|
+          { Stat = MA; Value = 12 }
+          { Stat = MD; Value = 10 }
+          { Stat = MP; Value = 50 }
+        |]
         ElementalAttributes = HashMap.ofList [ Light, 8.0 ]
         ElementalResistances = HashMap.ofList [ Dark, 0.2 ]
       }
@@ -590,7 +675,11 @@ module EquipmentStore =
         Name = "Ranger's Tunic"
         Slot = Chest
         Rarity = Uncommon
-        StatBonuses = [| { Stat = DX; Value = 8 }; { Stat = HV; Value = 6 }; { Stat = DA; Value = 5 } |]
+        StatBonuses = [|
+          { Stat = DX; Value = 8 }
+          { Stat = HV; Value = 6 }
+          { Stat = DA; Value = 5 }
+        |]
         ElementalAttributes = HashMap.empty
         ElementalResistances = HashMap.ofList [ Earth, 0.15 ]
       }
@@ -610,7 +699,11 @@ module EquipmentStore =
         Name = "Enchanted Greaves"
         Slot = Legs
         Rarity = Epic
-        StatBonuses = [| { Stat = DP; Value = 20 }; { Stat = MD; Value = 15 }; { Stat = HP; Value = 80 } |]
+        StatBonuses = [|
+          { Stat = DP; Value = 20 }
+          { Stat = MD; Value = 15 }
+          { Stat = HP; Value = 80 }
+        |]
         ElementalAttributes = HashMap.ofList [ Light, 10.0 ]
         ElementalResistances = HashMap.ofList [ Fire, 0.25; Dark, 0.25 ]
       }
@@ -660,7 +753,11 @@ module EquipmentStore =
         Name = "Staff of Arcane Power"
         Slot = Weapon1
         Rarity = Legendary
-        StatBonuses = [| { Stat = MA; Value = 35 }; { Stat = MP; Value = 100 }; { Stat = LK; Value = 10 } |]
+        StatBonuses = [|
+          { Stat = MA; Value = 35 }
+          { Stat = MP; Value = 100 }
+          { Stat = LK; Value = 10 }
+        |]
         ElementalAttributes = HashMap.ofList [ Light, 25.0; Fire, 15.0 ]
         ElementalResistances = HashMap.ofList [ Dark, 0.3 ]
       }
@@ -700,9 +797,14 @@ module EquipmentStore =
         Name = "Amulet of Vitality"
         Slot = Accessory
         Rarity = Rare
-        StatBonuses = [| { Stat = HP; Value = 100 }; { Stat = DP; Value = 10 }; { Stat = MD; Value = 10 } |]
+        StatBonuses = [|
+          { Stat = HP; Value = 100 }
+          { Stat = DP; Value = 10 }
+          { Stat = MD; Value = 10 }
+        |]
         ElementalAttributes = HashMap.empty
-        ElementalResistances = HashMap.ofList [ Fire, 0.15; Water, 0.15; Earth, 0.15; Air, 0.15 ]
+        ElementalResistances =
+          HashMap.ofList [ Fire, 0.15; Water, 0.15; Earth, 0.15; Air, 0.15 ]
       }
       18<ItemId>,
       {
@@ -711,7 +813,21 @@ module EquipmentStore =
         Slot = Accessory
         Rarity = Legendary
         StatBonuses = [| { Stat = MA; Value = 20 }; { Stat = DA; Value = 15 } |]
-        ElementalAttributes = HashMap.ofList [ Fire, 10.0; Water, 10.0; Earth, 10.0; Air, 10.0; Lightning, 10.0 ]
-        ElementalResistances = HashMap.ofList [ Fire, 0.25; Water, 0.25; Earth, 0.25; Air, 0.25; Lightning, 0.25 ]
+        ElementalAttributes =
+          HashMap.ofList [
+            Fire, 10.0
+            Water, 10.0
+            Earth, 10.0
+            Air, 10.0
+            Lightning, 10.0
+          ]
+        ElementalResistances =
+          HashMap.ofList [
+            Fire, 0.25
+            Water, 0.25
+            Earth, 0.25
+            Air, 0.25
+            Lightning, 0.25
+          ]
       }
     ]

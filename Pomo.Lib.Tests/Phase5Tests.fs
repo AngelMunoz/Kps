@@ -7,14 +7,14 @@ open Pomo.Lib.Domain.CharacterKits
 open Pomo.Lib.Content.CharacterKitStore
 
 [<Fact>]
-let ``CharacterKitStore should contain 12 character base kits`` () =
+let ``CharacterKitStore should contain 12 character base kits``() =
   let kitCount = definitions |> Map.count
   Assert.Equal(12, kitCount)
 
 [<Fact>]
-let ``All 12 profession combinations should be present`` () =
-  let families = [Power; Magic; Sense; Charm]
-  let stages = [First; Second; Third]
+let ``All 12 profession combinations should be present``() =
+  let families = [ Power; Magic; Sense; Charm ]
+  let stages = [ First; Second; Third ]
 
   for family in families do
     for stage in stages do
@@ -35,7 +35,10 @@ let ``All 12 profession combinations should be present`` () =
 [<InlineData("Charm", "First")>]
 [<InlineData("Charm", "Second")>]
 [<InlineData("Charm", "Third")>]
-let ``Each character kit should have valid base stats`` (familyStr: string) (stageStr: string) =
+let ``Each character kit should have valid base stats``
+  (familyStr: string)
+  (stageStr: string)
+  =
   let family =
     match familyStr with
     | "Power" -> Power
@@ -72,7 +75,11 @@ let ``Each character kit should have valid base stats`` (familyStr: string) (sta
 [<InlineData("Charm", "First", 15)>]
 [<InlineData("Charm", "Second", 22)>]
 [<InlineData("Charm", "Third", 30)>]
-let ``Primary stat should match expected value for stage`` (familyStr: string) (stageStr: string) (expectedPrimaryStat: int) =
+let ``Primary stat should match expected value for stage``
+  (familyStr: string)
+  (stageStr: string)
+  (expectedPrimaryStat: int)
+  =
   let family =
     match familyStr with
     | "Power" -> Power
@@ -101,13 +108,19 @@ let ``Primary stat should match expected value for stage`` (familyStr: string) (
   Assert.Equal(expectedPrimaryStat, primaryStat)
 
 [<Fact>]
-let ``Each character kit should have at least one starter ability`` () =
+let ``Each character kit should have at least one starter ability``() =
   for kvp in definitions do
     let kit = kvp.Value
-    Assert.True(kit.StarterAbilities.Length > 0, $"Kit {kit.Name} has no starter abilities")
+
+    Assert.True(
+      kit.StarterAbilities.Length > 0,
+      $"Kit {kit.Name} has no starter abilities"
+    )
 
 [<Fact>]
-let ``Power family kits should have name containing warrior or fighter or battle`` () =
+let ``Power family kits should have name containing warrior or fighter or battle``
+  ()
+  =
   let powerFirst = definitions |> Map.find { Family = Power; Stage = First }
   let powerSecond = definitions |> Map.find { Family = Power; Stage = Second }
   let powerThird = definitions |> Map.find { Family = Power; Stage = Third }
@@ -117,7 +130,9 @@ let ``Power family kits should have name containing warrior or fighter or battle
   Assert.Contains("Battle", powerThird.Name)
 
 [<Fact>]
-let ``Magic family kits should have name containing mage or sorcerer or arch`` () =
+let ``Magic family kits should have name containing mage or sorcerer or arch``
+  ()
+  =
   let magicFirst = definitions |> Map.find { Family = Magic; Stage = First }
   let magicSecond = definitions |> Map.find { Family = Magic; Stage = Second }
   let magicThird = definitions |> Map.find { Family = Magic; Stage = Third }
@@ -127,7 +142,7 @@ let ``Magic family kits should have name containing mage or sorcerer or arch`` (
   Assert.Contains("Archmage", magicThird.Name)
 
 [<Fact>]
-let ``Sense family kits should have name containing scout or ranger`` () =
+let ``Sense family kits should have name containing scout or ranger``() =
   let senseFirst = definitions |> Map.find { Family = Sense; Stage = First }
   let senseSecond = definitions |> Map.find { Family = Sense; Stage = Second }
   let senseThird = definitions |> Map.find { Family = Sense; Stage = Third }
@@ -137,7 +152,9 @@ let ``Sense family kits should have name containing scout or ranger`` () =
   Assert.Contains("Scout", senseThird.Name)
 
 [<Fact>]
-let ``Charm family kits should have name containing defender or guardian or protector`` () =
+let ``Charm family kits should have name containing defender or guardian or protector``
+  ()
+  =
   let charmFirst = definitions |> Map.find { Family = Charm; Stage = First }
   let charmSecond = definitions |> Map.find { Family = Charm; Stage = Second }
   let charmThird = definitions |> Map.find { Family = Charm; Stage = Third }
