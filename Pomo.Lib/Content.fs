@@ -120,7 +120,7 @@ module EffectStore =
         |]
         FormulaId = ValueNone
       }
-      // Enhanced Effects for Testing (not wired into the linear pipeline yet; kept for future use)
+      // Enhanced Effects for Testing (Phase 4.5 - ResourceConversion integrated in applyResourceCost)
       200<EffectId>,
       {
         Id = 200<EffectId>
@@ -162,6 +162,28 @@ module EffectStore =
           )
         |]
         FormulaId = ValueNone
+      }
+      // DynamicMod Test Effect
+      300<EffectId>,
+      {
+        Id = 300<EffectId>
+        Name = "Dynamic AP Boost"
+        Kind = EffectKind.Buff
+        Duration = Timed(15000L<Tick>)
+        Stacking = StackingRule.RefreshDuration
+        Modifiers = [| EffectModifier.DynamicMod(101<FormulaId>, AP) |]
+        FormulaId = ValueSome 101<FormulaId>
+      }
+      // DynamicMod Test Effect targeting MA
+      301<EffectId>,
+      {
+        Id = 301<EffectId>
+        Name = "Dynamic MA Boost"
+        Kind = EffectKind.Buff
+        Duration = Timed(15000L<Tick>)
+        Stacking = StackingRule.RefreshDuration
+        Modifiers = [| EffectModifier.DynamicMod(101<FormulaId>, MA) |]
+        FormulaId = ValueSome 101<FormulaId>
       }
     ]
 
@@ -241,6 +263,19 @@ module FormulaStore =
             ElementalDamage = 0
             Element = Attributes.Neutral
             DamageType = DamageType.Physical
+          }
+      }
+      // DynamicMod Test Formula
+      101<FormulaId>,
+      {
+        Id = 101<FormulaId>
+        Name = "Magic-based AP Boost"
+        Calculate =
+          fun ctx -> {
+            BaseDamage = ctx.InvokerStats.MA / 2  // AP boost = half of Magic Attack
+            ElementalDamage = 0
+            Element = Attributes.Neutral
+            DamageType = DamageType.Neutral
           }
       }
     ]

@@ -44,92 +44,115 @@ module Resolution =
     services: EngineServices
     attackerStats: DerivedStats
     defenderStats: DerivedStats
+    attackerEffects: alist<ActiveEffect>
   }
 
   let calculateDamage (damageParams: DamageParams) (formulaId: int<FormulaId>) =
-    match damageParams.services.formulaStore.tryFind formulaId with
-    | ValueSome formula ->
+    adaptive {
+      match damageParams.services.formulaStore.tryFind formulaId with
+      | ValueSome formula ->
 
-      let formulaResult =
-        formula.Calculate {
-          InvokerStats = damageParams.attackerStats
-          InvokerElementalAttributes =
-            damageParams.attackerStats.ElementAttributes
-          TargetElementalResistances =
-            damageParams.defenderStats.ElementResistances
-        }
+        let formulaResult =
+          formula.Calculate {
+            InvokerStats = damageParams.attackerStats
+            InvokerElementalAttributes =
+              damageParams.attackerStats.ElementAttributes
+            TargetElementalResistances =
+              damageParams.defenderStats.ElementResistances
+          }
 
-      // STEP 1: Hit/Miss calculation based on damage type
-      let hitRoll = damageParams.services.rng()
+        // STEP 1: Hit/Miss calculation based on damage type
+        let hitRoll = damageParams.services.rng()
 
-      let hitChance =
-        match formulaResult.DamageType with
-        | DamageType.Neutral -> 1.0
-        | DamageType.Physical ->
-          calculateHitChance
-            damageParams.attackerStats.AC
-            damageParams.defenderStats.HV
-        | DamageType.Magical ->
-          calculateHitChance
-            damageParams.attackerStats.LK
-            damageParams.defenderStats.LK
-
-      let isHit = hitRoll < hitChance
-
-      if not isHit then
-        {
-          Amount = 0
-          IsCritical = false
-          IsEvaded = true
-        }
-      else
-        // STEP 2-4: Calculate damage (includes base damage, modifiers, and final damage)
-        // Apply critical hit (uses LK)
-        let critRoll = damageParams.services.rng()
-        let isCritical = critRoll < float damageParams.attackerStats.LK * 0.01
-
-        let damageBonus =
-          if isCritical then
-            int(
-              float(formulaResult.BaseDamage + formulaResult.ElementalDamage)
-              * 0.10
-            )
-          else
-            0
-
-        let finalElementalDamage =
-          if formulaResult.ElementalDamage > 0 then
-            let elementRes =
-              damageParams.defenderStats.ElementResistances.TryFindV
-                formulaResult.Element
-              |> ValueOption.defaultValue 0.0
-
-            float formulaResult.ElementalDamage * (1.0 - elementRes) |> int
-          else
-            0
-
-        let totalDamage = formulaResult.BaseDamage + finalElementalDamage
-
-        // Apply defense reduction
-        let damageAfterDefense =
+        let hitChance =
           match formulaResult.DamageType with
-          | DamageType.Physical -> totalDamage - damageParams.defenderStats.DP
-          | DamageType.Magical -> totalDamage - damageParams.defenderStats.MD
-          | DamageType.Neutral -> totalDamage
+          | DamageType.Neutral -> 1.0
+          | DamageType.Physical ->
+            calculateHitChance
+              damageParams.attackerStats.AC
+              damageParams.defenderStats.HV
+          | DamageType.Magical ->
+            calculateHitChance
+              damageParams.attackerStats.LK
+              damageParams.defenderStats.LK
 
-        let finalDamage = max 0 (damageAfterDefense + damageBonus)
+        let isHit = hitRoll < hitChance
 
-        {
-          Amount = int finalDamage
-          IsCritical = isCritical
-          IsEvaded = false
-        }
-    | ValueNone ->
-        {
+        if not isHit then
+          return {
+            Amount = 0
+            IsCritical = false
+            IsEvaded = true
+          }
+        else
+          // STEP 2-4: Calculate damage (includes base damage, modifiers, and final damage)
+          // Apply critical hit (uses LK)
+          let critRoll = damageParams.services.rng()
+          let isCritical = critRoll < float damageParams.attackerStats.LK * 0.01
+
+          let damageBonus =
+            if isCritical then
+              int(
+                float(formulaResult.BaseDamage + formulaResult.ElementalDamage)
+                * 0.10
+              )
+            else
+              0
+
+          let finalElementalDamage =
+            if formulaResult.ElementalDamage > 0 then
+              let elementRes =
+                damageParams.defenderStats.ElementResistances.TryFindV
+                  formulaResult.Element
+                |> ValueOption.defaultValue 0.0
+
+              float formulaResult.ElementalDamage * (1.0 - elementRes) |> int
+            else
+              0
+
+          let totalDamage = formulaResult.BaseDamage + finalElementalDamage
+
+          // Apply defense reduction
+          let damageAfterDefense =
+            match formulaResult.DamageType with
+            | DamageType.Physical -> totalDamage - damageParams.defenderStats.DP
+            | DamageType.Magical -> totalDamage - damageParams.defenderStats.MD
+            | DamageType.Neutral -> totalDamage
+
+          // Apply AbilityDamageMod from active effects
+          let! abilityDamageMod =
+            damageParams.attackerEffects
+            |> AList.fold
+              (fun acc effect ->
+                effect.Definition.Modifiers
+                |> Array.fold
+                  (fun modAcc modifier ->
+                    match modifier with
+                    | EffectModifier.AbilityDamageMod value -> modAcc + value
+                    | _ -> modAcc)
+                  acc)
+              0.0
+
+          let damageWithModifier =
+            if abilityDamageMod > 0.0 then
+              damageAfterDefense + int(float damageAfterDefense * abilityDamageMod)
+            else
+              damageAfterDefense
+
+          let finalDamage = max 0 (damageWithModifier + damageBonus)
+
+          return {
+            Amount = int finalDamage
+            IsCritical = isCritical
+            IsEvaded = false
+          }
+      | ValueNone ->
+        return {
           Amount = 0
           IsCritical = false
           IsEvaded = false
         }
+    }
 
   type ResolverParams = {
     entities: amap<int<EntityId>, EntityComponents>
@@ -434,26 +457,75 @@ module Resolution =
     let applyResourceCost
       (costOpt: ResourceCost voption)
       (actorComponents: EntityComponents)
+      (damageAmount: int)
       =
-      match costOpt with
-      | ValueSome cost ->
-        let updatedResources =
-          match cost.Type with
-          | ResourceType.HP -> {
-              actorComponents.Resources with
-                  HP = actorComponents.Resources.HP - cost.Amount
-            }
-          | ResourceType.MP ->
-              {
+      adaptive {
+        // Extract ResourceConversion modifiers from active effects
+        let! resourceConversions =
+          actorComponents.Effects
+          |> AList.fold
+            (fun acc effect ->
+              effect.Definition.Modifiers
+              |> Array.fold
+                (fun convAcc modifier ->
+                  match modifier with
+                  | EffectModifier.ResourceConversion(fromType, toType, ratio) ->
+                    (fromType, toType, ratio) :: convAcc
+                  | _ -> convAcc)
+                acc)
+            []
+
+        // Apply base cost if present
+        let resourcesAfterBaseCost =
+          match costOpt with
+          | ValueSome cost ->
+            match cost.Type with
+            | ResourceType.HP -> {
+                actorComponents.Resources with
+                    HP = actorComponents.Resources.HP - cost.Amount
+              }
+            | ResourceType.MP -> {
                 actorComponents.Resources with
                     MP = actorComponents.Resources.MP - cost.Amount
               }
+          | ValueNone -> actorComponents.Resources
 
-        {
+        // Apply ResourceConversion modifiers
+        let finalResources: Attributes.Resources =
+          resourceConversions
+          |> List.fold
+            (fun (resources: Attributes.Resources) (fromType, toType, ratio) ->
+              match fromType, toType with
+              | ResourceType.HP, ResourceType.HP when ratio < 0.0 ->
+                // HP-cost amplification: consume HP based on damage dealt
+                let hpCost = int(float damageAmount * abs ratio)
+                { resources with HP = resources.HP - hpCost }
+              | ResourceType.MP, ResourceType.HP when ratio > 0.0 ->
+                // MP to HP conversion: convert MP to HP
+                let mpToConvert = resources.MP
+                let hpGained = int(float mpToConvert * ratio)
+                {
+                  resources with
+                      MP = 0
+                      HP = resources.HP + hpGained
+                }
+              | ResourceType.HP, ResourceType.MP when ratio > 0.0 ->
+                // HP to MP conversion
+                let hpToConvert = resources.HP
+                let mpGained = int(float hpToConvert * ratio)
+                {
+                  resources with
+                      HP = 0
+                      MP = resources.MP + mpGained
+                }
+              | _ -> resources)
+            resourcesAfterBaseCost
+
+        return {
           actorComponents with
-              Resources = updatedResources
+              Resources = finalResources
         }
-      | ValueNone -> actorComponents
+      }
 
     let updateCooldowns
       (actorComponents: EntityComponents)
@@ -583,16 +655,18 @@ module Resolution =
             services = rparams.services
             attackerStats = actorStats
             defenderStats = targetStats
+            attackerEffects = action.actorComponents.Effects
           }
 
-        let baseDamageResult =
-          action.abilityDefinition.FormulaId
-          |> ValueOption.map calculateDamage
-          |> ValueOption.defaultValue {
-            Amount = 0
-            IsCritical = false
-            IsEvaded = false
-          }
+        let! baseDamageResult =
+          match action.abilityDefinition.FormulaId with
+          | ValueSome formulaId -> calculateDamage formulaId
+          | ValueNone ->
+            AVal.constant {
+              Amount = 0
+              IsCritical = false
+              IsEvaded = false
+            }
 
         let finalResources =
           applyDamage baseDamageResult.Amount action.targetComponents
@@ -611,8 +685,11 @@ module Resolution =
 
         let! gameTime = rparams.gameTime
 
-        let actorWithCost =
-          Shared.applyResourceCost action.cost action.actorComponents
+        let! actorWithCost =
+          Shared.applyResourceCost
+            action.cost
+            action.actorComponents
+            baseDamageResult.Amount
 
         let actorWithCooldown =
           Shared.updateCooldowns

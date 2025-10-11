@@ -181,7 +181,7 @@ module Effects =
   [<Struct>]
   type EffectModifier =
     | StaticMod of StatModifier
-    | DynamicMod of formulaId: int<FormulaId>
+    | DynamicMod of formulaId: int<FormulaId> * target: Stat
     | AbilityDamageMod of abilityDamageValue: float
     | ResourceConversion of ResourceType * ResourceType * float
 

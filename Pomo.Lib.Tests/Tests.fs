@@ -570,6 +570,214 @@ type ``Combat Mechanics Properties``() =
 
     rangeOk && equalOk && clampHighOk && clampLowOk && directionOk
 
+  [<Fact>]
+  member _.``DynamicMod applies formula-calculated stat boost``() =
+    let state = TestHelpers.create(fun () -> 0.5)
+    let playerId = 1<EntityId>
+
+    // Player with Magic = 10 -> MA = 20 -> expected AP boost = 20/2 = 10
+    let baseStats = { Power = 5; Magic = 10; Sense = 5; Charm = 10 }
+    let player = TestHelpers.makeEntity [Classification.Player] baseStats 100 100 []
+
+    TestHelpers.addEntity state playerId player
+
+    // Get initial derived stats (no effects)
+    let initialStats = GameState.getDerivedStats state |> AMap.force
+    let initialAP = initialStats[playerId].AP
+
+    // Apply Dynamic AP Boost effect (ID 300)
+    let dynamicEffect: Effects.ActiveEffect = {
+      EffectId = 300<EffectId>
+      SourceId = playerId
+      RemainingTicks = 15000L<Tick>
+      NextTickIn = 15000L<Tick>
+      Stacks = 1
+      Definition = state.services.effectStore.find 300<EffectId>
+    }
+
+    transact (fun _ ->
+      let currentComponents = state.entities[playerId]
+      state.entities[playerId] <- {
+        currentComponents with
+          Effects = AList.ofList [dynamicEffect]
+      })
+
+    // Get stats after applying DynamicMod effect
+    let finalStats = GameState.getDerivedStats state |> AMap.force
+    let finalAP = finalStats[playerId].AP
+
+    // Expected: AP boost = MA / 2 = 20 / 2 = 10
+    // So finalAP should be initialAP + 10
+    Assert.Equal(initialAP + 10, finalAP)
+
+  [<Fact>]
+  member _.``DynamicMod evaluates with correct invoker stats``() =
+    let state = TestHelpers.create(fun () -> 0.5)
+    let playerId = 1<EntityId>
+
+    // Player with Magic = 20 -> MA = 40 -> expected AP boost = 40/2 = 20
+    let baseStats = { Power = 5; Magic = 20; Sense = 5; Charm = 10 }
+    let player = TestHelpers.makeEntity [Classification.Player] baseStats 100 100 []
+
+    TestHelpers.addEntity state playerId player
+
+    let initialStats = GameState.getDerivedStats state |> AMap.force
+    let initialAP = initialStats[playerId].AP
+
+    let dynamicEffect: Effects.ActiveEffect = {
+      EffectId = 300<EffectId>
+      SourceId = playerId
+      RemainingTicks = 15000L<Tick>
+      NextTickIn = 15000L<Tick>
+      Stacks = 1
+      Definition = state.services.effectStore.find 300<EffectId>
+    }
+
+    transact (fun _ ->
+      let currentComponents = state.entities[playerId]
+      state.entities[playerId] <- {
+        currentComponents with
+          Effects = AList.ofList [dynamicEffect]
+      })
+
+    let finalStats = GameState.getDerivedStats state |> AMap.force
+    let finalAP = finalStats[playerId].AP
+
+    // Expected: AP boost = MA / 2 = 40 / 2 = 20
+    Assert.Equal(initialAP + 20, finalAP)
+
+  [<Fact>]
+  member _.``Multiple DynamicMod effects stack correctly``() =
+    let state = TestHelpers.create(fun () -> 0.5)
+    let playerId = 1<EntityId>
+
+    let baseStats = { Power = 5; Magic = 10; Sense = 5; Charm = 10 }
+    let player = TestHelpers.makeEntity [Classification.Player] baseStats 100 100 []
+
+    TestHelpers.addEntity state playerId player
+
+    let initialStats = GameState.getDerivedStats state |> AMap.force
+    let initialAP = initialStats[playerId].AP
+
+    // Apply two instances of Dynamic AP Boost effect
+    let effect1: Effects.ActiveEffect = {
+      EffectId = 300<EffectId>
+      SourceId = playerId
+      RemainingTicks = 15000L<Tick>
+      NextTickIn = 15000L<Tick>
+      Stacks = 1
+      Definition = state.services.effectStore.find 300<EffectId>
+    }
+
+    let effect2: Effects.ActiveEffect = {
+      EffectId = 300<EffectId>
+      SourceId = playerId
+      RemainingTicks = 10000L<Tick>
+      NextTickIn = 10000L<Tick>
+      Stacks = 1
+      Definition = state.services.effectStore.find 300<EffectId>
+    }
+
+    transact (fun _ ->
+      let currentComponents = state.entities[playerId]
+      state.entities[playerId] <- {
+        currentComponents with
+          Effects = AList.ofList [effect1; effect2]
+      })
+
+    let finalStats = GameState.getDerivedStats state |> AMap.force
+    let finalAP = finalStats[playerId].AP
+
+    // Each effect gives AP boost = MA / 2 = 20 / 2 = 10
+    // Two effects should give +20 total
+    Assert.Equal(initialAP + 20, finalAP)
+
+  [<Fact>]
+  member _.``DynamicMod can target MA``() =
+    let state = TestHelpers.create(fun () -> 0.5)
+    let playerId = 1<EntityId>
+
+    // Player with Magic = 20 -> MA = 40 -> expected MA boost = 40/2 = 20
+    let baseStats = { Power = 5; Magic = 20; Sense = 5; Charm = 10 }
+    let player = TestHelpers.makeEntity [Classification.Player] baseStats 100 100 []
+
+    TestHelpers.addEntity state playerId player
+
+    let initialStats = GameState.getDerivedStats state |> AMap.force
+    let initialMA = initialStats[playerId].MA
+
+    let dynamicEffect: Effects.ActiveEffect = {
+      EffectId = 301<EffectId>
+      SourceId = playerId
+      RemainingTicks = 15000L<Tick>
+      NextTickIn = 15000L<Tick>
+      Stacks = 1
+      Definition = state.services.effectStore.find 301<EffectId>
+    }
+
+    transact (fun _ ->
+      let currentComponents = state.entities[playerId]
+      state.entities[playerId] <- {
+        currentComponents with
+          Effects = AList.ofList [dynamicEffect]
+      })
+
+    let finalStats = GameState.getDerivedStats state |> AMap.force
+    let finalMA = finalStats[playerId].MA
+
+    // Expected: MA boost = MA / 2 = 40 / 2 = 20
+    Assert.Equal(initialMA + 20, finalMA)
+
+  [<Fact>]
+  member _.``DynamicMod targeting different stats stacks independently``() =
+    let state = TestHelpers.create(fun () -> 0.5)
+    let playerId = 1<EntityId>
+
+    // Player with Magic = 10 -> MA = 20 -> boost = 20/2 = 10
+    let baseStats = { Power = 5; Magic = 10; Sense = 5; Charm = 10 }
+    let player = TestHelpers.makeEntity [Classification.Player] baseStats 100 100 []
+
+    TestHelpers.addEntity state playerId player
+
+    let initialStats = GameState.getDerivedStats state |> AMap.force
+    let initialAP = initialStats[playerId].AP
+    let initialMA = initialStats[playerId].MA
+
+    // Apply both effects: 300 (targets AP) and 301 (targets MA)
+    let apEffect: Effects.ActiveEffect = {
+      EffectId = 300<EffectId>
+      SourceId = playerId
+      RemainingTicks = 15000L<Tick>
+      NextTickIn = 15000L<Tick>
+      Stacks = 1
+      Definition = state.services.effectStore.find 300<EffectId>
+    }
+
+    let maEffect: Effects.ActiveEffect = {
+      EffectId = 301<EffectId>
+      SourceId = playerId
+      RemainingTicks = 15000L<Tick>
+      NextTickIn = 15000L<Tick>
+      Stacks = 1
+      Definition = state.services.effectStore.find 301<EffectId>
+    }
+
+    transact (fun _ ->
+      let currentComponents = state.entities[playerId]
+      state.entities[playerId] <- {
+        currentComponents with
+          Effects = AList.ofList [apEffect; maEffect]
+      })
+
+    let finalStats = GameState.getDerivedStats state |> AMap.force
+    let finalAP = finalStats[playerId].AP
+    let finalMA = finalStats[playerId].MA
+
+    // Each effect gives boost = MA / 2 = 20 / 2 = 10
+    // AP should increase by 10, MA should increase by 10
+    Assert.Equal(initialAP + 10, finalAP)
+    Assert.Equal(initialMA + 10, finalMA)
+
   [<Property(MaxTest = 100)>]
   member _.``Magical hit chance follows LK vs LK formula``
     (lkAtkInput: NonNegativeInt)
@@ -674,8 +882,10 @@ type ``Combat Mechanics Properties``() =
           services = rparams.services
           attackerStats = actorStatsLow
           defenderStats = targetStats
+          attackerEffects = AList.empty
         }
         formulaId
+      |> AVal.force
 
     let damageHigh =
       Resolution.calculateDamage
@@ -683,8 +893,10 @@ type ``Combat Mechanics Properties``() =
           services = rparams.services
           attackerStats = actorStatsHigh
           defenderStats = targetStats
+          attackerEffects = AList.empty
         }
         formulaId
+      |> AVal.force
 
     if damageHigh.Amount > 0 then
       damageHigh.Amount > damageLow.Amount

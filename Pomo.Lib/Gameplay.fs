@@ -55,7 +55,7 @@ module GameState =
       || c.Factions |> HashSet.contains Classification.Enemy)
 
   let private applyModifiers
-    (effectStore: Services.IEffectStore)
+    (services: Services.EngineServices)
     (baseStats: BaseAttributes)
     (effects: alist<ActiveEffect>)
     : aval<DerivedStats> =
@@ -64,7 +64,7 @@ module GameState =
       let modifiers =
         effects
         |> AList.collect(fun effect ->
-          getModifiersForEffect effectStore effect.EffectId |> AList.ofArray)
+          getModifiersForEffect services.effectStore effect.EffectId |> AList.ofArray)
 
       // Aggregate static modifiers by Stat and kind
       let! addMap, subMap, mulMap, divMap =
@@ -152,21 +152,67 @@ module GameState =
         ElementResistances = FSharp.Data.Adaptive.HashMap.empty
       }
 
-      // 3) Apply derived stat static modifiers (all kinds)
+      // 2.5) Process DynamicMod modifiers: evaluate formulas and add to addMap
+      let! dynamicAddMap =
+        modifiers
+        |> AList.fold
+          (fun dynAddMap modifier ->
+            match modifier with
+            | EffectModifier.DynamicMod(formulaId, stat) ->
+              match services.formulaStore.tryFind formulaId with
+              | ValueSome formula ->
+                // Evaluate formula with current derived stats as context
+                let context: Abilities.CalculationContext = {
+                  InvokerStats = initialDerived
+                  InvokerElementalAttributes = initialDerived.ElementAttributes
+                  TargetElementalResistances = HashMap.empty
+                }
+                let result = formula.Calculate context
+                // Use BaseDamage as the stat modifier value
+                let value = result.BaseDamage
+                match HashMap.tryFindV stat dynAddMap with
+                | ValueSome existing ->
+                  HashMap.add stat (existing + value) dynAddMap
+                | ValueNone -> HashMap.add stat value dynAddMap
+              | ValueNone -> dynAddMap
+            | _ -> dynAddMap)
+          HashMap.empty
+
+      // Merge dynamic modifiers into addMap
+      let finalAddMap =
+        dynamicAddMap
+        |> HashMap.fold
+          (fun acc stat value ->
+            match HashMap.tryFindV stat acc with
+            | ValueSome existing -> HashMap.add stat (existing + value) acc
+            | ValueNone -> HashMap.add stat value acc)
+          addMap
+
+      // Helper to apply all modifiers (including dynamic) to derived stats
+      let inline applyAllWithDynamic stat current =
+        let addV = HashMap.tryFindV stat finalAddMap |> ValueOption.defaultValue 0
+        let subV = HashMap.tryFindV stat subMap |> ValueOption.defaultValue 0
+        let mulV = HashMap.tryFindV stat mulMap |> ValueOption.defaultValue 1.0
+        let divV = HashMap.tryFindV stat divMap |> ValueOption.defaultValue 1.0
+        let pre = current + addV - subV
+        let scaled = int(float pre * mulV / divV)
+        scaled
+
+      // 3) Apply derived stat static and dynamic modifiers (all kinds)
       let finalDerived = {
         initialDerived with
-            HP = applyAll HP initialDerived.HP
-            MP = applyAll MP initialDerived.MP
-            AP = applyAll AP initialDerived.AP
-            MA = applyAll MA initialDerived.MA
-            MD = applyAll MD initialDerived.MD
-            DA = applyAll DA initialDerived.DA
-            DX = applyAll DX initialDerived.DX
-            WT = applyAll WT initialDerived.WT
-            LK = applyAll LK initialDerived.LK
-            DP = applyAll DP initialDerived.DP
-            AC = applyAll AC initialDerived.AC
-            HV = applyAll HV initialDerived.HV
+            HP = applyAllWithDynamic HP initialDerived.HP
+            MP = applyAllWithDynamic MP initialDerived.MP
+            AP = applyAllWithDynamic AP initialDerived.AP
+            MA = applyAllWithDynamic MA initialDerived.MA
+            MD = applyAllWithDynamic MD initialDerived.MD
+            DA = applyAllWithDynamic DA initialDerived.DA
+            DX = applyAllWithDynamic DX initialDerived.DX
+            WT = applyAllWithDynamic WT initialDerived.WT
+            LK = applyAllWithDynamic LK initialDerived.LK
+            DP = applyAllWithDynamic DP initialDerived.DP
+            AC = applyAllWithDynamic AC initialDerived.AC
+            HV = applyAllWithDynamic HV initialDerived.HV
       }
 
       return finalDerived
@@ -216,7 +262,7 @@ module GameState =
   let getDerivedStats(state: GameState) : amap<int<EntityId>, DerivedStats> =
     state.entities
     |> AMap.mapA(fun _ c ->
-      applyModifiers state.services.effectStore c.BaseStats c.Effects)
+      applyModifiers state.services c.BaseStats c.Effects)
 
   [<Struct>]
   type EntityChange = { components: EntityComponents }

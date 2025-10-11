@@ -323,10 +323,15 @@ Deliverable: Minimal MonoGame integration present. Game loop hooks and input pla
 
 **Status**: 🎯 **IN PROGRESS** - Required before Phase 5
 
+**Completed Work**:
+- ✅ AbilityDamageMod integration - percentage damage boosts from active effects
+- ✅ ResourceConversion processing - HP-cost amplification and MP↔HP conversion
+- ✅ Resolution improvements - enhanced applyResourceCost and calculateDamage functions
+- ✅ DynamicMod with formula-based effect evaluation - explicit stat targeting with formula-calculated modifiers (supports derived stats: AP, MA, HP, MP, etc.)
+
 **Remaining Work**:
-- ❌ Dynamic effect modifiers with formula support
-- ❌ Advanced effect categories (HP-cost amplification, resource conversion)
-- ❌ Resolution improvements to support these mechanics without hooks
+- ⏳ Full AbilityContext integration (type exists but not actively used)
+- ⏳ Additional advanced effect categories (barriers, distance-based damage)
 
 **Phase 4 Goals:**
 

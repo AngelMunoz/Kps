@@ -180,7 +180,7 @@ Active {
 
 Adopt a straightforward, linear resolution approach (pre/compute/apply) without introducing a hook infrastructure.
 
-### Step 2: Dynamic Effect Modifiers ✅ (Implemented in Domain.fs, partial support in Resolution.fs)
+### Step 2: Dynamic Effect Modifiers ✅ (Fully implemented)
 
 Replace static modifiers with formula-based system:
 
@@ -188,9 +188,23 @@ Replace static modifiers with formula-based system:
 [<Struct>]
 type EffectModifier =
   | StaticMod of StatModifier           // Current system (backward compatibility)
-  | DynamicMod of int<FormulaId>        // Formula-based calculation
-  | AbilityDamageMod of float           // % modifier to ability damage
-  | ResourceConversion of ResourceType * ResourceType * float
+  | DynamicMod of formulaId: int<FormulaId> * target: Stat  // ✅ Formula-based calculation with explicit stat target
+  | AbilityDamageMod of float           // ✅ % modifier to ability damage (integrated in calculateDamage)
+  | ResourceConversion of ResourceType * ResourceType * float  // ✅ Resource conversion (integrated in applyResourceCost)
+```
+
+**Implementation Notes:**
+- **DynamicMod**: Integrated in `Gameplay.applyModifiers` function. Evaluates formulas with current derived stats as context and applies BaseDamage result to the explicitly specified target stat. Multiple DynamicMod effects targeting the same stat stack additively. **Limitation**: Currently only targets derived stats (AP, MA, HP, MP, etc.); base stats (Power, Magic, Sense, Charm) are not supported.
+- **AbilityDamageMod**: Integrated in `calculateDamage` function. Active effects on the attacker are scanned for AbilityDamageMod modifiers, which are summed and applied as percentage boosts to final damage after defense reduction.
+- **ResourceConversion**: Integrated in `applyResourceCost` function. Supports HP-cost amplification (HP→HP with negative ratio) and resource type conversions (MP→HP, HP→MP with positive ratios).
+
+**Example Usage:**
+```fsharp
+// Effect that boosts AP using formula result
+EffectModifier.DynamicMod(101<FormulaId>, AP)
+
+// Effect that boosts MA using formula result
+EffectModifier.DynamicMod(101<FormulaId>, MA)
 ```
 
 ### Step 3: Ability Resolution Context ✅ (AbilityContext type and context pipeline present)
@@ -210,24 +224,30 @@ type AbilityContext = {
 ```
 
 
-### Step 5: Linear Effect Processing Pipeline ⏳
+### Step 5: Linear Effect Processing Pipeline ✅ (Partially implemented - core features complete)
 
 Modify resolution to process effects in a simple, linear flow:
 
-1. Pre-Resolution:
+1. Pre-Resolution: ⏳
 
-   - Apply resource costs (including HP-cost amplification rules)
-   - Gather relevant modifiers and context
+   - ✅ Apply resource costs (including HP-cost amplification rules) - implemented in `applyResourceCost`
+   - ⏳ Gather relevant modifiers and context - AbilityContext type exists but not fully utilized
 
-2. Ability Execution:
+2. Ability Execution: ✅
 
-   - Calculate base values
-   - Apply dynamic modifiers and formulas
+   - ✅ Calculate base values - damage formulas integrated
+   - ✅ Apply dynamic modifiers and formulas - AbilityDamageMod applied during damage calculation
 
-3. Apply Results:
+3. Apply Results: ✅
 
-   - Apply damage/heal and state updates
-   - Apply resource conversion mechanics
+   - ✅ Apply damage/heal and state updates - working in `AbilityResolution.resolve`
+   - ✅ Apply resource conversion mechanics - implemented in `applyResourceCost`
+
+**Current Implementation Status:**
+- ✅ Resource cost application now supports ResourceConversion modifiers (HP-cost amplification, MP↔HP conversion)
+- ✅ Damage calculation now applies AbilityDamageMod from active effects
+- ✅ DynamicMod with formula evaluation implemented in stat modifier processing
+- ⏳ AbilityContext type defined but not actively used in resolution flow
 
 ### Step 6: Effect Definition Extensions ✅ (EffectDefinition extended in Domain.fs)
 
