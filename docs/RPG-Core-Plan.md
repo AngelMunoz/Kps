@@ -371,6 +371,125 @@ Deliverable: Minimal MonoGame integration present. Game loop hooks and input pla
 
 **Deliverables**: Character base kits with starter stats and abilities are present. Equipment system fully implemented with stat modifiers, elemental attributes, and resistances affecting derived stats.
 
+## Phase 5.5 — GameState API Surface & Architecture
+
+**Status**: 📋 **PLANNING** - Not yet implemented
+
+**Goals**:
+1. **API Surface Design**: Create clean, ergonomic API for common GameState operations using existing StateChange mechanism
+2. **Architecture Analysis**: Clarify composition root location (where GameState.create' should be called)
+3. **Command Pattern Alignment**: Analyze existing Domain.Rules.Command vs proposed API operations
+4. **Non-Reactive Query Justification**: Document where and why AVal.force is necessary for MonoGame integration
+5. **MonoGame Integration Readiness**: Prepare core for seamless runtime integration
+
+**Key Architectural Decisions**:
+
+1. **StateChange Integration**: All API operations leverage existing `StateChange` mechanism from Resolution.apply
+   - Command-based operations (abilities, time) return `aval<StateChange>` using Resolution.step
+   - Direct operations (equipment, resources, effects) return `Result<StateChange, Error>`
+   - Query operations use AVal.force only when necessary (see justification table)
+
+2. **Composition Root Location**: Service composition and GameState initialization in **Pomo.Core**
+   - GameState type and create' function remain in **Pomo.Lib** (domain layer)
+   - Service implementations and composition root in **Pomo.Core/PomoGame.Initialize()** (application layer)
+   - Maintains clean dependency flow and allows framework-agnostic Pomo.Lib
+
+3. **Command Pattern Distinction**:
+   - Existing `Domain.Rules.Command` (UseAbility) for complex resolution logic
+   - GameStateOperations API for high-level state manipulation
+   - Complementary patterns serving different purposes
+
+4. **Non-Reactive Queries**: Justified for MonoGame's pull-based game loop
+   - `activateAbility`, `advanceTime`: Must force aval<StateChange> for immediate application
+   - `getDerivedStatsSnapshot`: Must force adaptive stat computation for UI display
+   - `getEntity`, `getAliveEntities`: Can use direct cmap/amap access (no force needed)
+   - Query code lives in **Pomo.Core** to isolate forcing from reactive Pomo.Lib
+
+**Planned Operations**:
+- **Entity Management**: createEntity, removeEntity, getEntity → StateChange or direct access
+- **Equipment Operations**: equipItem, unequipItem, swapEquipment → Result<StateChange, Error>
+- **Ability Operations**: activateAbility → aval<StateChange>, learnAbility, forgetAbility → Result<StateChange, Error>
+- **Profession Advancement**: advanceStage → Result<StateChange, Error>, canAdvanceStage → bool query
+- **Resource Management**: healEntity, restoreMP, damageEntity, setResourceStatus → Result<StateChange, Error>
+- **Effect Management**: applyEffect, removeEffect, clearAllEffects → Result<StateChange, Error>
+- **Time & Simulation**: advanceTime → aval<StateChange>, resetCooldowns → Result<StateChange, Error>
+- **Query Operations**: getAliveEntities, getReadyAbilities, getDerivedStatsSnapshot → Non-reactive snapshots
+
+**Deliverables**:
+- [ ] `GameStateOperations.fs` module with all API functions (Pomo.Lib)
+- [ ] `GameStateQueries.fs` module for non-reactive queries (Pomo.Core)
+- [ ] StateChange application helpers
+- [ ] Unit tests for each operation
+- [ ] Integration tests demonstrating MonoGame-like usage patterns
+- [x] Design documentation (`docs/Phase-5.5-API-Surface.md`)
+
+**See**: `docs/Phase-5.5-API-Surface.md` for comprehensive design, justifications, and implementation guidance.
+
+## Phase 5.6 — Database Migration & Content System
+
+**Status**: 📋 **PLANNING** - Optional future enhancement
+
+**Goals**:
+1. **SQLite Schema Design**: Migrate hardcoded Content.fs to relational database
+2. **Dynamic Content Loading**: Enable runtime content updates without recompilation
+3. **Content Authoring Tools**: Support modding and designer-friendly workflows
+4. **Formula Integration**: Store and validate formulas in database with FormulaParser.fs
+
+**Planned Components**:
+
+**Database Schema**:
+- Effects, EffectModifiers, Abilities, AbilityEffects, AbilityRequirements
+- Formulas (with text-based formula definitions)
+- Equipment, EquipmentStatBonuses, EquipmentElementalAttributes, EquipmentElementalResistances
+- CharacterKits, CharacterKitAbilities
+- Schema versioning and content versioning tables
+
+**Migration Strategy**:
+1. Create SQLite schema with proper constraints and indexes
+2. Generate seed data from existing Content.fs definitions
+3. Implement ContentDatabase class for loading data
+4. Create Database-backed IEffectStore, IAbilityStore, IFormulaStore
+5. Build content editing CLI tools
+6. Support dual-mode (hardcoded vs database) during transition
+
+**Formula Integration**:
+- Store formulas as text in Formulas table
+- Use existing FormulaParser.fs to parse at load time
+- Cache parsed expressions for performance
+- Validate all formulas during database seeding
+
+**Complexity Analysis**:
+- Estimated effort: ~56-82 hours (7-10 days)
+- Risk: Medium (schema migrations, performance if not cached)
+- **Recommendation**: Defer to post-Phase 6
+
+**Deliverables**:
+- [ ] `schema.sql` - Complete SQLite database schema
+- [ ] `GenerateSeedData.fsx` - Script to generate seed data from Content.fs
+- [ ] `ContentDatabase.fs` - Database access layer
+- [ ] `DatabaseStores.fs` - Database-backed store implementations
+- [ ] `ContentEditor.fsx` - CLI tools for content editing
+- [ ] Unit tests for database operations
+- [x] Design documentation (`docs/Phase-5.6-Database-Migration.md`)
+
+**See**: `docs/Phase-5.6-Database-Migration.md` for detailed implementation plan.
+
+**Note**: This phase is **optional** and can be deferred. The current `Content.fs` hardcoded approach is sufficient for Phase 6 (MonoGame integration). Consider implementing only if content volume grows significantly or modding support becomes a priority.
+
+## Phase 6 — Minimal Integration with MonoGame
+
+**Status**: 🎯 **CURRENT** - Ready to begin
+
+1. Game Loop Hook
+
+   - PomoGame.Update: drive a Core.Update(world, inputs, dtTicks)
+   - Inputs placeholder: primitive commands to trigger actions based on player input.
+
+2. Debug Rendering (later)
+   - Print logs and derived projections to console or debug overlay
+
+Deliverable: Minimal MonoGame integration present. Game loop hooks and input placeholders allow triggering actions and abilities. Rendering and UI are deferred.
+
 ## Reactive Core Sketch (F# + FDA)
 
 ```fsharp
@@ -431,6 +550,8 @@ let apply (state: GameState) (cmd:Command) =
 - ✅ Phase 4: Enhanced Ability/Spell System
 - ✅ Phase 4.5: Enhanced Effects Framework
 - ✅ Phase 5: Content and Progression (Equipment + Character Kits)
+- 📋 Phase 5.5: GameState API Surface & Architecture (Planning complete)
+- 📋 Phase 5.6: Database Migration & Content System (Planning complete, optional)
 - 🎯 **CURRENT**: Phase 6 - MonoGame Integration
 
 ## How to Integrate Into PomoGame (later)
