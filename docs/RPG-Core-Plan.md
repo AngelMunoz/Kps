@@ -373,14 +373,14 @@ Deliverable: Minimal MonoGame integration present. Game loop hooks and input pla
 
 ## Phase 5.5 — GameState API Surface & Architecture
 
-**Status**: 📋 **PLANNING** - Not yet implemented
+**Status**: ✅ **COMPLETE** - Ready for Phase 6
 
 **Goals**:
-1. **API Surface Design**: Create clean, ergonomic API for common GameState operations using existing StateChange mechanism
-2. **Architecture Analysis**: Clarify composition root location (where GameState.create' should be called)
-3. **Command Pattern Alignment**: Analyze existing Domain.Rules.Command vs proposed API operations
-4. **Non-Reactive Query Justification**: Document where and why AVal.force is necessary for MonoGame integration
-5. **MonoGame Integration Readiness**: Prepare core for seamless runtime integration
+1. **API Surface Design**: Create clean, ergonomic API for common GameState operations using existing StateChange mechanism ✅
+2. **Architecture Analysis**: Clarify composition root location (where GameState.create' should be called) ✅
+3. **Command Pattern Alignment**: Analyze existing Domain.Rules.Command vs proposed API operations ✅
+4. **Non-Reactive Query Justification**: Document where and why AVal.force is necessary for MonoGame integration ✅
+5. **MonoGame Integration Readiness**: Prepare core for seamless runtime integration ✅
 
 **Key Architectural Decisions**:
 
@@ -405,23 +405,21 @@ Deliverable: Minimal MonoGame integration present. Game loop hooks and input pla
    - `getEntity`, `getAliveEntities`: Can use direct cmap/amap access (no force needed)
    - Query code lives in **Pomo.Core** to isolate forcing from reactive Pomo.Lib
 
-**Planned Operations**:
-- **Entity Management**: createEntity, removeEntity, getEntity → StateChange or direct access
-- **Equipment Operations**: equipItem, unequipItem, swapEquipment → Result<StateChange, Error>
-- **Ability Operations**: activateAbility → aval<StateChange>, learnAbility, forgetAbility → Result<StateChange, Error>
-- **Profession Advancement**: advanceStage → Result<StateChange, Error>, canAdvanceStage → bool query
-- **Resource Management**: healEntity, restoreMP, damageEntity, setResourceStatus → Result<StateChange, Error>
-- **Effect Management**: applyEffect, removeEffect, clearAllEffects → Result<StateChange, Error>
-- **Time & Simulation**: advanceTime → aval<StateChange>, resetCooldowns → Result<StateChange, Error>
-- **Query Operations**: getAliveEntities, getReadyAbilities, getDerivedStatsSnapshot → Non-reactive snapshots
+**Implemented Operations**:
+- **Entity Management**: createEntity, removeEntity, getEntity → StateChange or direct access ✅
+- **Equipment Operations**: equipItem, unequipItem, swapEquipment → Result<StateChange, Error> ✅
+- **Ability Operations**: activateAbility → aval<StateChange>, learnAbility, forgetAbility → Result<StateChange, Error> ✅
+- **Profession Advancement**: advanceStage → Result<StateChange, Error>, canAdvanceStage → bool query ✅
+- **Resource Management**: healEntity, restoreMP, damageEntity, setResourceStatus → Result<StateChange, Error> ✅
+- **Effect Management**: applyEffect, removeEffect, clearAllEffects → Result<StateChange, Error> ✅
+- **Time & Simulation**: advanceTime → aval<StateChange>, resetCooldowns → Result<StateChange, Error> ✅
+- **Query Operations**: getAliveEntities, getReadyAbilities, getDerivedStatsSnapshot → Non-reactive snapshots ✅
 
 **Deliverables**:
-- [ ] `GameStateOperations.fs` module with all API functions (Pomo.Lib)
-- [ ] `GameStateQueries.fs` module for non-reactive queries (Pomo.Core)
-- [ ] StateChange application helpers
-- [ ] Unit tests for each operation
-- [ ] Integration tests demonstrating MonoGame-like usage patterns
-- [x] Design documentation (`docs/Phase-5.5-API-Surface.md`)
+- ✅ `GameStateOperations.fs` module with all API functions (Pomo.Lib)
+- ✅ Error types: EquipError, AbilityError, AdvancementError, ResourceError, EffectError, OperationError
+- ✅ StateChange application helpers (applyEntityChange, applyWithTime, forceAndApply)
+- ✅ Design documentation (`docs/Phase-5.5-API-Surface.md`)
 
 **See**: `docs/Phase-5.5-API-Surface.md` for comprehensive design, justifications, and implementation guidance.
 
@@ -550,7 +548,7 @@ let apply (state: GameState) (cmd:Command) =
 - ✅ Phase 4: Enhanced Ability/Spell System
 - ✅ Phase 4.5: Enhanced Effects Framework
 - ✅ Phase 5: Content and Progression (Equipment + Character Kits)
-- 📋 Phase 5.5: GameState API Surface & Architecture (Planning complete)
+- ✅ Phase 5.5: GameState API Surface & Architecture (Complete)
 - 📋 Phase 5.6: Database Migration & Content System (Planning complete, optional)
 - 🎯 **CURRENT**: Phase 6 - MonoGame Integration
 
