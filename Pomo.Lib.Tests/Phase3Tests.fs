@@ -105,6 +105,7 @@ module private Phase3Helpers =
       Effects = (activeEffects :> alist<_>)
       Abilities = (clist abilities :> alist<_>)
       AbilityCooldowns = (cooldowns :> amap<_, _>)
+      Equipment = HashMap.empty
     }
 
   let addEntity

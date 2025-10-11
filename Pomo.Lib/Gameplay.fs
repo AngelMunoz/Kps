@@ -54,12 +54,42 @@ module GameState =
       c.Factions |> HashSet.contains Classification.Ally
       || c.Factions |> HashSet.contains Classification.Enemy)
 
+  let private aggregateEquipment (equipment: HashMap<Inventory.Slot, Inventory.Equipment>) =
+    let mutable equipmentStatBonuses = HashMap.empty<Stat, int>
+    let mutable equipmentElementalAttributes = HashMap.empty<Element, float>
+    let mutable equipmentElementalResistances = HashMap.empty<Element, float>
+
+    for item in equipment |> HashMap.toValueArray do
+      for bonus in item.StatBonuses do
+        equipmentStatBonuses <- equipmentStatBonuses |> HashMap.alterV bonus.Stat (fun existing ->
+          match existing with
+          | ValueSome value -> ValueSome (value + bonus.Value)
+          | ValueNone -> ValueSome bonus.Value)
+
+      for struct(element, value) in item.ElementalAttributes |> HashMap.toArrayV do
+        equipmentElementalAttributes <- equipmentElementalAttributes |> HashMap.alterV element (fun existing ->
+          match existing with
+          | ValueSome existingValue -> ValueSome (existingValue + value)
+          | ValueNone -> ValueSome value)
+
+      for struct(element, value) in item.ElementalResistances |> HashMap.toArrayV do
+        equipmentElementalResistances <- equipmentElementalResistances |> HashMap.alterV element (fun existing ->
+          match existing with
+          | ValueSome existingValue -> ValueSome (existingValue + value)
+          | ValueNone -> ValueSome value)
+
+    struct(equipmentStatBonuses, equipmentElementalAttributes, equipmentElementalResistances)
+
   let private applyModifiers
     (services: Services.EngineServices)
     (baseStats: BaseAttributes)
     (effects: alist<ActiveEffect>)
+    (equipment: HashMap<Inventory.Slot, Inventory.Equipment>)
     : aval<DerivedStats> =
+
     adaptive {
+      let struct(equipmentStatBonuses, equipmentElementalAttributes, equipmentElementalResistances) =
+        aggregateEquipment equipment
       // Gather all effect modifiers from active effects
       let modifiers =
         effects
@@ -115,7 +145,8 @@ module GameState =
         let subV = HashMap.tryFindV stat subMap |> ValueOption.defaultValue 0
         let mulV = HashMap.tryFindV stat mulMap |> ValueOption.defaultValue 1.0
         let divV = HashMap.tryFindV stat divMap |> ValueOption.defaultValue 1.0
-        let pre = current + addV - subV
+        let equipBonus = HashMap.tryFindV stat equipmentStatBonuses |> ValueOption.defaultValue 0
+        let pre = current + addV - subV + equipBonus
         let scaled = int(float pre * mulV / divV)
         scaled
 
@@ -147,9 +178,9 @@ module GameState =
         DP = modifiedBase.Charm + int(float modifiedBase.Charm * 1.25)
         HV = modifiedBase.Charm * 2
 
-        // TODO: Grab elements from equipment, buffs, etc.
-        ElementAttributes = FSharp.Data.Adaptive.HashMap.empty
-        ElementResistances = FSharp.Data.Adaptive.HashMap.empty
+        // Equipment elemental attributes and resistances
+        ElementAttributes = equipmentElementalAttributes
+        ElementResistances = equipmentElementalResistances
       }
 
       // 2.5) Process DynamicMod modifiers: evaluate formulas and add to addMap
@@ -262,7 +293,7 @@ module GameState =
   let getDerivedStats(state: GameState) : amap<int<EntityId>, DerivedStats> =
     state.entities
     |> AMap.mapA(fun _ c ->
-      applyModifiers state.services c.BaseStats c.Effects)
+      applyModifiers state.services c.BaseStats c.Effects c.Equipment)
 
   [<Struct>]
   type EntityChange = { components: EntityComponents }

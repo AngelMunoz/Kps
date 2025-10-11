@@ -526,3 +526,192 @@ module CharacterKitStore =
         StarterAbilities = [| 8<AbilityId>; 5<AbilityId>; 7<AbilityId>; 4<AbilityId>; 101<AbilityId> |]
       }
     ]
+
+module EquipmentStore =
+  open Pomo.Lib.Domain.Inventory
+  open Pomo.Lib.Domain.Attributes
+  open FSharp.Data.Adaptive
+
+  let definitions: Map<int<ItemId>, Equipment> =
+    Map.ofList [
+      1<ItemId>,
+      {
+        Id = 1<ItemId>
+        Name = "Iron Helm"
+        Slot = Head
+        Rarity = Common
+        StatBonuses = [| { Stat = DP; Value = 5 }; { Stat = HP; Value = 20 } |]
+        ElementalAttributes = HashMap.empty
+        ElementalResistances = HashMap.empty
+      }
+      2<ItemId>,
+      {
+        Id = 2<ItemId>
+        Name = "Leather Cap"
+        Slot = Head
+        Rarity = Common
+        StatBonuses = [| { Stat = HV; Value = 3 }; { Stat = DX; Value = 2 } |]
+        ElementalAttributes = HashMap.empty
+        ElementalResistances = HashMap.empty
+      }
+      3<ItemId>,
+      {
+        Id = 3<ItemId>
+        Name = "Wizard's Hat"
+        Slot = Head
+        Rarity = Uncommon
+        StatBonuses = [| { Stat = MA; Value = 8 }; { Stat = MP; Value = 30 } |]
+        ElementalAttributes = HashMap.ofList [ Fire, 5.0 ]
+        ElementalResistances = HashMap.empty
+      }
+      4<ItemId>,
+      {
+        Id = 4<ItemId>
+        Name = "Steel Plate Armor"
+        Slot = Chest
+        Rarity = Uncommon
+        StatBonuses = [| { Stat = DP; Value = 15 }; { Stat = HP; Value = 50 } |]
+        ElementalAttributes = HashMap.empty
+        ElementalResistances = HashMap.ofList [ Fire, 0.1; Lightning, 0.15 ]
+      }
+      5<ItemId>,
+      {
+        Id = 5<ItemId>
+        Name = "Mystic Robes"
+        Slot = Chest
+        Rarity = Rare
+        StatBonuses = [| { Stat = MA; Value = 12 }; { Stat = MD; Value = 10 }; { Stat = MP; Value = 50 } |]
+        ElementalAttributes = HashMap.ofList [ Light, 8.0 ]
+        ElementalResistances = HashMap.ofList [ Dark, 0.2 ]
+      }
+      6<ItemId>,
+      {
+        Id = 6<ItemId>
+        Name = "Ranger's Tunic"
+        Slot = Chest
+        Rarity = Uncommon
+        StatBonuses = [| { Stat = DX; Value = 8 }; { Stat = HV; Value = 6 }; { Stat = DA; Value = 5 } |]
+        ElementalAttributes = HashMap.empty
+        ElementalResistances = HashMap.ofList [ Earth, 0.15 ]
+      }
+      7<ItemId>,
+      {
+        Id = 7<ItemId>
+        Name = "Chainmail Leggings"
+        Slot = Legs
+        Rarity = Common
+        StatBonuses = [| { Stat = DP; Value = 8 }; { Stat = HP; Value = 30 } |]
+        ElementalAttributes = HashMap.empty
+        ElementalResistances = HashMap.empty
+      }
+      8<ItemId>,
+      {
+        Id = 8<ItemId>
+        Name = "Enchanted Greaves"
+        Slot = Legs
+        Rarity = Epic
+        StatBonuses = [| { Stat = DP; Value = 20 }; { Stat = MD; Value = 15 }; { Stat = HP; Value = 80 } |]
+        ElementalAttributes = HashMap.ofList [ Light, 10.0 ]
+        ElementalResistances = HashMap.ofList [ Fire, 0.25; Dark, 0.25 ]
+      }
+      9<ItemId>,
+      {
+        Id = 9<ItemId>
+        Name = "Leather Gloves"
+        Slot = Hands
+        Rarity = Common
+        StatBonuses = [| { Stat = DX; Value = 3 }; { Stat = AC; Value = 2 } |]
+        ElementalAttributes = HashMap.empty
+        ElementalResistances = HashMap.empty
+      }
+      10<ItemId>,
+      {
+        Id = 10<ItemId>
+        Name = "Gauntlets of Strength"
+        Slot = Hands
+        Rarity = Rare
+        StatBonuses = [| { Stat = AP; Value = 15 }; { Stat = AC; Value = 10 } |]
+        ElementalAttributes = HashMap.ofList [ Fire, 12.0 ]
+        ElementalResistances = HashMap.empty
+      }
+      11<ItemId>,
+      {
+        Id = 11<ItemId>
+        Name = "Iron Sword"
+        Slot = Weapon1
+        Rarity = Common
+        StatBonuses = [| { Stat = AP; Value = 10 }; { Stat = AC; Value = 5 } |]
+        ElementalAttributes = HashMap.empty
+        ElementalResistances = HashMap.empty
+      }
+      12<ItemId>,
+      {
+        Id = 12<ItemId>
+        Name = "Flamebrand"
+        Slot = Weapon1
+        Rarity = Epic
+        StatBonuses = [| { Stat = AP; Value = 25 }; { Stat = AC; Value = 15 } |]
+        ElementalAttributes = HashMap.ofList [ Fire, 20.0 ]
+        ElementalResistances = HashMap.empty
+      }
+      13<ItemId>,
+      {
+        Id = 13<ItemId>
+        Name = "Staff of Arcane Power"
+        Slot = Weapon1
+        Rarity = Legendary
+        StatBonuses = [| { Stat = MA; Value = 35 }; { Stat = MP; Value = 100 }; { Stat = LK; Value = 10 } |]
+        ElementalAttributes = HashMap.ofList [ Light, 25.0; Fire, 15.0 ]
+        ElementalResistances = HashMap.ofList [ Dark, 0.3 ]
+      }
+      14<ItemId>,
+      {
+        Id = 14<ItemId>
+        Name = "Wooden Shield"
+        Slot = Weapon2
+        Rarity = Common
+        StatBonuses = [| { Stat = DP; Value = 8 }; { Stat = HV; Value = 3 } |]
+        ElementalAttributes = HashMap.empty
+        ElementalResistances = HashMap.empty
+      }
+      15<ItemId>,
+      {
+        Id = 15<ItemId>
+        Name = "Tower Shield"
+        Slot = Weapon2
+        Rarity = Rare
+        StatBonuses = [| { Stat = DP; Value = 20 }; { Stat = HP; Value = 60 } |]
+        ElementalAttributes = HashMap.empty
+        ElementalResistances = HashMap.ofList [ Fire, 0.2; Water, 0.15 ]
+      }
+      16<ItemId>,
+      {
+        Id = 16<ItemId>
+        Name = "Lucky Charm"
+        Slot = Accessory
+        Rarity = Uncommon
+        StatBonuses = [| { Stat = LK; Value = 8 }; { Stat = HV; Value = 5 } |]
+        ElementalAttributes = HashMap.empty
+        ElementalResistances = HashMap.empty
+      }
+      17<ItemId>,
+      {
+        Id = 17<ItemId>
+        Name = "Amulet of Vitality"
+        Slot = Accessory
+        Rarity = Rare
+        StatBonuses = [| { Stat = HP; Value = 100 }; { Stat = DP; Value = 10 }; { Stat = MD; Value = 10 } |]
+        ElementalAttributes = HashMap.empty
+        ElementalResistances = HashMap.ofList [ Fire, 0.15; Water, 0.15; Earth, 0.15; Air, 0.15 ]
+      }
+      18<ItemId>,
+      {
+        Id = 18<ItemId>
+        Name = "Ring of Elements"
+        Slot = Accessory
+        Rarity = Legendary
+        StatBonuses = [| { Stat = MA; Value = 20 }; { Stat = DA; Value = 15 } |]
+        ElementalAttributes = HashMap.ofList [ Fire, 10.0; Water, 10.0; Earth, 10.0; Air, 10.0; Lightning, 10.0 ]
+        ElementalResistances = HashMap.ofList [ Fire, 0.25; Water, 0.25; Earth, 0.25; Air, 0.25; Lightning, 0.25 ]
+      }
+    ]

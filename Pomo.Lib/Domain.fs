@@ -146,6 +146,34 @@ module Inventory =
     | Weapon2
     | Accessory
 
+  [<Measure>]
+  type ItemId
+
+  [<Struct>]
+  type Rarity =
+    | Common
+    | Uncommon
+    | Rare
+    | Epic
+    | Legendary
+
+  [<Struct>]
+  type ItemStatBonus = {
+    Stat: Stat
+    Value: int
+  }
+
+  [<Struct>]
+  type Equipment = {
+    Id: int<ItemId>
+    Name: string
+    Slot: Slot
+    Rarity: Rarity
+    StatBonuses: ItemStatBonus array
+    ElementalAttributes: HashMap<Attributes.Element, float>
+    ElementalResistances: HashMap<Attributes.Element, float>
+  }
+
 module Effects =
 
   [<Struct>]
@@ -312,6 +340,7 @@ module Rules =
 
 module Components =
   open Effects
+  open Inventory
 
   type EntityComponents = {
     Factions: Classification.Faction HashSet
@@ -321,6 +350,7 @@ module Components =
     Effects: alist<ActiveEffect>
     Abilities: alist<int<AbilityId>>
     AbilityCooldowns: amap<int<AbilityId>, int64<Tick>>
+    Equipment: HashMap<Slot, Equipment>
   }
 
 module Services =

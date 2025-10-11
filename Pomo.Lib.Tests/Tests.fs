@@ -107,6 +107,7 @@ module private TestHelpers =
       Effects = (clist [] :> alist<_>)
       Abilities = (clist abilities :> alist<_>)
       AbilityCooldowns = (cooldowns :> amap<_, _>)
+      Equipment = HashMap.empty
     }
 
   let addEntity (state: GameState) (id: int<EntityId>) (all: EntityComponents) =
