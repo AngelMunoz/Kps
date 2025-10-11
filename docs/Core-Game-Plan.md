@@ -291,6 +291,8 @@ type GameState = {
 
 **Note**: These types implement the **Per-Scenario GameState architecture** for split-screen/multiplayer support.
 
+**Collision System**: Polygon-based for organic shapes (not tile grid). This allows for 2.5D graphics with natural boundaries for objects like corals, trees, and rocks.
+
 ```fsharp
 [<Struct>]
 type TerrainType =
@@ -300,9 +302,28 @@ type TerrainType =
   | Hazard  // causes damage over time
 
 [<Struct>]
-type Tile = {
+type CollisionGeometry =
+  | Circle of center: Vector2 * radius: float32
+  | Polygon of vertices: Vector2[]  // Arbitrary convex polygon for organic shapes
+  | None  // Visual-only objects with no collision
+
+[<Measure>]
+type ObjectId
+
+type TerrainObject = {
+  Id: Guid<ObjectId>
   Position: Position
-  Terrain: TerrainType
+  CollisionGeometry: CollisionGeometry
+  TerrainType: TerrainType
+  DepthLayer: float32  // Z-order for 2.5D rendering (0.0 = background, 1.0 = foreground)
+  SpriteId: string voption  // Visual representation (optional)
+}
+
+type VisualLayer = {
+  SpriteId: string
+  Position: Position
+  DepthLayer: float32
+  Parallax: float32  // For background scrolling effects
 }
 
 [<Measure>]
@@ -315,13 +336,14 @@ type ScenarioCombatType =
   | PvP          // Player vs Player - players can target enemy players (not in same party)
   | PvPvE        // Player vs Player vs Environment - players can target both enemy players and NPCs
 
-// Base scenario configuration
+// Base scenario configuration (polygon-based collision)
 type Scenario = {
   Id: Guid<ScenarioId>
   Name: string
-  Width: int
-  Height: int
-  Tiles: Tile[][]  // 2D grid
+  BoundsWidth: float32   // World bounds in units (not tiles)
+  BoundsHeight: float32
+  TerrainObjects: TerrainObject list  // Polygonal collision objects
+  VisualLayers: VisualLayer list      // Background/foreground sprites (no collision)
   BattleEnabled: bool
   CombatType: ScenarioCombatType  // Defines targeting rules (PvE/PvP/PvPvE)
   Transitions: ScenarioTransition list
@@ -382,28 +404,38 @@ type ScenarioTransition = {
   - Battle context is per-scenario
 
 ### 6.4.3 Terrain Rendering (Pomo.Core)
-- **Tile Rendering**:
-  - Grid-based rendering with colored tiles
-  - Walkable = light gray, Blocked = dark gray, Water = blue, Hazard = orange
-  - Tile size configurable (e.g., 32x32 pixels)
+- **Polygon-Based Rendering**:
+  - Render TerrainObjects with sprites at specified positions
+  - Depth-sorted rendering (sort by DepthLayer: background to foreground)
+  - Debug visualization: draw collision polygons/circles as wireframes (optional)
+  - Color coding for terrain types in debug mode: Walkable = light gray, Blocked = dark gray, Water = blue, Hazard = orange
+- **Visual Layers**:
+  - Render background/foreground VisualLayer sprites
+  - Apply parallax scrolling effects for depth perception
+  - No collision processing for visual-only layers
+- **2.5D Depth Ordering**:
+  - Y-sorting: entities further down render in front (pseudo-3D effect)
+  - Combined with DepthLayer for fine control (e.g., tree trunk in front, player behind tree)
 - **Scenario Bounds Visualization**:
-  - Draw scenario border
-  - Show transition points (portals, doors)
+  - Draw scenario border (BoundsWidth × BoundsHeight rectangle)
+  - Show transition points (portals, doors) as visual indicators
 
 **Deliverables**:
-- [ ] Scenario domain types in Pomo.Lib (Scenario, ScenarioState, PlayerContext, updated GameState)
+- [ ] Scenario domain types in Pomo.Lib (Scenario, ScenarioState, PlayerContext, CollisionGeometry, TerrainObject, VisualLayer, updated GameState)
 - [ ] ScenarioManager module with per-scenario operations
 - [ ] GameState refactored to per-scenario architecture
-- [ ] Terrain rendering system
-- [ ] Sample scenario definition (test map)
+- [ ] Polygon-based terrain rendering system with depth sorting
+- [ ] Sample scenario definition with TerrainObjects (test map with organic shapes)
 - [ ] Migration from single GameState to per-scenario architecture
 
 **Testing Requirements**:
-- [ ] Unit tests for Scenario and ScenarioState creation
+- [ ] Unit tests for Scenario, ScenarioState, CollisionGeometry, and TerrainObject creation
 - [ ] ScenarioManager test: Create scenario state and verify entity ownership
 - [ ] Per-scenario time test: Verify each scenario has independent gameTime
 - [ ] Player context test: Add player to scenario and verify currentScenarioId tracking
 - [ ] Entity ownership test: Verify entities belong to correct scenario (no cross-scenario references)
+- [ ] Collision geometry test: Verify Circle and Polygon collision shapes work correctly
+- [ ] Depth sorting test: Verify DepthLayer correctly orders visual elements
 - [ ] Integration test: Create multiple scenarios and verify independent state management
 
 ---
@@ -412,45 +444,62 @@ type ScenarioTransition = {
 
 **Goal**: Entities respect terrain and navigate intelligently
 
-### 6.5.1 Terrain Collision
-- **Walkability Check**:
-  - Query tile terrain type before movement
-  - Block movement to non-walkable tiles
-  - Visual feedback: invalid move indicator
-- **Hazard Tiles**:
-  - Apply damage/effect when entity on hazard tile
-  - Visual warning for hazard areas
+### 6.5.1 Polygon Collision Detection
+- **Collision Module** (Pomo.Lib):
+  - Point-in-polygon algorithm (ray casting) for movement validation
+  - Circle-polygon intersection for entity radius checks
+  - Efficient collision queries using spatial partitioning (grid or quadtree)
+- **Movement Validation**:
+  - Check destination position against all TerrainObjects with CollisionGeometry
+  - Block movement if destination intersects Blocked terrain
+  - Visual feedback: invalid move indicator (red X or blocked cursor)
+- **Hazard Detection**:
+  - Check entity position against Hazard TerrainObjects
+  - Apply damage/effect when entity overlaps hazard geometry
+  - Visual warning for hazard areas (pulsing effect, warning icon)
 
-### 6.5.2 Pathfinding (Simple A*)
-- **Pathfinding Module** (Pomo.Lib):
-  - A* algorithm for grid-based pathfinding
-  - Cost function: terrain type, distance
-  - Return path as Position list
+### 6.5.2 Pathfinding (Grid Overlay or NavMesh)
+- **Option A: Grid Overlay + Polygon Validation (Simpler, Recommended for Phase 6.5)**:
+  - Generate coarse navigation grid over scenario bounds
+  - Mark grid cells as walkable/blocked based on polygon overlaps
+  - Use A* on grid for pathfinding
+  - Final path validation: ensure waypoints don't intersect collision polygons
+  - Cost function: distance, terrain type, entity speed
+- **Option B: Navigation Mesh (Advanced, Future)**:
+  - Define walkable areas as polygons (NavMesh)
+  - A* over polygon graph for precise pathfinding
+  - More complex authoring but exact walkable boundaries
 - **Movement Integration**:
   - Calculate path when destination set
-  - Follow path waypoints
-  - Recalculate if path blocked
+  - Follow path waypoints with smooth interpolation
+  - Recalculate if path blocked or dynamic obstacles appear
 
 ### 6.5.3 Movement Visual Refinements
 - **Path Preview**:
-  - Show path before movement
-  - Indicate path validity (green = valid, red = invalid)
+  - Show path line before movement
+  - Indicate path validity (green = valid, red = invalid/blocked)
+  - Highlight collision obstacles along path
 - **Movement Speed Variation**:
-  - Different terrains affect speed
-  - Movement stat (Dexterity) affects speed
+  - Different terrain types affect speed (Water = slower, Walkable = normal)
+  - Movement stat (Dexterity) affects base speed
+  - Smooth acceleration/deceleration
 
 **Deliverables**:
-- [ ] Terrain collision detection
-- [ ] Hazard tile effect application
-- [ ] A* pathfinding implementation
+- [ ] Polygon collision detection module (point-in-polygon, circle-polygon)
+- [ ] Spatial partitioning for efficient collision queries
+- [ ] Hazard detection and effect application
+- [ ] Grid overlay pathfinding with polygon validation (Option A)
 - [ ] Path preview visualization
 - [ ] Terrain-based movement speed
 
 **Testing Requirements**:
-- [ ] Walkability test: Verify entities cannot move to Blocked tiles
-- [ ] Hazard test: Verify damage/effects applied when entity on hazard tile
-- [ ] Pathfinding test: A* algorithm produces valid paths around obstacles
+- [ ] Point-in-polygon test: Verify algorithm correctly detects interior/exterior points
+- [ ] Circle-polygon test: Verify entity radius collision with polygon boundaries
+- [ ] Movement validation test: Verify entities cannot move into Blocked polygons
+- [ ] Hazard test: Verify damage/effects applied when entity overlaps Hazard geometry
+- [ ] Pathfinding test: Grid overlay A* produces valid paths around polygon obstacles
 - [ ] Path validation test: Invalid paths (no route) handled correctly
+- [ ] Spatial partitioning test: Verify efficient collision queries (performance)
 - [ ] Terrain speed test: Verify movement speed varies by terrain type
 
 ---
@@ -537,13 +586,14 @@ type BattleContext = {
   CanDisengage: bool
 }
 
-// Updated Scenario type with combat type
+// Updated Scenario type with combat type (polygon-based collision)
 type Scenario = {
   Id: Guid<ScenarioId>
   Name: string
-  Width: int
-  Height: int
-  Tiles: Tile[][]
+  BoundsWidth: float32   // World bounds in units (not tiles)
+  BoundsHeight: float32
+  TerrainObjects: TerrainObject list  // Polygonal collision objects
+  VisualLayers: VisualLayer list      // Background/foreground sprites (no collision)
   BattleEnabled: bool
   CombatType: ScenarioCombatType  // NEW: Defines targeting rules
   Transitions: ScenarioTransition list
@@ -846,7 +896,7 @@ Based on the Core Game Plan requirements and **Per-Scenario GameState architectu
 ### Domain Extensions (Phase 6.1-6.7)
 1. **Position Component**: Add to EntityComponents (Phase 6.1)
 2. **Movement Component**: Speed, destination, path (Phase 6.3)
-3. **Scenario Types**: Scenario, ScenarioState, PlayerContext, Tile, TerrainType, ScenarioTransition (Phase 6.4)
+3. **Scenario Types**: Scenario, ScenarioState, PlayerContext, CollisionGeometry, TerrainObject, ObjectId, VisualLayer, TerrainType, ScenarioTransition (Phase 6.4)
 4. **Combat Type System**: ScenarioCombatType enum (PvE/PvP/PvPvE) in Scenario (Phase 6.7)
 5. **Party System**: Party, PartyId types for player grouping (Phase 6.7)
 6. **Battle Context**: BattleContext type in ScenarioState (per-scenario) (Phase 6.7)
@@ -881,13 +931,15 @@ type GameState = {
 ```
 
 ### New Modules
-- **ScenarioManager.fs**: Scenario loading, transitions, terrain queries
-- **Pathfinding.fs**: A* algorithm for navigation
-- **Movement.fs**: Movement resolution and validation
+- **ScenarioManager.fs**: Scenario loading, transitions, polygon collision queries
+- **Collision.fs**: Polygon collision detection (point-in-polygon, circle-polygon, spatial partitioning)
+- **Pathfinding.fs**: Grid overlay A* algorithm with polygon validation
+- **Movement.fs**: Movement resolution and polygon collision validation
 
 ### GameStateOperations Extensions (Per-Scenario Architecture)
 - moveEntity: Guid<EntityId> -> Position -> Guid<ScenarioId> -> GameState -> Result<StateChange, Error>
-- queryTile: Position -> ScenarioState -> Tile voption
+- canMoveTo: Position -> ScenarioState -> bool  // Polygon collision check
+- queryTerrainObjects: Position -> float32 -> ScenarioState -> TerrainObject list  // Query objects within radius
 - engageBattle: Guid<EntityId> list -> Guid<ScenarioId> -> GameState -> Result<StateChange, Error>
 - disengageBattle: Guid<ScenarioId> -> GameState -> Result<StateChange, Error>
 - transitionPlayerScenario: int -> Guid<ScenarioId> -> Position -> GameState -> Result<StateChange, Error>
@@ -939,13 +991,14 @@ type GameState = {
 
 ### Phase 6.4-6.6 Success (Scenarios & Per-Scenario Architecture)
 ✅ Per-scenario GameState architecture implemented and tested
-✅ Can navigate terrain with walkable/blocked tiles
+✅ Can navigate terrain with polygon-based collision (walkable/blocked areas)
+✅ Polygon collision detection works correctly (point-in-polygon, circle-polygon)
 ✅ Can move between 3+ different scenarios
-✅ Pathfinding works correctly around obstacles
+✅ Pathfinding works correctly around polygon obstacles
 ✅ Scenario-specific rules enforced
 ✅ Entity migration between scenarios works correctly
 ✅ Multiple scenarios can be active simultaneously (split-screen support verified)
-✅ Unit tests pass for Scenario, ScenarioState, PlayerContext, and ScenarioManager
+✅ Unit tests pass for Scenario, ScenarioState, PlayerContext, CollisionGeometry, TerrainObject, and ScenarioManager
 ✅ Integration tests verify scenario transitions preserve entity state
 
 ### Phase 6.7 Success (Battle System)
@@ -970,11 +1023,12 @@ type GameState = {
 ## Testing Strategy
 
 ### Unit Tests (Per Phase)
-- **Domain Components**: Position, Movement, Scenario, ScenarioState, PlayerContext, Tile, TerrainType
-- **ScenarioManager Operations**: createScenarioState, entity ownership, scenario queries
+- **Domain Components**: Position, Movement, Scenario, ScenarioState, PlayerContext, CollisionGeometry, TerrainObject, VisualLayer, TerrainType
+- **Collision Detection**: Point-in-polygon algorithm, circle-polygon intersection, spatial partitioning efficiency
+- **ScenarioManager Operations**: createScenarioState, entity ownership, polygon collision queries
 - **Per-Scenario Architecture**: Independent time, battle contexts, entity isolation
-- **GameStateOperations**: All API functions with per-scenario parameters
-- **Pathfinding**: A* algorithm correctness, path validation
+- **GameStateOperations**: All API functions with per-scenario parameters (canMoveTo, queryTerrainObjects)
+- **Pathfinding**: Grid overlay A* with polygon validation, path correctness
 - **AI Behavior**: State transitions, decision making
 
 ### Functional Tests
