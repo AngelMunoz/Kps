@@ -291,16 +291,6 @@ module Rules =
   }
 
   [<Struct>]
-  type AbilityContext = {
-    InvokerStats: Attributes.DerivedStats
-    TargetStats: Attributes.DerivedStats
-    AbilityResult: Abilities.DamageResult voption
-    InvokerEffects: Effects.ActiveEffect alist
-    TargetEffects: Effects.ActiveEffect alist
-    GameTime: int64<Tick>
-  }
-
-  [<Struct>]
   type UseAbilityAction = {
     actor: int<EntityId>
     targets: int<EntityId>[]

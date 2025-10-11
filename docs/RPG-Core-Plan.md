@@ -218,26 +218,28 @@ Deliverable: Ability system implemented with the following sample abilities:
 - Silence Spell
   Abilities can have resource costs (HP/MP), cooldowns, targeting types (Self, SingleAlly, SingleEnemy, MultiTarget), and reference formulas or effects. All ability definitions are managed adaptively.
 
-## Phase 4.5 — Enhanced Effects Framework
+## Phase 4.5 — Enhanced Effects Framework ✅ COMPLETE
 
-**CRITICAL: Required before Phase 5**
+**Status**: ✅ **COMPLETE**
 
-1. Enhanced Resolution Simplification
+1. Enhanced Resolution Simplification ✅
    - Process ability costs, damage calculation, and effect modifiers within a straightforward resolution flow (pre/compute/apply) without hook infrastructure
 
-2. Formula-Based Effect Modifiers
+2. Formula-Based Effect Modifiers ✅
    - Replace static modifiers with dynamic formula references
    - Support for ability damage modification, resource conversion
+   - DynamicMod: Formula-based stat modifiers with explicit targeting
+   - AbilityDamageMod: Percentage damage boosts from active effects
+   - ResourceConversion: HP-cost amplification and MP↔HP conversion
 
-4. Advanced Effect Categories
-   - HP-cost damage amplification mechanics
-   - Magic barrier with regeneration system
-   - Resource conversion formulas
-   - Foundation for distance-based damage calculation
+3. Passive Skills System ✅
+   - Passive and Active ability definitions with separate types
+   - Ability requirements system
+   - Permanent duration effects for passive skills
 
-Deliverable: Enhanced effects framework supporting complex, formula-driven interactions. All effect categories (HP-cost amplification, barriers, resource conversion) implemented and tested. System maintains backward compatibility with existing effects while enabling advanced gameplay mechanics.
+Deliverable: Enhanced effects framework supporting complex, formula-driven interactions. All core effect categories (HP-cost amplification, resource conversion, dynamic modifiers) implemented and tested. System maintains backward compatibility with existing effects while enabling advanced gameplay mechanics.
 
-**See**: `docs/enhanced-effects-framework.md` for detailed implementation plan.
+**See**: `docs/enhanced-effects-framework.md` for detailed implementation.
 
 ## Phase 5 — Content and Progression
 
@@ -319,19 +321,17 @@ Deliverable: Minimal MonoGame integration present. Game loop hooks and input pla
 - ✅ Property Testing: Ready for FsCheck integration
 - ✅ Content Definitions: 7 effects + 7 abilities for testing
 
-### 📋 CURRENT PHASE: 4.5 - Enhanced Effects Framework
+### ✅ COMPLETED - Phase 4.5: Enhanced Effects Framework
 
-**Status**: 🎯 **IN PROGRESS** - Required before Phase 5
+**Status**: ✅ **COMPLETE** - Ready for Phase 5
 
 **Completed Work**:
 - ✅ AbilityDamageMod integration - percentage damage boosts from active effects
 - ✅ ResourceConversion processing - HP-cost amplification and MP↔HP conversion
 - ✅ Resolution improvements - enhanced applyResourceCost and calculateDamage functions
 - ✅ DynamicMod with formula-based effect evaluation - explicit stat targeting with formula-calculated modifiers (supports derived stats: AP, MA, HP, MP, etc.)
-
-**Remaining Work**:
-- ⏳ Full AbilityContext integration (type exists but not actively used)
-- ⏳ Additional advanced effect categories (barriers, distance-based damage)
+- ✅ Passive skills with Permanent duration
+- ✅ Ability requirements system
 
 **Phase 4 Goals:**
 
@@ -398,9 +398,9 @@ let apply (state: GameState) (cmd:Command) =
 - ✅ Phase 2: Commands + resolution (MeleeAttack + simple spell)
 - ✅ Phase 3: Combat maths and effects (formulas, status framework, resources/costs)
 - ✅ Phase 3.5: Architectural Refinement (DI)
-- 🎯 **CURRENT**: Phase 4 Preparation - Refactoring and alignment
-- ⏳ Phase 4: Enhanced Ability/Spell System
-- ⏳ Phase 5: Content
+- ✅ Phase 4: Enhanced Ability/Spell System
+- ✅ Phase 4.5: Enhanced Effects Framework
+- 🎯 **CURRENT**: Phase 5 - Content and Progression
 - ⏳ Phase 6: MonoGame Integration
 
 ## How to Integrate Into PomoGame (later)
