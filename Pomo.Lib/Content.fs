@@ -433,3 +433,96 @@ module AbilityStore =
     let passives = passiveDefinitions |> Map.map(fun _ def -> Passive def)
 
     Map.fold (fun acc k v -> Map.add k v acc) actives passives
+
+module CharacterKitStore =
+  open Pomo.Lib.Domain.Classification
+  open Pomo.Lib.Domain.Attributes
+  open Pomo.Lib.Domain.CharacterKits
+
+  let definitions: Map<Profession, CharacterKit> =
+    Map.ofList [
+      { Family = Power; Stage = First },
+      {
+        Profession = { Family = Power; Stage = First }
+        Name = "Warrior Initiate"
+        BaseStats = { Power = 15; Magic = 5; Sense = 8; Charm = 12 }
+        StarterAbilities = [| 8<AbilityId> |]
+      }
+      { Family = Power; Stage = Second },
+      {
+        Profession = { Family = Power; Stage = Second }
+        Name = "Veteran Fighter"
+        BaseStats = { Power = 22; Magic = 7; Sense = 12; Charm = 17 }
+        StarterAbilities = [| 8<AbilityId>; 1<AbilityId> |]
+      }
+      { Family = Power; Stage = Third },
+      {
+        Profession = { Family = Power; Stage = Third }
+        Name = "Battle Master"
+        BaseStats = { Power = 30; Magic = 10; Sense = 15; Charm = 22 }
+        StarterAbilities = [| 8<AbilityId>; 1<AbilityId>; 100<AbilityId> |]
+      }
+      { Family = Magic; Stage = First },
+      {
+        Profession = { Family = Magic; Stage = First }
+        Name = "Apprentice Mage"
+        BaseStats = { Power = 5; Magic = 15; Sense = 10; Charm = 8 }
+        StarterAbilities = [| 2<AbilityId>; 4<AbilityId> |]
+      }
+      { Family = Magic; Stage = Second },
+      {
+        Profession = { Family = Magic; Stage = Second }
+        Name = "Adept Sorcerer"
+        BaseStats = { Power = 8; Magic = 22; Sense = 14; Charm = 12 }
+        StarterAbilities = [| 2<AbilityId>; 4<AbilityId>; 6<AbilityId> |]
+      }
+      { Family = Magic; Stage = Third },
+      {
+        Profession = { Family = Magic; Stage = Third }
+        Name = "Archmage"
+        BaseStats = { Power = 10; Magic = 30; Sense = 18; Charm = 15 }
+        StarterAbilities = [| 2<AbilityId>; 4<AbilityId>; 6<AbilityId>; 9<AbilityId> |]
+      }
+      { Family = Sense; Stage = First },
+      {
+        Profession = { Family = Sense; Stage = First }
+        Name = "Scout Novice"
+        BaseStats = { Power = 10; Magic = 8; Sense = 15; Charm = 10 }
+        StarterAbilities = [| 8<AbilityId>; 3<AbilityId> |]
+      }
+      { Family = Sense; Stage = Second },
+      {
+        Profession = { Family = Sense; Stage = Second }
+        Name = "Skilled Ranger"
+        BaseStats = { Power = 14; Magic = 12; Sense = 22; Charm = 14 }
+        StarterAbilities = [| 8<AbilityId>; 3<AbilityId>; 6<AbilityId> |]
+      }
+      { Family = Sense; Stage = Third },
+      {
+        Profession = { Family = Sense; Stage = Third }
+        Name = "Master Scout"
+        BaseStats = { Power = 18; Magic = 15; Sense = 30; Charm = 18 }
+        StarterAbilities = [| 8<AbilityId>; 3<AbilityId>; 6<AbilityId>; 9<AbilityId> |]
+      }
+      { Family = Charm; Stage = First },
+      {
+        Profession = { Family = Charm; Stage = First }
+        Name = "Defender Trainee"
+        BaseStats = { Power = 8; Magic = 7; Sense = 8; Charm = 15 }
+        StarterAbilities = [| 8<AbilityId>; 5<AbilityId>; 7<AbilityId> |]
+      }
+      { Family = Charm; Stage = Second },
+      {
+        Profession = { Family = Charm; Stage = Second }
+        Name = "Guardian Knight"
+        BaseStats = { Power = 12; Magic = 10; Sense = 12; Charm = 22 }
+        StarterAbilities = [| 8<AbilityId>; 5<AbilityId>; 7<AbilityId>; 4<AbilityId> |]
+      }
+      { Family = Charm; Stage = Third },
+      {
+        Profession = { Family = Charm; Stage = Third }
+        Name = "Protector Paragon"
+        BaseStats = { Power = 15; Magic = 13; Sense = 15; Charm = 30 }
+        StarterAbilities = [| 8<AbilityId>; 5<AbilityId>; 7<AbilityId>; 4<AbilityId>; 101<AbilityId> |]
+      }
+    ]

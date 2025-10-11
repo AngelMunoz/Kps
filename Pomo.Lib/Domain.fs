@@ -282,6 +282,15 @@ module AggregatedEffects =
   [<Struct>]
   type TickResult = { Damage: int; Healing: int }
 
+module CharacterKits =
+  [<Struct>]
+  type CharacterKit = {
+    Profession: Classification.Profession
+    Name: string
+    BaseStats: Attributes.BaseAttributes
+    StarterAbilities: int<AbilityId>[]
+  }
+
 module Rules =
   [<Struct>]
   type ResolvedDamage = {
