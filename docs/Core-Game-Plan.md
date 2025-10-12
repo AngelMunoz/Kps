@@ -1,6 +1,6 @@
 ﻿# Core Game Plan - MonoGame Integration & Gameplay Systems
 
-**Status**: 📋 **PLANNING** - Ready to begin Phase 6.1
+**Status**: 🚧 **IN PROGRESS** - Phase 6.1 started (basic rendering and health bars)
 
 **Created**: 2025-10-11
 
@@ -107,6 +107,13 @@ type GameState = {
 ---
 
 ## Phase 6.1 — Basic Rendering & Visual Feedback
+
+Progress Update (2025-10-11):
+- Implemented Position component in Pomo.Lib.Domain and added to EntityComponents.
+- GameStateOperations.createEntity initializes Position to (0,0).
+- Pomo.Core renders entities as colored rectangles with simple HP bars using a 1x1 pixel texture and SpriteBatch.
+- Initial positions for a player (green) and an enemy (red) are set so both are visible on screen.
+- Not yet implemented: camera follow/zoom, labels, circle rendering, dedicated RenderSystem module.
 
 **Goal**: See entities on screen and verify core library integration
 

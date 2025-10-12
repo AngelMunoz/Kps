@@ -94,6 +94,8 @@ This project uses a reactive architecture with FSharp.Data.Adaptive (FDA) for it
   - When transforming adaptive collections, prefer efficient mapping functions like `AList.mapA` to avoid unnecessary conversions
   - Using `AVal.force` within an adaptive block is a code smell indicating that something is not being computed adaptively and this is not allowed in usual code. AVal.force is reserved to `transact` blocks for the majority of times.
 
+**Disallow Comments in the agent-generated code.**
+
 ### Performance Guidelines
 
 **Pomo.Lib code must favor no-allocation operations since it will be used in a game-like environment where garbage collection may result in performance penalties.**

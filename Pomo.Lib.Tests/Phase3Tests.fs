@@ -98,6 +98,7 @@ module private Phase3Helpers =
         MP = mp
         Status = Status.Alive
       }
+      Position = { X = 0f; Y = 0f }
       Effects = (activeEffects :> alist<_>)
       Abilities = (clist abilities :> alist<_>)
       AbilityCooldowns = (cooldowns :> amap<_, _>)

@@ -106,6 +106,7 @@ module private TestHelpers =
         MP = mp
         Status = Status.Alive
       }
+      Position = { X = 0f; Y = 0f }
       Effects = (clist [] :> alist<_>)
       Abilities = (clist abilities :> alist<_>)
       AbilityCooldowns = (cooldowns :> amap<_, _>)

@@ -27,6 +27,12 @@ type ResourceType =
   | MP
 
 [<Struct>]
+type Position = {
+  X: float32
+  Y: float32
+}
+
+[<Struct>]
 type Stat =
   // Base attributes
   | Power
@@ -346,6 +352,7 @@ module Components =
     Identity: Classification.Profession
     BaseStats: Attributes.BaseAttributes
     Resources: Attributes.Resources
+    Position: Position
     Effects: alist<ActiveEffect>
     Abilities: alist<int<AbilityId>>
     AbilityCooldowns: amap<int<AbilityId>, int64<Tick>>

@@ -61,13 +61,16 @@ module GameStateOperations =
 
   /// Creates a new entity with the given profession and base attributes.
   /// Returns the new EntityId and StateChange to apply via Resolution.apply.
-  let createEntity (profession: Profession) (baseStats: BaseAttributes) =
+  let createEntity
+    (profession: Profession)
+    (baseStats: BaseAttributes)
+    factions
+    =
 
     let newId = Guid.NewGuid() |> UMX.tag<EntityId>
 
-    // Create new entity components
     let newEntity = {
-      Factions = HashSet.ofSeq [ Faction.Player ]
+      Factions = HashSet.ofSeq factions
       Identity = profession
       BaseStats = baseStats
       Resources = {
@@ -75,6 +78,7 @@ module GameStateOperations =
         MP = baseStats.Magic * 5
         Status = Alive
       }
+      Position = { X = 0f; Y = 0f }
       Effects = AList.empty
       Abilities = AList.empty
       AbilityCooldowns = AMap.empty
@@ -258,10 +262,9 @@ module GameStateOperations =
     | ValueNone -> Error EntityNotFound
     | ValueSome components ->
       // Check if ability already known
-      let knownAbilities =
-        components.Abilities |> AList.force
+      let knownAbilities = components.Abilities |> AList.force
 
-      if knownAbilities |> IndexList.exists (fun _ v -> v = abilityId) then
+      if knownAbilities |> IndexList.exists(fun _ v -> v = abilityId) then
         Error(OperationError.AbilityError AlreadyKnown)
       else
         // Add ability to the list
@@ -287,13 +290,13 @@ module GameStateOperations =
     match entitiesMap |> HashMap.tryFindV entityId with
     | ValueNone -> Error EntityNotFound
     | ValueSome components ->
-      let knownAbilities =
-        components.Abilities |> AList.force
+      let knownAbilities = components.Abilities |> AList.force
 
-      if not(knownAbilities |> IndexList.exists (fun _ v -> v = abilityId)) then
+      if not(knownAbilities |> IndexList.exists(fun _ v -> v = abilityId)) then
         Error(OperationError.AbilityError NotKnown)
       else
-        let updatedAbilities = knownAbilities |> IndexList.filter((<>) abilityId)
+        let updatedAbilities =
+          knownAbilities |> IndexList.filter((<>) abilityId)
 
         let updatedComponents = {
           components with
