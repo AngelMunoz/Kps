@@ -8,6 +8,7 @@ open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Classification
 open Pomo.Lib.Gameplay
+open Pomo.Lib.Tests.TestHelpers
 open System
 
 module MovementPhase3Tests =
@@ -41,78 +42,70 @@ module MovementPhase3Tests =
   [<Fact>]
   let ``Entity movement clamps to bounds``() =
     let state = GameState.create()
+    let active = getActiveScenario state
 
-    let bounds = {
+    let newBounds = {
       Width = 100f
       Height = 100f
       CenterX = 0f
       CenterY = 0f
     }
 
-    let state = { state with bounds = bounds }
+    let replaced = {
+      active with
+          scenario = {
+            active.scenario with
+                Bounds = newBounds
+          }
+    }
+
+    transact(fun _ -> state.scenarios[active.scenario.Id] <- replaced)
     let id = Guid.NewGuid() |> UMX.tag<EntityId>
-
     let e = makeEntity First 0f 0f 500f (ValueSome { X = 1000f; Y = 1000f })
-
-    transact(fun _ -> state.entities.Add(id, e) |> ignore)
-
-    // Large delta time to attempt to move beyond bounds
+    addEntity state id e
     let changeAVal = GameState.tick state (5_000_000L<Tick>)
-    let change = AVal.force changeAVal
-
-    transact(fun _ ->
-      change.updates |> HashMap.iter(fun i comp -> state.entities.[i] <- comp))
-
-    let final = state.entities |> AMap.force |> (fun m -> m[id])
-    let halfW = bounds.Width * 0.5f
-    let halfH = bounds.Height * 0.5f
-
-    Assert.InRange(
-      final.Position.X,
-      bounds.CenterX - halfW,
-      bounds.CenterX + halfW
-    )
-
-    Assert.InRange(
-      final.Position.Y,
-      bounds.CenterY - halfH,
-      bounds.CenterY + halfH
-    )
+    GameState.apply state (AVal.force changeAVal)
+    let final = getEntity state id
+    let b = (getActiveScenario state).scenario.Bounds
+    let halfW = b.Width * 0.5f
+    let halfH = b.Height * 0.5f
+    Assert.InRange(final.Position.X, b.CenterX - halfW, b.CenterX + halfW)
+    Assert.InRange(final.Position.Y, b.CenterY - halfH, b.CenterY + halfH)
 
   [<Fact>]
   let ``Entities do not overlap after movement``() =
     let state = GameState.create()
+    let active = getActiveScenario state
 
-    let bounds = {
+    let newBounds = {
       Width = 500f
       Height = 500f
       CenterX = 0f
       CenterY = 0f
     }
 
-    let state = { state with bounds = bounds }
+    let replaced = {
+      active with
+          scenario = {
+            active.scenario with
+                Bounds = newBounds
+          }
+    }
+
+    transact(fun _ -> state.scenarios[active.scenario.Id] <- replaced)
     let idA = Guid.NewGuid() |> UMX.tag<EntityId>
     let idB = Guid.NewGuid() |> UMX.tag<EntityId>
-
     let eA = makeEntity First -50f 0f 100f (ValueSome { X = 0f; Y = 0f })
-
     let eB = makeEntity Second 0f 0f 0f ValueNone
+    addEntity state idA eA
+    addEntity state idB eB
 
-    transact(fun _ ->
-      state.entities.Add(idA, eA) |> ignore
-      state.entities.Add(idB, eB) |> ignore)
-
-    // Tick multiple times
     for _ in 1..10 do
       let changeAVal = GameState.tick state 500_000L<Tick>
-      let change = AVal.force changeAVal
+      GameState.apply state (AVal.force changeAVal)
 
-      transact(fun _ ->
-        change.updates
-        |> HashMap.iter(fun i comp -> state.entities.[i] <- comp))
-
-    let finalA = state.entities |> AMap.force |> (fun m -> m[idA])
-    let finalB = state.entities |> AMap.force |> (fun m -> m[idB])
+    let finalA = getEntity state idA
+    let finalB = getEntity state idB
 
     let rA =
       match finalA.Identity.Stage with

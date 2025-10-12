@@ -10,16 +10,21 @@ open Pomo.Lib.Domain.Effects
 open Pomo.Lib.Effects
 open Pomo.Lib.Domain.State
 open Pomo.Lib.Domain.AggregatedEffects
+open Pomo.Lib.Scenario
 
 type GameState = {
-  entities: cmap<Guid<EntityId>, EntityComponents>
-  gameTime: cval<int64<Tick>>
+  scenarios: cmap<Guid<ScenarioId>, ScenarioState>
+  activeScenarioId: Guid<ScenarioId> cval
   services: Services.EngineServices
-  bounds: ScenarioBounds
 }
 
 
 module GameState =
+
+  let getActiveScenario(state: GameState) = adaptive {
+    let! scenarioId = state.activeScenarioId
+    return state.scenarios[scenarioId]
+  }
 
   let getModifiersForEffect (effectStore: Services.IEffectStore) effectId =
     let effect = effectStore.tryFind effectId
@@ -41,21 +46,36 @@ module GameState =
       HashMap.empty
     |> AMap.ofAVal
 
-  let getAllies(state: GameState) =
-    state.entities
-    |> AMap.filter(fun _ c ->
-      c.Factions |> HashSet.contains Classification.Ally)
+  let getAllies(state: GameState) = adaptive {
+    let! scenario = getActiveScenario state
 
-  let getEnemies(state: GameState) =
-    state.entities
-    |> AMap.filter(fun _ c ->
-      c.Factions |> HashSet.contains Classification.Enemy)
+    return
+      scenario.entities
+      |> AMap.filter(fun _ c ->
+        c.Factions |> HashSet.contains Classification.Ally)
+  }
 
-  let getValidTargets(state: GameState) =
-    state.entities
-    |> AMap.filter(fun _ c ->
-      c.Factions |> HashSet.contains Classification.Ally
-      || c.Factions |> HashSet.contains Classification.Enemy)
+  let getEnemies(state: GameState) = adaptive {
+    let! scenario = getActiveScenario state
+
+    return
+      scenario.entities
+      |> AMap.filter(fun _ c ->
+        c.Factions |> HashSet.contains Classification.Enemy)
+  }
+
+  let getValidTargets(state: GameState) = adaptive {
+    let! scenario = getActiveScenario state
+
+    let entities =
+      scenario.entities
+      |> AMap.filter(fun _ c ->
+        c.Factions |> HashSet.contains Classification.Ally
+        || c.Factions |> HashSet.contains Classification.Enemy)
+      |> AMap.toAVal
+
+    return entities
+  }
 
   let private aggregateEquipment
     (equipment: HashMap<Inventory.Slot, Inventory.Equipment>)
@@ -274,17 +294,24 @@ module GameState =
       return finalDerived
     }
 
-  let create'(services: Services.EngineServices) = {
-    entities = cmap()
-    gameTime = cval 0L<Tick>
-    services = services
-    bounds = {
+  let create'(services: Services.EngineServices) =
+    let initialScenarioId = %Guid.NewGuid()
+
+    let initialBounds = {
       Width = 2000f
       Height = 2000f
       CenterX = 0f
       CenterY = 0f
     }
-  }
+
+    let initialScenarioState =
+      ScenarioState.create initialScenarioId "Initial" initialBounds
+
+    {
+      scenarios = cmap [ initialScenarioId, initialScenarioState ]
+      activeScenarioId = cval initialScenarioId
+      services = services
+    }
 
   let create() =
     create' {
@@ -321,20 +348,28 @@ module GameState =
       rng = fun () -> System.Random().NextDouble()
     }
 
-  let getDerivedStats(state: GameState) =
-    state.entities
-    |> AMap.mapA(fun _ c ->
-      applyModifiers state.services c.BaseStats c.Effects c.Equipment)
+
+  let getDerivedStats(state: GameState) = adaptive {
+    let! scenario = getActiveScenario state
+
+    return
+      scenario.entities
+      |> AMap.mapA(fun _ c ->
+        applyModifiers state.services c.BaseStats c.Effects c.Equipment)
+  }
 
   [<Struct>]
   type EntityChange = { components: EntityComponents }
 
   let tick (state: GameState) (time: int64<Tick>) : aval<StateChange> = adaptive {
-    let! currentTime = state.gameTime
+    let! activeId = state.activeScenarioId
+    let scenario = state.scenarios[activeId]
+    let! currentTime = scenario.gameTime
+
     let newTime = currentTime + time
 
     let! allEntityChanges =
-      state.entities
+      scenario.entities
       |> AMap.mapA(fun entityId components -> adaptive {
         let! updatedEffects, tickResult =
           StatusEffects.tickEffects
@@ -345,12 +380,15 @@ module GameState =
         let movedComponents =
           Pomo.Lib.Movement.Update.updateEntityWithContext
             time
-            state.bounds
-            (state.entities |> AMap.force)
+            scenario.scenario.Bounds
+            (scenario.entities |> AMap.force)
             entityId
             components
 
-        let! derivedStats = getDerivedStats state |> AMap.tryFind entityId
+        let! derivedStats = adaptive {
+          let! derived = getDerivedStats state
+          return! derived |> AMap.tryFind entityId
+        }
 
         let maxHp =
           match derivedStats with
@@ -379,7 +417,6 @@ module GameState =
     let entities =
       allEntityChanges |> HashMap.map(fun _ change -> change.components)
 
-
     return {
       updates = entities
       additions = HashMap.empty
@@ -390,18 +427,21 @@ module GameState =
 
   let apply (state: GameState) (change: StateChange) =
     transact(fun _ ->
+      let activeId = state.activeScenarioId.Value
+      let scenario = state.scenarios[activeId]
+
       match change.gameTime with
-      | ValueSome newTime -> state.gameTime.Value <- newTime
+      | ValueSome newTime -> scenario.gameTime.Value <- newTime
       | ValueNone -> ()
 
       for entityId, updatedComponents in change.updates do
-        state.entities[entityId] <- updatedComponents
+        scenario.entities[entityId] <- updatedComponents
 
       for entityId, newComponents in change.additions do
-        state.entities.Add(entityId, newComponents) |> ignore
+        scenario.entities.Add(entityId, newComponents) |> ignore
 
       for entityId in change.removals do
-        state.entities.Remove entityId |> ignore)
+        scenario.entities.Remove entityId |> ignore)
 
 
 module Projections =

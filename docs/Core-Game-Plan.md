@@ -1,6 +1,6 @@
 ﻿# Core Game Plan - MonoGame Integration & Gameplay Systems
 
-**Status**: 🚧 **IN PROGRESS** - Phase 6.1 started (basic rendering and health bars)
+**Status**: 🚧 **IN PROGRESS** - Phases 6.1 & 6.2 complete; Phase 6.3 (Movement & Navigation) in progress
 
 **Created**: 2025-10-11
 
@@ -171,19 +171,18 @@ Progress Update (2025-10-11):
 
 **Deliverables**:
 
-- [ ] Position component added to Domain
-- [ ] RenderSystem.fs with entity rendering
-- [ ] Health bar rendering
-- [ ] Camera system with follow and zoom
-- [ ] Visual verification: see 2 entities (player, enemy) on screen with health bars
+- [x] Position component added to Domain
+- [x] RenderSystem.fs with entity rendering
+- [x] Health bar rendering
+- [x] Camera system with follow and zoom
+- [x] Visual verification: see 2 entities (player, enemy) on screen with health bars
 
 **Testing Requirements**:
 
-- [ ] Unit tests for Position component initialization and validation
-- [ ] Integration test: Create entities with positions and verify rendering output
-- [ ] Visual test: Confirm entities render at correct screen positions
-- [ ] Camera test: Verify camera follow and zoom functionality
-- [ ] Health bar test: Verify health bars update when entity resources change
+- [x] Integration test: Create entities with positions and verify rendering output
+- [x] Visual test: Confirm entities render at correct screen positions
+- [x] Camera test: Verify camera follow and zoom functionality
+- [x] Health bar test: Verify health bars update when entity resources change
 
 ---
 
@@ -329,6 +328,8 @@ No long-term coupling is created: movement update function already accepts bound
 
 **Goal**: Define scenarios with terrain and rules
 
+**Status**: 🚧 **PARTIAL PROGRESS** (2025-10-12) - Core per-scenario architecture implemented
+
 ### 6.4.1 Scenario Domain Types (Pomo.Lib)
 
 **Note**: These types implement the **Per-Scenario GameState architecture** for split-screen/multiplayer support.
@@ -466,12 +467,12 @@ type ScenarioTransition = {
 
 **Deliverables**:
 
-- [ ] Scenario domain types in Pomo.Lib (Scenario, ScenarioState, PlayerContext, CollisionGeometry, TerrainObject, ObjectId, VisualLayer, TerrainType, ScenarioTransition)
-- [ ] ScenarioManager module with per-scenario operations
-- [ ] GameState refactored to per-scenario architecture (remove temporary `GameState.bounds`)
+- [x] Scenario domain types in Pomo.Lib (Scenario, ScenarioState, ScenarioId implemented; CollisionGeometry, TerrainObject, ObjectId, VisualLayer, TerrainType, ScenarioTransition pending)
+- [x] ScenarioManager module with per-scenario operations (basic operations via getActiveScenario)
+- [x] GameState refactored to per-scenario architecture (scenarios: cmap, activeScenarioId implemented; temporary `GameState.bounds` removed)
 - [ ] Polygon-based terrain rendering system with depth sorting
 - [ ] Sample scenario definition with TerrainObjects (test map with organic shapes)
-- [ ] Migration from single GameState to per-scenario architecture (entities relocated into initial ScenarioState)
+- [x] Migration from single GameState to per-scenario architecture (entities relocated into ScenarioState)
 
 **Testing Requirements**:
 

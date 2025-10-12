@@ -740,61 +740,59 @@ module Resolution =
       }
     }
 
-  let evaluate (state: GameState) (cmd: Command) : aval<StateChange> =
-    let derivedStats = GameState.getDerivedStats state
-    let enemies = GameState.getEnemies state
-    let allies = GameState.getAllies state
+  let evaluate (state: GameState) (cmd: Command) : aval<StateChange> = adaptive {
+    let! scenario = GameState.getActiveScenario state
+    let! derivedStats = GameState.getDerivedStats state
+    let! enemies = GameState.getEnemies state
+    let! allies = GameState.getAllies state
 
     let resolverParams = {
-      entities = state.entities
+      entities = scenario.entities
       enemies = enemies
       allies = allies
       derivedStats = derivedStats
-      gameTime = state.gameTime
+      gameTime = scenario.gameTime
       services = state.services
     }
 
     match cmd with
-    | UseAbility action -> resolveUseAbility action resolverParams
-    | Move action -> adaptive {
-        let! entity = state.entities |> AMap.tryFind action.actor
+    | UseAbility action -> return! resolveUseAbility action resolverParams
+    | Move action ->
+      let! entity = scenario.entities |> AMap.tryFind action.actor
 
-        match entity with
-        | Some e ->
-          let updatedEntity = {
-            e with
-                EntityComponents.Movement.Destination =
-                  ValueSome action.destination
-          }
+      match entity with
+      | Some e ->
+        let updatedEntity = {
+          e with
+              EntityComponents.Movement.Destination =
+                ValueSome action.destination
+        }
 
-          return {
-            updates = HashMap.ofList [ action.actor, updatedEntity ]
-            additions = HashMap.empty
-            removals = Array.empty
-            gameTime = ValueNone
-          }
-        | None ->
-          return {
-            updates = HashMap.empty
-            additions = HashMap.empty
-            removals = Array.empty
-            gameTime = ValueNone
-          }
-      }
-    | RemoveEntities entityIds -> adaptive {
+        return {
+          updates = HashMap.ofList [ action.actor, updatedEntity ]
+          additions = HashMap.empty
+          removals = Array.empty
+          gameTime = ValueNone
+        }
+      | None ->
         return {
           updates = HashMap.empty
           additions = HashMap.empty
-          removals = entityIds |> Seq.toArray
+          removals = Array.empty
           gameTime = ValueNone
         }
+    | RemoveEntities entityIds ->
+      return {
+        updates = HashMap.empty
+        additions = HashMap.empty
+        removals = entityIds |> Seq.toArray
+        gameTime = ValueNone
       }
     | AddEntities entitiesToAdd ->
-        adaptive {
-          return {
-            updates = HashMap.empty
-            additions = entitiesToAdd
-            removals = Array.empty
-            gameTime = ValueNone
-          }
-        }
+      return {
+        updates = HashMap.empty
+        additions = entitiesToAdd
+        removals = Array.empty
+        gameTime = ValueNone
+      }
+  }

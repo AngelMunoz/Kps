@@ -105,7 +105,12 @@ module GameState =
   }
 
   let getEntity entityId (state: GameState) =
-    state.entities |> AMap.tryFind entityId |> AVal.force
+    adaptive {
+      let! scenario = GameState.getActiveScenario state
+      return! scenario.entities |> AMap.tryFind entityId
+    }
+    |> AVal.force
+
 
   /// Equips an item to the specified slot.
   /// Returns StateChange or error (entity not found, invalid slot).
@@ -116,7 +121,12 @@ module GameState =
     (state: GameState)
     =
 
-    let entitiesMap = state.entities |> AMap.force
+    let entitiesMap =
+      adaptive {
+        let! scenario = GameState.getActiveScenario state
+        return! scenario.entities |> AMap.toAVal
+      }
+      |> AVal.force
 
     match entitiesMap |> HashMap.tryFindV entityId with
     | ValueNone -> Error EntityNotFound
@@ -183,7 +193,12 @@ module GameState =
   /// Single atomic StateChange for both slot modifications.
   let swapEquipment entityId (slot1: Slot) (slot2: Slot) (state: GameState) =
 
-    let entitiesMap = state.entities |> AMap.force
+    let entitiesMap =
+      adaptive {
+        let! scenario = GameState.getActiveScenario state
+        return! scenario.entities |> AMap.toAVal
+      }
+      |> AVal.force
 
     match entitiesMap |> HashMap.tryFindV entityId with
     | ValueNone -> Error EntityNotFound
@@ -233,25 +248,35 @@ module GameState =
   /// Returns all alive entities.
   /// Uses ASet.force on existing adaptive projection.
   let inline getAliveEntities(state: GameState) =
-    Projections.aAlive state.entities |> ASet.force
+    adaptive {
+      let! scenario = GameState.getActiveScenario state
+      return! Projections.aAlive scenario.entities |> ASet.toAVal
+    }
+    |> AVal.force
 
   /// Returns abilities not on cooldown for an entity.
   /// Uses direct access to AbilityCooldowns and Abilities.
   let inline getReadyAbilities entityId (state: GameState) =
     adaptive {
-      let! found = state.entities |> AMap.tryFind entityId
+      let! scenario = GameState.getActiveScenario state
+      let! found = scenario.entities |> AMap.tryFind entityId
 
       match found with
       | None -> return HashSet.empty
       | Some components ->
         return!
-          Projections.aReadyForEntity components state.gameTime |> ASet.toAVal
+          Projections.aReadyForEntity components scenario.gameTime
+          |> ASet.toAVal
     }
     |> AVal.force
 
   /// Forces evaluation of adaptive stats and returns snapshot.
   let inline getDerivedStatsSnapshot entityId (state: GameState) =
-    GameState.getDerivedStats state |> AMap.force |> HashMap.tryFindV entityId
+    adaptive {
+      let! stats = GameState.getDerivedStats state
+      return! stats |> AMap.tryFind entityId
+    }
+    |> AVal.force
 
   /// Force and apply an adaptive StateChange with time update. (applyTick)
   let inline forceAndApply(state: GameState) =

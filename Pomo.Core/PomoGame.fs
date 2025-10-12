@@ -152,14 +152,16 @@ type PomoGame() as this =
 
     // Set initial positions for visibility (Phase 6.1) and give player a basic ability (Phase 6.2)
     transact(fun _ ->
-      let p = state.entities[playerId]
+      let scenario = GameState.getActiveScenario state |> AVal.force
+
+      let p = scenario.entities[playerId]
       let abilityId = 8<AbilityId>
       let abilities = HashSet.ofList [ abilityId ]
 
       let cooldowns: cmap<int<AbilityId>, int64<Tick>> =
         cmap [ (abilityId, 0L<Tick>) ]
 
-      state.entities[playerId] <-
+      scenario.entities[playerId] <-
         {
           p with
               Position = { X = 100f; Y = 140f }
@@ -167,9 +169,9 @@ type PomoGame() as this =
               AbilityCooldowns = (cooldowns :> amap<_, _>)
         }
 
-      let e = state.entities[enemyId]
+      let e = scenario.entities[enemyId]
 
-      state.entities[enemyId] <-
+      scenario.entities[enemyId] <-
         {
           e with
               Position = { X = 220f; Y = 140f }
@@ -223,7 +225,9 @@ type PomoGame() as this =
           zoom <- z
           prevScroll <- wheel
 
-        match state.entities |> AMap.force |> HashMap.tryFindV playerId with
+        let scenario = GameState.getActiveScenario state |> AVal.force
+
+        match scenario.entities |> AMap.force |> HashMap.tryFindV playerId with
         | ValueSome comp -> cameraPos <- Position.toVector2 comp.Position
         | ValueNone -> ()
 
@@ -262,7 +266,7 @@ type PomoGame() as this =
             $"[Input] World {world.X},{world.Y} Zoom {zoom} Camera {cameraPos.X},{cameraPos.Y}"
           )
 
-          let entities = state.entities |> AMap.force |> HashMap.toArrayV
+          let entities = scenario.entities |> AMap.force |> HashMap.toArrayV
 
           let inline radiusOfStage s =
             match s with
@@ -328,8 +332,12 @@ type PomoGame() as this =
         * Matrix.CreateTranslation(halfW, halfH, 0f)
 
       let hudOpt = if isNull hudFont then ValueNone else ValueSome hudFont
-      let entities = state.entities |> AMap.force |> HashMap.toArrayV
-      let derived = GameState.getDerivedStats state |> AMap.force
+
+      let scenario = GameState.getActiveScenario state |> AVal.force
+
+      let entities = scenario.entities |> AMap.force |> HashMap.toArrayV
+
+      let derived = GameState.getDerivedStats state |> AVal.force |> AMap.force
 
       RenderSystem.draw
         struct (entities, derived)
@@ -338,7 +346,7 @@ type PomoGame() as this =
         hudOpt
         view
         selected
-        state.bounds
+        scenario.scenario.Bounds
     | _ -> ()
 
     base.Draw(gameTime)

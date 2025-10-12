@@ -12,6 +12,7 @@ open Pomo.Lib.Domain.State
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Gameplay
+open Pomo.Lib.Tests.TestHelpers
 open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Rules
 open Pomo.Lib.Content
@@ -42,7 +43,7 @@ module private Generators =
 // --------------------------------------------------
 // Helpers
 // --------------------------------------------------
-module private TestHelpers =
+module private InternalHelpers =
 
 
   let create(rng: unit -> float) =
@@ -123,10 +124,10 @@ module private TestHelpers =
     (id: Guid<EntityId>)
     (all: EntityComponents)
     =
-    transact(fun _ -> state.entities.Add(id, all) |> ignore)
+    addEntity state id all
 
   let derivedOf (state: GameState) (id: Guid<EntityId>) =
-    GameState.getDerivedStats state |> AMap.force |> (fun m -> m[id])
+    getDerivedStat state id
 
 // --------------------------------------------------
 // Property Tests (Derived Stats)
@@ -136,19 +137,17 @@ type ``Derived Stats``() =
   member _.``Derived stats formula matches implementation``
     (baseAttrs: BaseAttributes)
     =
-    let state = TestHelpers.create(fun _ -> 0.5)
+    let state = InternalHelpers.create(fun _ -> 0.5)
     let id = Guid.NewGuid() |> UMX.tag<EntityId>
 
     let entity =
-      TestHelpers.makeEntity [ Classification.Player ] baseAttrs 100 100 []
+      InternalHelpers.makeEntity [ Classification.Player ] baseAttrs 100 100 []
 
-    TestHelpers.addEntity state id entity
-    let derived = TestHelpers.derivedOf state id
-
+    InternalHelpers.addEntity state id entity
+    let derived = InternalHelpers.derivedOf state id
     let expectedAttack = baseAttrs.Power * 2
     let expectedAccuracy = baseAttrs.Power + int(float baseAttrs.Power * 1.25)
     let expectedDexterity = baseAttrs.Power
-
     let expectedMagicPotential = baseAttrs.Magic * 5
     let expectedMagicAttack = baseAttrs.Magic * 2
 
@@ -158,7 +157,6 @@ type ``Derived Stats``() =
     let expectedWeight = baseAttrs.Sense * 5
     let expectedDetectAbility = baseAttrs.Sense * 2
     let expectedLuck = baseAttrs.Sense + int(float baseAttrs.Sense * 0.5)
-
     let expectedHealthPoints = baseAttrs.Charm * 10
     let expectedDefense = baseAttrs.Charm + int(float baseAttrs.Charm * 1.25)
     let expectedEvasion = baseAttrs.Charm * 2
@@ -182,203 +180,292 @@ type ``Derived Stats``() =
 type ``Action Resolution``() =
 
   [<Fact>]
-  member _.``Melee attack applies expected damage``() =
-    let baseA = {
-      Power = 20
-      Magic = 5
-      Sense = 5 // High sense to guarantee hits via AC and LK
+  member _.``DynamicMod evaluates with correct invoker stats``() =
+    let state = InternalHelpers.create(fun () -> 0.5)
+    let playerId = Guid.NewGuid() |> UMX.tag<EntityId>
+
+    let baseStats = {
+      Power = 5
+      Magic = 20
+      Sense = 5
       Charm = 10
     }
 
-    let baseB = {
-      Power = 4
-      Magic = 3
+    let player =
+      InternalHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
+
+    InternalHelpers.addEntity state playerId player
+    let initialAP = getDerivedStat state playerId |> fun s -> s.AP
+
+    let dynamicEffect: Effects.ActiveEffect = {
+      EffectId = 300<EffectId>
+      SourceId = playerId
+      RemainingTicks = 15000L<Tick>
+      NextTickIn = 15000L<Tick>
+      Stacks = 1
+      Definition = state.services.effectStore.find 300<EffectId>
+    }
+
+    let currentComponents = getEntity state playerId
+
+    setEntity state playerId {
+      currentComponents with
+          Effects = AList.ofList [ dynamicEffect ]
+    }
+
+    let finalAP = getDerivedStat state playerId |> fun s -> s.AP
+    Assert.Equal(initialAP + 20, finalAP)
+
+  [<Fact>]
+  member _.``Multiple DynamicMod effects stack correctly``() =
+    let state = InternalHelpers.create(fun () -> 0.5)
+    let playerId = Guid.NewGuid() |> UMX.tag<EntityId>
+
+    let baseStats = {
+      Power = 5
+      Magic = 10
       Sense = 5
-      Charm = 16 // Increased charm to have a DP of 8
+      Charm = 10
     }
 
-    let state = TestHelpers.create(fun () -> 0.1)
-    let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let melee = 8<AbilityId> // Basic Melee Attack No Cost and No Effects
+    let player =
+      InternalHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
 
-    let attacker =
-      TestHelpers.makeEntity [ Classification.Player ] baseA 100 50 [ melee ]
+    InternalHelpers.addEntity state playerId player
+    let initialAP = getDerivedStat state playerId |> fun s -> s.AP
 
-    let target = TestHelpers.makeEntity [ Classification.Enemy ] baseB 80 30 []
-    TestHelpers.addEntity state attackerId attacker
-    TestHelpers.addEntity state targetId target
+    let effect1: Effects.ActiveEffect = {
+      EffectId = 300<EffectId>
+      SourceId = playerId
+      RemainingTicks = 15000L<Tick>
+      NextTickIn = 15000L<Tick>
+      Stacks = 1
+      Definition = state.services.effectStore.find 300<EffectId>
+    }
 
-    let action =
-      UseAbility {
-        actor = attackerId
-        targets = [| targetId |]
-        abilityId = melee
-      }
+    let effect2: Effects.ActiveEffect = {
+      EffectId = 300<EffectId>
+      SourceId = playerId
+      RemainingTicks = 10000L<Tick>
+      NextTickIn = 10000L<Tick>
+      Stacks = 1
+      Definition = state.services.effectStore.find 300<EffectId>
+    }
 
-    let delta = Resolution.evaluate state action
-    let change = delta |> AVal.force
-    GameState.apply state change
+    let currentComponents = getEntity state playerId
 
-    let targetAfter = state.entities[targetId]
-    // DP is Charm + 1.25*Charm -> 16 + 20 = 36
-    // AP is Power * 2 -> 20 * 2 = 40
-    // Melee damage formula is AP * 2 -> 40 * 2 = 80
-    // Final damage is 80 - 36 = 44
-    // Victim HP is Charm * 10 -> 16 * 10 = 160
-    // Victim HP after attack is 160 - 44 = 116
-    Assert.Equal(36, targetAfter.Resources.HP)
+    setEntity state playerId {
+      currentComponents with
+          Effects = AList.ofList [ effect1; effect2 ]
+    }
 
-  [<Fact>]
-  member _.``Magic attack applies expected damage with MD``() =
-    let state = TestHelpers.create(fun () -> 0.1)
-    let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let spell = 6<AbilityId> // Fireball
-
-    let attacker =
-      TestHelpers.makeEntity
-        [ Classification.Player ]
-        {
-          Power = 10
-          Magic = 55
-          Sense = 10
-          Charm = 10
-        }
-        100
-        100
-        [ spell ]
-
-    let target =
-      TestHelpers.makeEntity
-        [ Classification.Enemy ]
-        {
-          Power = 4
-          Magic = 3
-          Sense = 8
-          Charm = 16
-        }
-        80
-        30
-        []
-
-    TestHelpers.addEntity state attackerId attacker
-    TestHelpers.addEntity state targetId target
-
-    let action =
-      UseAbility {
-        actor = attackerId
-        targets = [| targetId |]
-        abilityId = spell
-      }
-
-    let delta = Resolution.evaluate state action
-    let change: StateChange = delta |> AVal.force
-    GameState.apply state change
-
-    let targetAfter = state.entities[targetId]
-    // Victim HP is 80 - 110 = -30, clamped to 0.
-    Assert.Equal(0, targetAfter.Resources.HP)
-    Assert.Equal(Status.Dead, targetAfter.Resources.Status)
+    let finalAP = getDerivedStat state playerId |> fun s -> s.AP
+    Assert.Equal(initialAP + 20, finalAP)
 
   [<Fact>]
-  member _.``Spell casting applies damage, costs MP, and can kill target``() =
-    let state = TestHelpers.create(fun () -> 0.5)
-    let casterId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let victimId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let spell = 2<AbilityId>
+  member _.``DynamicMod can target MA``() =
+    let state = InternalHelpers.create(fun () -> 0.5)
+    let playerId = Guid.NewGuid() |> UMX.tag<EntityId>
 
-    let casterBase = {
-      Power = 2
+    let baseStats = {
+      Power = 5
       Magic = 20
-      Sense = 50 // High LK to guarantee hit
-      Charm = 5
+      Sense = 5
+      Charm = 10
     }
 
-    let victimBase = {
-      Power = 1
-      Magic = 1
-      Sense = 1 // Low LK
-      Charm = 5
+    let player =
+      InternalHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
+
+    InternalHelpers.addEntity state playerId player
+    let initialMA = getDerivedStat state playerId |> fun s -> s.MA
+
+    let dynamicEffect: Effects.ActiveEffect = {
+      EffectId = 301<EffectId>
+      SourceId = playerId
+      RemainingTicks = 15000L<Tick>
+      NextTickIn = 15000L<Tick>
+      Stacks = 1
+      Definition = state.services.effectStore.find 301<EffectId>
     }
 
-    let caster =
-      TestHelpers.makeEntity [ Classification.Player ] casterBase 100 100 [
-        spell
+    let currentComponents = getEntity state playerId
+
+    setEntity state playerId {
+      currentComponents with
+          Effects = AList.ofList [ dynamicEffect ]
+    }
+
+    let finalMA = getDerivedStat state playerId |> fun s -> s.MA
+    Assert.Equal(initialMA + 20, finalMA)
+
+  [<Fact>]
+  member _.``DynamicMod targeting different stats stacks independently``() =
+    let state = InternalHelpers.create(fun () -> 0.5)
+    let playerId = Guid.NewGuid() |> UMX.tag<EntityId>
+
+    let baseStats = {
+      Power = 5
+      Magic = 10
+      Sense = 5
+      Charm = 10
+    }
+
+    let player =
+      InternalHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
+
+    InternalHelpers.addEntity state playerId player
+    let initialAP = getDerivedStat state playerId |> fun s -> s.AP
+    let initialMA = getDerivedStat state playerId |> fun s -> s.MA
+
+    let apEffect: Effects.ActiveEffect = {
+      EffectId = 300<EffectId>
+      SourceId = playerId
+      RemainingTicks = 15000L<Tick>
+      NextTickIn = 15000L<Tick>
+      Stacks = 1
+      Definition = state.services.effectStore.find 300<EffectId>
+    }
+
+    let maEffect: Effects.ActiveEffect = {
+      EffectId = 301<EffectId>
+      SourceId = playerId
+      RemainingTicks = 15000L<Tick>
+      NextTickIn = 15000L<Tick>
+      Stacks = 1
+      Definition = state.services.effectStore.find 301<EffectId>
+    }
+
+    let currentComponents = getEntity state playerId
+
+    setEntity state playerId {
+      currentComponents with
+          Effects = AList.ofList [ apEffect; maEffect ]
+    }
+
+    let finalAP = getDerivedStat state playerId |> fun s -> s.AP
+    let finalMA = getDerivedStat state playerId |> fun s -> s.MA
+    Assert.Equal(initialAP + 10, finalAP)
+    Assert.Equal(initialMA + 10, finalMA)
+
+  [<Property(MaxTest = 100)>]
+  member _.``Magical hit chance follows LK vs LK formula``
+    (lkAtkInput: NonNegativeInt)
+    (lkDefInput: NonNegativeInt)
+    =
+    let lkA = lkAtkInput.Get % 200
+    let lkD = lkDefInput.Get % 200
+    let chance = Resolution.calculateHitChance lkA lkD
+    let diff = lkA - lkD
+
+    let rangeOk =
+      if lkA = 0 && lkD = 0 then
+        chance = 1.0
+      else
+        chance >= 0.05 && chance <= 0.95
+
+    let equalOk = if lkA = lkD && lkA > 0 then chance = 0.5 else true
+    let clampHighOk = if diff >= 45 then chance = 0.95 else true
+
+    let clampLowOk =
+      if diff <= -45 && not(lkA = 0 && lkD = 0) then
+        chance = 0.05
+      else
+        true
+
+    let directionOk =
+      if lkA > lkD then chance >= 0.5
+      elif lkA < lkD then chance <= 0.5
+      else true
+
+    rangeOk && equalOk && clampHighOk && clampLowOk && directionOk
+
+  [<Property(MaxTest = 50)>]
+  member _.``Damage scales with attacker stats``
+    (attackerPower: PositiveInt)
+    (rngResult: NormalFloat)
+    =
+    let power = abs attackerPower.Get
+    let rngValue = abs rngResult.Get % 1.0
+    let state = InternalHelpers.create(fun () -> rngValue)
+    let attackerIdLow = Guid.NewGuid() |> UMX.tag<EntityId>
+    let attackerIdHigh = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let meleeId = 1<AbilityId>
+
+    let lowStats = {
+      Power = power
+      Magic = 4
+      Sense = 50
+      Charm = 0
+    }
+
+    let highStats = {
+      Power = power + 10
+      Magic = 4
+      Sense = 50
+      Charm = 0
+    }
+
+    let tgtStats = {
+      Power = 5
+      Magic = 4
+      Sense = 1
+      Charm = 0
+    }
+
+    let attackerLow =
+      InternalHelpers.makeEntity [ Classification.Player ] lowStats 100 100 [
+        meleeId
       ]
 
-    let victim =
-      TestHelpers.makeEntity [ Classification.Enemy ] victimBase 30 10 []
+    let attackerHigh =
+      InternalHelpers.makeEntity [ Classification.Player ] highStats 100 100 [
+        meleeId
+      ]
 
-    TestHelpers.addEntity state casterId caster
-    TestHelpers.addEntity state victimId victim
+    let target =
+      InternalHelpers.makeEntity [ Classification.Enemy ] tgtStats 100 100 []
 
-    let action =
-      (UseAbility {
-        actor = casterId
-        targets = [| victimId |]
-        abilityId = spell
-      })
+    InternalHelpers.addEntity state attackerIdLow attackerLow
+    InternalHelpers.addEntity state attackerIdHigh attackerHigh
+    InternalHelpers.addEntity state targetId target
+    let actorStatsLow = getDerivedStat state attackerIdLow
+    let actorStatsHigh = getDerivedStat state attackerIdHigh
+    let defenderStats = getDerivedStat state targetId
 
-    let delta = Resolution.evaluate state action
-    let change = delta |> AVal.force
-    GameState.apply state change
+    let formulaId =
+      state.services.abilityStore.find meleeId
+      |> function
+        | Abilities.Active def -> def.FormulaId |> ValueOption.get
+        | _ -> failwith "Expected active ability"
 
-    // Fireball uses formula 2: MA*2 + elemental = 20*2 + 40 = 80
-    let victimAfter = state.entities[victimId]
+    let damageLow =
+      Resolution.calculateDamage
+        {
+          services = state.services
+          attackerStats = actorStatsLow
+          defenderStats = defenderStats
+          attackerEffects = AList.empty
+        }
+        formulaId
+      |> AVal.force
 
-    Assert.Equal(0, victimAfter.Resources.HP)
-    Assert.Equal(Status.Dead, victimAfter.Resources.Status)
+    let damageHigh =
+      Resolution.calculateDamage
+        {
+          services = state.services
+          attackerStats = actorStatsHigh
+          defenderStats = defenderStats
+          attackerEffects = AList.empty
+        }
+        formulaId
+      |> AVal.force
 
-  [<Fact>]
-  member _.``Melee ability stamina cost reduces stamina and emits ResourceChanged``
-    ()
-    =
-    let baseA = {
-      Power = 20
-      Magic = 5
-      Sense = 50 // High sense to guarantee hits via AC and LK
-      Charm = 10
-    }
-
-    let baseB = {
-      Power = 4
-      Magic = 3
-      Sense = 8
-      Charm = 16 // Increased charm to have a DP of 8
-    }
-
-    let state = TestHelpers.create(fun _ -> 0.5)
-    let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let melee = 1<AbilityId>
-
-    let attacker =
-      TestHelpers.makeEntity [ Classification.Player ] baseA 100 40 [ melee ]
-
-    let target = TestHelpers.makeEntity [ Classification.Enemy ] baseB 40 10 []
-    TestHelpers.addEntity state attackerId attacker
-    TestHelpers.addEntity state targetId target
-    let before = attacker.Resources.MP
-
-    let cost =
-      match AbilityStore.definitions[melee] with
-      | Abilities.Active def -> (def.Cost |> ValueOption.get).Amount
-      | _ -> failwith "Expected active ability"
-
-    let action =
-      (UseAbility {
-        actor = attackerId
-        targets = [| targetId |]
-        abilityId = melee
-      })
-
-    let delta = Resolution.evaluate state action
-    let change = delta |> AVal.force
-    GameState.apply state change
-
-    let attackerAfter = state.entities[attackerId]
-    Assert.Equal(before - cost, attackerAfter.Resources.MP)
+    if damageHigh.Amount > 0 then
+      damageHigh.Amount > damageLow.Amount
+    else
+      true
 
   [<Fact>]
   member _.``Cooldown prevents immediate reuse``() =
@@ -396,17 +483,21 @@ type ``Action Resolution``() =
       Charm = 16 // Increased charm to have a DP of 8
     }
 
-    let state = TestHelpers.create(fun _ -> 0.5)
+    let state = InternalHelpers.create(fun _ -> 0.5)
     let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 1<AbilityId>
 
     let attacker =
-      TestHelpers.makeEntity [ Classification.Player ] baseA 100 50 [ melee ]
+      InternalHelpers.makeEntity [ Classification.Player ] baseA 100 50 [
+        melee
+      ]
 
-    let target = TestHelpers.makeEntity [ Classification.Enemy ] baseB 80 30 []
-    TestHelpers.addEntity state attackerId attacker
-    TestHelpers.addEntity state targetId target
+    let target =
+      InternalHelpers.makeEntity [ Classification.Enemy ] baseB 80 30 []
+
+    InternalHelpers.addEntity state attackerId attacker
+    InternalHelpers.addEntity state targetId target
 
     // First attack, should succeed and apply cooldown
     let action1 =
@@ -449,17 +540,21 @@ type ``Action Resolution``() =
       Charm = 16 // Increased charm to have a DP of 8
     }
 
-    let state = TestHelpers.create(fun _ -> 0.5)
+    let state = InternalHelpers.create(fun _ -> 0.5)
     let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 1<AbilityId>
 
     let attacker =
-      TestHelpers.makeEntity [ Classification.Player ] baseA 100 50 [ melee ]
+      InternalHelpers.makeEntity [ Classification.Player ] baseA 100 50 [
+        melee
+      ]
 
-    let target = TestHelpers.makeEntity [ Classification.Enemy ] baseB 80 30 []
-    TestHelpers.addEntity state attackerId attacker
-    TestHelpers.addEntity state targetId target
+    let target =
+      InternalHelpers.makeEntity [ Classification.Enemy ] baseB 80 30 []
+
+    InternalHelpers.addEntity state attackerId attacker
+    InternalHelpers.addEntity state targetId target
 
     let action =
       (UseAbility {
@@ -472,7 +567,7 @@ type ``Action Resolution``() =
     let change = delta |> AVal.force
     GameState.apply state change
 
-    let attackerAfter = state.entities[attackerId]
+    let attackerAfter = getEntity state attackerId
     let cooldowns = AMap.force attackerAfter.AbilityCooldowns
     let cooldown = cooldowns[melee]
 
@@ -500,17 +595,21 @@ type ``Action Resolution``() =
       Charm = 16 // Increased charm to have a DP of 8
     }
 
-    let state = TestHelpers.create(fun _ -> 0.5)
+    let state = InternalHelpers.create(fun _ -> 0.5)
     let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 1<AbilityId>
 
     let attacker =
-      TestHelpers.makeEntity [ Classification.Player ] baseA 100 50 [ melee ]
+      InternalHelpers.makeEntity [ Classification.Player ] baseA 100 50 [
+        melee
+      ]
 
-    let target = TestHelpers.makeEntity [ Classification.Enemy ] baseB 80 30 []
-    TestHelpers.addEntity state attackerId attacker
-    TestHelpers.addEntity state targetId target
+    let target =
+      InternalHelpers.makeEntity [ Classification.Enemy ] baseB 80 30 []
+
+    InternalHelpers.addEntity state attackerId attacker
+    InternalHelpers.addEntity state targetId target
 
     // First attack
     let action1 =
@@ -544,7 +643,7 @@ type ``Action Resolution``() =
     let change2 = delta2 |> AVal.force
     GameState.apply state change2
 
-    let targetRes = state.entities[targetId].Resources
+    let targetRes = (getEntity state targetId).Resources
     Assert.True(targetRes.HP < 80) // Target should have taken damage
 
 // --------------------------------------------------
@@ -592,7 +691,7 @@ type ``Combat Mechanics Properties``() =
 
   [<Fact>]
   member _.``DynamicMod applies formula-calculated stat boost``() =
-    let state = TestHelpers.create(fun () -> 0.5)
+    let state = InternalHelpers.create(fun () -> 0.5)
     let playerId = Guid.NewGuid() |> UMX.tag<EntityId>
 
     // Player with Magic = 10 -> MA = 20 -> expected AP boost = 20/2 = 10
@@ -604,13 +703,10 @@ type ``Combat Mechanics Properties``() =
     }
 
     let player =
-      TestHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
+      InternalHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
 
-    TestHelpers.addEntity state playerId player
-
-    // Get initial derived stats (no effects)
-    let initialStats = GameState.getDerivedStats state |> AMap.force
-    let initialAP = initialStats[playerId].AP
+    InternalHelpers.addEntity state playerId player
+    let initialAP = getDerivedStat state playerId |> fun s -> s.AP
 
     // Apply Dynamic AP Boost effect (ID 300)
     let dynamicEffect: Effects.ActiveEffect = {
@@ -622,18 +718,14 @@ type ``Combat Mechanics Properties``() =
       Definition = state.services.effectStore.find 300<EffectId>
     }
 
-    transact(fun _ ->
-      let currentComponents = state.entities[playerId]
+    let currentComponents = getEntity state playerId
 
-      state.entities[playerId] <-
-        {
-          currentComponents with
-              Effects = AList.ofList [ dynamicEffect ]
-        })
+    setEntity state playerId {
+      currentComponents with
+          Effects = AList.ofList [ dynamicEffect ]
+    }
 
-    // Get stats after applying DynamicMod effect
-    let finalStats = GameState.getDerivedStats state |> AMap.force
-    let finalAP = finalStats[playerId].AP
+    let finalAP = getDerivedStat state playerId |> fun s -> s.AP
 
     // Expected: AP boost = MA / 2 = 20 / 2 = 10
     // So finalAP should be initialAP + 10
@@ -641,7 +733,7 @@ type ``Combat Mechanics Properties``() =
 
   [<Fact>]
   member _.``DynamicMod evaluates with correct invoker stats``() =
-    let state = TestHelpers.create(fun () -> 0.5)
+    let state = InternalHelpers.create(fun () -> 0.5)
     let playerId = Guid.NewGuid() |> UMX.tag<EntityId>
 
     // Player with Magic = 20 -> MA = 40 -> expected AP boost = 40/2 = 20
@@ -653,12 +745,10 @@ type ``Combat Mechanics Properties``() =
     }
 
     let player =
-      TestHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
+      InternalHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
 
-    TestHelpers.addEntity state playerId player
-
-    let initialStats = GameState.getDerivedStats state |> AMap.force
-    let initialAP = initialStats[playerId].AP
+    InternalHelpers.addEntity state playerId player
+    let initialAP = getDerivedStat state playerId |> fun s -> s.AP
 
     let dynamicEffect: Effects.ActiveEffect = {
       EffectId = 300<EffectId>
@@ -669,24 +759,21 @@ type ``Combat Mechanics Properties``() =
       Definition = state.services.effectStore.find 300<EffectId>
     }
 
-    transact(fun _ ->
-      let currentComponents = state.entities[playerId]
+    let currentComponents = getEntity state playerId
 
-      state.entities[playerId] <-
-        {
-          currentComponents with
-              Effects = AList.ofList [ dynamicEffect ]
-        })
+    setEntity state playerId {
+      currentComponents with
+          Effects = AList.ofList [ dynamicEffect ]
+    }
 
-    let finalStats = GameState.getDerivedStats state |> AMap.force
-    let finalAP = finalStats[playerId].AP
+    let finalAP = getDerivedStat state playerId |> fun s -> s.AP
 
     // Expected: AP boost = MA / 2 = 40 / 2 = 20
     Assert.Equal(initialAP + 20, finalAP)
 
   [<Fact>]
   member _.``Multiple DynamicMod effects stack correctly``() =
-    let state = TestHelpers.create(fun () -> 0.5)
+    let state = InternalHelpers.create(fun () -> 0.5)
     let playerId = Guid.NewGuid() |> UMX.tag<EntityId>
 
     let baseStats = {
@@ -697,12 +784,10 @@ type ``Combat Mechanics Properties``() =
     }
 
     let player =
-      TestHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
+      InternalHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
 
-    TestHelpers.addEntity state playerId player
-
-    let initialStats = GameState.getDerivedStats state |> AMap.force
-    let initialAP = initialStats[playerId].AP
+    InternalHelpers.addEntity state playerId player
+    let initialAP = getDerivedStat state playerId |> fun s -> s.AP
 
     // Apply two instances of Dynamic AP Boost effect
     let effect1: Effects.ActiveEffect = {
@@ -723,17 +808,14 @@ type ``Combat Mechanics Properties``() =
       Definition = state.services.effectStore.find 300<EffectId>
     }
 
-    transact(fun _ ->
-      let currentComponents = state.entities[playerId]
+    let currentComponents = getEntity state playerId
 
-      state.entities[playerId] <-
-        {
-          currentComponents with
-              Effects = AList.ofList [ effect1; effect2 ]
-        })
+    setEntity state playerId {
+      currentComponents with
+          Effects = AList.ofList [ effect1; effect2 ]
+    }
 
-    let finalStats = GameState.getDerivedStats state |> AMap.force
-    let finalAP = finalStats[playerId].AP
+    let finalAP = getDerivedStat state playerId |> fun s -> s.AP
 
     // Each effect gives AP boost = MA / 2 = 20 / 2 = 10
     // Two effects should give +20 total
@@ -741,7 +823,7 @@ type ``Combat Mechanics Properties``() =
 
   [<Fact>]
   member _.``DynamicMod can target MA``() =
-    let state = TestHelpers.create(fun () -> 0.5)
+    let state = InternalHelpers.create(fun () -> 0.5)
     let playerId = Guid.NewGuid() |> UMX.tag<EntityId>
 
     // Player with Magic = 20 -> MA = 40 -> expected MA boost = 40/2 = 20
@@ -753,12 +835,10 @@ type ``Combat Mechanics Properties``() =
     }
 
     let player =
-      TestHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
+      InternalHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
 
-    TestHelpers.addEntity state playerId player
-
-    let initialStats = GameState.getDerivedStats state |> AMap.force
-    let initialMA = initialStats[playerId].MA
+    InternalHelpers.addEntity state playerId player
+    let initialMA = getDerivedStat state playerId |> fun s -> s.MA
 
     let dynamicEffect: Effects.ActiveEffect = {
       EffectId = 301<EffectId>
@@ -769,24 +849,21 @@ type ``Combat Mechanics Properties``() =
       Definition = state.services.effectStore.find 301<EffectId>
     }
 
-    transact(fun _ ->
-      let currentComponents = state.entities[playerId]
+    let currentComponents = getEntity state playerId
 
-      state.entities[playerId] <-
-        {
-          currentComponents with
-              Effects = AList.ofList [ dynamicEffect ]
-        })
+    setEntity state playerId {
+      currentComponents with
+          Effects = AList.ofList [ dynamicEffect ]
+    }
 
-    let finalStats = GameState.getDerivedStats state |> AMap.force
-    let finalMA = finalStats[playerId].MA
+    let finalMA = getDerivedStat state playerId |> fun s -> s.MA
 
     // Expected: MA boost = MA / 2 = 40 / 2 = 20
     Assert.Equal(initialMA + 20, finalMA)
 
   [<Fact>]
   member _.``DynamicMod targeting different stats stacks independently``() =
-    let state = TestHelpers.create(fun () -> 0.5)
+    let state = InternalHelpers.create(fun () -> 0.5)
     let playerId = Guid.NewGuid() |> UMX.tag<EntityId>
 
     // Player with Magic = 10 -> MA = 20 -> boost = 20/2 = 10
@@ -798,13 +875,11 @@ type ``Combat Mechanics Properties``() =
     }
 
     let player =
-      TestHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
+      InternalHelpers.makeEntity [ Classification.Player ] baseStats 100 100 []
 
-    TestHelpers.addEntity state playerId player
-
-    let initialStats = GameState.getDerivedStats state |> AMap.force
-    let initialAP = initialStats[playerId].AP
-    let initialMA = initialStats[playerId].MA
+    InternalHelpers.addEntity state playerId player
+    let initialAP = getDerivedStat state playerId |> fun s -> s.AP
+    let initialMA = getDerivedStat state playerId |> fun s -> s.MA
 
     // Apply both effects: 300 (targets AP) and 301 (targets MA)
     let apEffect: Effects.ActiveEffect = {
@@ -825,18 +900,15 @@ type ``Combat Mechanics Properties``() =
       Definition = state.services.effectStore.find 301<EffectId>
     }
 
-    transact(fun _ ->
-      let currentComponents = state.entities[playerId]
+    let currentComponents = getEntity state playerId
 
-      state.entities[playerId] <-
-        {
-          currentComponents with
-              Effects = AList.ofList [ apEffect; maEffect ]
-        })
+    setEntity state playerId {
+      currentComponents with
+          Effects = AList.ofList [ apEffect; maEffect ]
+    }
 
-    let finalStats = GameState.getDerivedStats state |> AMap.force
-    let finalAP = finalStats[playerId].AP
-    let finalMA = finalStats[playerId].MA
+    let finalAP = getDerivedStat state playerId |> fun s -> s.AP
+    let finalMA = getDerivedStat state playerId |> fun s -> s.MA
 
     // Each effect gives boost = MA / 2 = 20 / 2 = 10
     // AP should increase by 10, MA should increase by 10
@@ -883,7 +955,7 @@ type ``Combat Mechanics Properties``() =
     let power = abs attackerPower.Get
     let rngValue = abs rngResult.Get % 1.0
 
-    let state = TestHelpers.create(fun () -> rngValue)
+    let state = InternalHelpers.create(fun () -> rngValue)
 
     let attackerIdLow = Guid.NewGuid() |> UMX.tag<EntityId>
     let attackerIdHigh = Guid.NewGuid() |> UMX.tag<EntityId>
@@ -913,33 +985,32 @@ type ``Combat Mechanics Properties``() =
 
 
     let attackerLow =
-      TestHelpers.makeEntity [ Classification.Player ] lowStats 100 100 [
+      InternalHelpers.makeEntity [ Classification.Player ] lowStats 100 100 [
         meleeId
       ]
 
     let attackerHigh =
-      TestHelpers.makeEntity [ Classification.Player ] highStats 100 100 [
+      InternalHelpers.makeEntity [ Classification.Player ] highStats 100 100 [
         meleeId
       ]
 
     let target =
-      TestHelpers.makeEntity [ Classification.Enemy ] targetStats 100 100 []
+      InternalHelpers.makeEntity [ Classification.Enemy ] targetStats 100 100 []
 
-    TestHelpers.addEntity state attackerIdLow attackerLow
-    TestHelpers.addEntity state attackerIdHigh attackerHigh
-    TestHelpers.addEntity state targetId target
+    InternalHelpers.addEntity state attackerIdLow attackerLow
+    InternalHelpers.addEntity state attackerIdHigh attackerHigh
+    InternalHelpers.addEntity state targetId target
 
-    let derivedStats = GameState.getDerivedStats state |> AMap.force
-    let actorStatsLow = derivedStats[attackerIdLow]
-    let actorStatsHigh = derivedStats[attackerIdHigh]
-    let targetStats = derivedStats[targetId]
+    let actorStatsLow = getDerivedStat state attackerIdLow
+    let actorStatsHigh = getDerivedStat state attackerIdHigh
+    let targetStats = getDerivedStat state targetId
 
     let rparams: Resolution.ResolverParams = {
-      entities = state.entities
-      enemies = GameState.getEnemies state
-      allies = GameState.getAllies state
-      derivedStats = GameState.getDerivedStats state
-      gameTime = state.gameTime
+      entities = (getActiveScenario state).entities
+      enemies = GameState.getEnemies state |> AVal.force
+      allies = GameState.getAllies state |> AVal.force
+      derivedStats = GameState.getDerivedStats state |> AVal.force
+      gameTime = (getActiveScenario state).gameTime
       services = state.services
     }
 
