@@ -738,7 +738,7 @@ module Resolution =
       }
     }
 
-  let step (state: GameState) (cmd: Command) : aval<StateChange> =
+  let resolve (state: GameState) (cmd: Command) : aval<StateChange> =
     let derivedStats = GameState.getDerivedStats state
     let enemies = GameState.getEnemies state
     let allies = GameState.getAllies state
@@ -776,8 +776,3 @@ module Resolution =
               gameTime = ValueNone
             }
         }
-
-  let apply (state: GameState) (change: StateChange) =
-    transact(fun _ ->
-      for id, components in change.entities do
-        state.entities[id] <- components)

@@ -107,6 +107,11 @@ module private TestHelpers =
         Status = Status.Alive
       }
       Position = { X = 0f; Y = 0f }
+      Movement = {
+        Speed = 0f
+        Destination = ValueNone
+        Path = []
+      }
       Effects = (clist [] :> alist<_>)
       Abilities = (clist abilities :> alist<_>)
       AbilityCooldowns = (cooldowns :> amap<_, _>)
@@ -211,9 +216,9 @@ type ``Action Resolution``() =
         abilityId = melee
       }
 
-    let delta = Resolution.step state action
+    let delta = Resolution.resolve state action
     let change = delta |> AVal.force
-    Resolution.apply state change
+    GameState.apply state change
 
     let targetAfter = state.entities[targetId]
     // DP is Charm + 1.25*Charm -> 16 + 20 = 36
@@ -267,9 +272,9 @@ type ``Action Resolution``() =
         abilityId = spell
       }
 
-    let delta = Resolution.step state action
+    let delta = Resolution.resolve state action
     let change: StateChange = delta |> AVal.force
-    Resolution.apply state change
+    GameState.apply state change
 
     let targetAfter = state.entities[targetId]
     // Victim HP is 80 - 110 = -30, clamped to 0.
@@ -315,9 +320,9 @@ type ``Action Resolution``() =
         abilityId = spell
       })
 
-    let delta = Resolution.step state action
+    let delta = Resolution.resolve state action
     let change = delta |> AVal.force
-    Resolution.apply state change
+    GameState.apply state change
 
     // Fireball uses formula 2: MA*2 + elemental = 20*2 + 40 = 80
     let victimAfter = state.entities[victimId]
@@ -368,9 +373,9 @@ type ``Action Resolution``() =
         abilityId = melee
       })
 
-    let delta = Resolution.step state action
+    let delta = Resolution.resolve state action
     let change = delta |> AVal.force
-    Resolution.apply state change
+    GameState.apply state change
 
     let attackerAfter = state.entities[attackerId]
     Assert.Equal(before - cost, attackerAfter.Resources.MP)
@@ -411,9 +416,9 @@ type ``Action Resolution``() =
         abilityId = melee
       })
 
-    let delta1 = Resolution.step state action1
+    let delta1 = Resolution.resolve state action1
     let change1 = delta1 |> AVal.force
-    Resolution.apply state change1
+    GameState.apply state change1
 
     // Second attack, should be ignored due to cooldown
     let action2 =
@@ -423,9 +428,9 @@ type ``Action Resolution``() =
         abilityId = melee
       })
 
-    let delta2 = Resolution.step state action2
+    let delta2 = Resolution.resolve state action2
     let change2 = delta2 |> AVal.force
-    Resolution.apply state change2
+    GameState.apply state change2
 
 
   [<Fact>]
@@ -463,9 +468,9 @@ type ``Action Resolution``() =
         abilityId = melee
       })
 
-    let delta = Resolution.step state action
+    let delta = Resolution.resolve state action
     let change = delta |> AVal.force
-    Resolution.apply state change
+    GameState.apply state change
 
     let attackerAfter = state.entities[attackerId]
     let cooldowns = AMap.force attackerAfter.AbilityCooldowns
@@ -515,9 +520,9 @@ type ``Action Resolution``() =
         abilityId = melee
       })
 
-    let delta1 = Resolution.step state action1
+    let delta1 = Resolution.resolve state action1
     let change1 = delta1 |> AVal.force
-    Resolution.apply state change1
+    GameState.apply state change1
 
     let cooldown =
       match AbilityStore.definitions[melee] with
@@ -525,7 +530,7 @@ type ``Action Resolution``() =
       | _ -> failwith "Expected active ability"
     // Advance time past the cooldown
     let advance = GameState.tick state (cooldown + 1L<Tick>) |> AVal.force
-    GameState.applyTick state advance
+    GameState.apply state advance
 
     // Second attack, should succeed now
     let action2 =
@@ -535,9 +540,9 @@ type ``Action Resolution``() =
         abilityId = melee
       })
 
-    let delta2 = Resolution.step state action2
+    let delta2 = Resolution.resolve state action2
     let change2 = delta2 |> AVal.force
-    Resolution.apply state change2
+    GameState.apply state change2
 
     let targetRes = state.entities[targetId].Resources
     Assert.True(targetRes.HP < 80) // Target should have taken damage

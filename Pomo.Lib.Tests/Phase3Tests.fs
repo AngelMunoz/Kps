@@ -98,6 +98,11 @@ module private Phase3Helpers =
         MP = mp
         Status = Status.Alive
       }
+      Movement = {
+        Speed = 0f
+        Destination = ValueNone
+        Path = []
+      }
       Position = { X = 0f; Y = 0f }
       Effects = (activeEffects :> alist<_>)
       Abilities = (clist abilities :> alist<_>)
@@ -155,9 +160,9 @@ type ``Phase3 - Stun``() =
         abilityId = melee
       }
 
-    let delta = Resolution.step state action
+    let delta = Resolution.resolve state action
     let change = delta |> AVal.force
-    Resolution.apply state change
+    Gameplay.GameState.apply state change
 
     // Assert
     let finalTargetHp = state.entities[targetId].Resources.HP
@@ -206,9 +211,9 @@ type ``Phase3 - Silence``() =
         abilityId = silence
       }
 
-    let spellDelta = Resolution.step state spellAction
+    let spellDelta = Resolution.resolve state spellAction
     let spellChange = spellDelta |> AVal.force
-    Resolution.apply state spellChange
+    Gameplay.GameState.apply state spellChange
 
     // Assert 1
     let targetHpAfterSpell = state.entities[targetId].Resources.HP
@@ -236,7 +241,7 @@ type ``Phase3 - Silence``() =
 
     // Tick the game to process effects
     let advance = Gameplay.GameState.tick state 100L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state advance
+    Gameplay.GameState.apply state advance
 
     // Act 2: Perform a melee with mp cost attack
     let initialHpAttackerBeforeTargetMeele =
@@ -265,9 +270,9 @@ type ``Phase3 - Silence``() =
         abilityId = meeleWithcost
       }
 
-    let meleeDelta = Resolution.step state meleeAction
+    let meleeDelta = Resolution.resolve state meleeAction
     let meleeChange = meleeDelta |> AVal.force
-    Resolution.apply state meleeChange
+    Gameplay.GameState.apply state meleeChange
 
     // Assert 2
     let attackerHpAfterTargetMelee = state.entities[attackerId].Resources.HP
@@ -290,9 +295,9 @@ type ``Phase3 - Silence``() =
         abilityId = melee
       }
 
-    let meleeWithCostDelta = Resolution.step state meleeWithNoCostAction
+    let meleeWithCostDelta = Resolution.resolve state meleeWithNoCostAction
     let meleeWithCostChange = meleeWithCostDelta |> AVal.force
-    Resolution.apply state meleeWithCostChange
+    Gameplay.GameState.apply state meleeWithCostChange
 
     let attackerHpAfterTargetMeleeWithNoCost =
       state.entities[attackerId].Resources.HP
@@ -368,9 +373,9 @@ type ``Phase3 - Taunt``() =
         abilityId = melee
       }
 
-    let delta = Resolution.step state action
+    let delta = Resolution.resolve state action
     let change = delta |> AVal.force
-    Resolution.apply state change
+    Gameplay.GameState.apply state change
 
     // Assert
     let finalIntendedTargetHp = state.entities[intendedTargetId].Resources.HP
@@ -408,7 +413,7 @@ type ``Phase3 - Effect Stacking``() =
 
     let applySpell() =
       let delta =
-        Resolution.step
+        Resolution.resolve
           state
           (UseAbility {
             actor = casterId
@@ -417,7 +422,7 @@ type ``Phase3 - Effect Stacking``() =
           })
 
       let change = delta |> AVal.force
-      Resolution.apply state change
+      Gameplay.GameState.apply state change
 
     // Act
     applySpell() // First application
@@ -427,7 +432,7 @@ type ``Phase3 - Effect Stacking``() =
       effectsAfterFirst |> Seq.find(fun e -> e.EffectId = noStackEffectId)
 
     let advance = Gameplay.GameState.tick state 1000L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state advance // Advance time slightly
+    Gameplay.GameState.apply state advance // Advance time slightly
 
     applySpell() // Second application
     let effectsAfterSecond = state.entities[targetId].Effects |> AList.force
@@ -469,7 +474,7 @@ type ``Phase3 - Effect Stacking``() =
 
     let applySpell() =
       let delta =
-        Resolution.step
+        Resolution.resolve
           state
           (UseAbility {
             actor = casterId
@@ -478,7 +483,7 @@ type ``Phase3 - Effect Stacking``() =
           })
 
       let change = delta |> AVal.force
-      Resolution.apply state change
+      Gameplay.GameState.apply state change
 
     // Act
     applySpell() // First application
@@ -493,7 +498,7 @@ type ``Phase3 - Effect Stacking``() =
     | Some firstEffect ->
 
     let advance = Gameplay.GameState.tick state 1000L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state advance // Advance time
+    Gameplay.GameState.apply state advance // Advance time
 
     applySpell() // Second application (should refresh)
     let effectsAfterSecond = state.entities[targetId].Effects |> AList.force
@@ -549,7 +554,7 @@ type ``Phase3 - Effect Stacking``() =
 
     let applySpell() =
       let delta =
-        Resolution.step
+        Resolution.resolve
           state
           (UseAbility {
             actor = casterId
@@ -558,7 +563,7 @@ type ``Phase3 - Effect Stacking``() =
           })
 
       let change = delta |> AVal.force
-      Resolution.apply state change
+      Gameplay.GameState.apply state change
 
     let hp() = state.entities[targetId].Resources.HP
     let _ = hp()
@@ -570,7 +575,7 @@ type ``Phase3 - Effect Stacking``() =
 
     // Tick forward to trigger DoT
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state advance // 1st tick
+    Gameplay.GameState.apply state advance // 1st tick
     let hpAfterTick1 = hp()
 
     Assert.True(
@@ -579,17 +584,17 @@ type ``Phase3 - Effect Stacking``() =
     )
 
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state advance // 2nd tick
+    Gameplay.GameState.apply state advance // 2nd tick
     let hpAfterTick2 = hp()
     Assert.True(hpAfterTick2 < hpAfterTick1, "DoT should continue reducing HP")
 
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state advance // 3rd tick
+    Gameplay.GameState.apply state advance // 3rd tick
     let hpAfterTick3 = hp()
     Assert.True(hpAfterTick3 < hpAfterTick2, "DoT should continue reducing HP")
 
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state advance // 4th tick
+    Gameplay.GameState.apply state advance // 4th tick
     let hpAfterTick4 = hp()
     Assert.True(hpAfterTick4 < hpAfterTick3, "DoT should continue reducing HP")
 
@@ -620,7 +625,7 @@ type ``Phase3 - Effect Stacking``() =
 
     let applySpell() =
       let delta =
-        Resolution.step
+        Resolution.resolve
           state
           (UseAbility {
             actor = casterId
@@ -629,7 +634,7 @@ type ``Phase3 - Effect Stacking``() =
           })
 
       let change = delta |> AVal.force
-      Resolution.apply state change
+      Gameplay.GameState.apply state change
 
     let hp() = state.entities[targetId].Resources.HP
     let initialHp = hp()
@@ -642,22 +647,22 @@ type ``Phase3 - Effect Stacking``() =
 
     // Tick forward to trigger HoT
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state advance // 1st tick
+    Gameplay.GameState.apply state advance // 1st tick
     let hpAfterTick1 = hp()
     Assert.Equal(initialHp + 5, hpAfterTick1)
 
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state advance // 2nd tick
+    Gameplay.GameState.apply state advance // 2nd tick
     let hpAfterTick2 = hp()
     Assert.Equal(initialHp + 10, hpAfterTick2)
 
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state advance // 3rd tick
+    Gameplay.GameState.apply state advance // 3rd tick
     let hpAfterTick3 = hp()
     Assert.Equal(initialHp + 15, hpAfterTick3)
 
     let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state advance // 4th tick
+    Gameplay.GameState.apply state advance // 4th tick
     let hpAfterTick4 = hp()
     Assert.Equal(initialHp + 20, hpAfterTick4)
 
@@ -708,7 +713,7 @@ type ``Phase3 - Determinism``() =
 
     let performAttack state =
       let delta =
-        Resolution.step
+        Resolution.resolve
           state
           (UseAbility {
             actor = attackerId
@@ -717,7 +722,7 @@ type ``Phase3 - Determinism``() =
           })
 
       let change = delta |> AVal.force
-      Resolution.apply state change
+      Gameplay.GameState.apply state change
 
     // Act: Perform the same sequence of actions on both states
     performAttack state1
@@ -730,9 +735,9 @@ type ``Phase3 - Determinism``() =
 
     // Perform second round after cooldown
     let advance1 = Gameplay.GameState.tick state1 2500L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state1 advance1
+    Gameplay.GameState.apply state1 advance1
     let advance2 = Gameplay.GameState.tick state2 2500L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state2 advance2
+    Gameplay.GameState.apply state2 advance2
 
     performAttack state1
     performAttack state2
@@ -781,7 +786,7 @@ type ``Phase3 - Cooldown Management``() =
 
     // Use melee ability (puts it on cooldown)
     let meleeDelta =
-      Resolution.step
+      Resolution.resolve
         state
         (UseAbility {
           actor = attackerId
@@ -790,7 +795,7 @@ type ``Phase3 - Cooldown Management``() =
         })
 
     let meleeChange = meleeDelta |> AVal.force
-    Resolution.apply state meleeChange
+    Gameplay.GameState.apply state meleeChange
 
     // Check that melee is no longer ready, but spell still is
     let readyAfterMelee =
@@ -808,7 +813,7 @@ type ``Phase3 - Cooldown Management``() =
 
     // Advance time past melee cooldown (melee has 2000L<ticks> cooldown)
     let advance = Gameplay.GameState.tick state 2100L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state advance
+    Gameplay.GameState.apply state advance
 
     // Check that melee is ready again
     let readyAfterCooldown =
@@ -826,7 +831,7 @@ type ``Phase3 - Cooldown Management``() =
 
     // Use spell ability (puts it on cooldown - spell has 5000L<ticks> cooldown)
     let spellDelta =
-      Resolution.step
+      Resolution.resolve
         state
         (UseAbility {
           actor = attackerId
@@ -835,7 +840,7 @@ type ``Phase3 - Cooldown Management``() =
         })
 
     let spellChange = spellDelta |> AVal.force
-    Resolution.apply state spellChange
+    Gameplay.GameState.apply state spellChange
 
     // Check that spell is no longer ready, but melee still is
     let readyAfterSpell =
@@ -853,7 +858,7 @@ type ``Phase3 - Cooldown Management``() =
 
     // Advance time past spell cooldown
     let advance = Gameplay.GameState.tick state 5100L<Tick> |> AVal.force
-    Gameplay.GameState.applyTick state advance
+    Gameplay.GameState.apply state advance
 
     // Check that both abilities are ready again
     let readyAfterBothCooldowns =

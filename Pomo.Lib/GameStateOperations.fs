@@ -255,7 +255,7 @@ module GameState =
     }
 
     let command = UseAbility action
-    Resolution.step state command
+    Resolution.resolve state command
 
   /// Adds a new ability to an entity's ability list.
   /// Direct operation: modifies Abilities alist.
@@ -662,35 +662,9 @@ module GameState =
         | ValueSome expiryTime -> currentTime >= expiryTime)
 
   /// Forces evaluation of adaptive stats and returns snapshot.
-  /// Requires AVal.force to display in UI.
-  let getDerivedStatsSnapshot entityId (state: GameState) =
+  let inline getDerivedStatsSnapshot entityId (state: GameState) =
+    GameState.getDerivedStats state |> AMap.force |> HashMap.tryFindV entityId
 
-    let derivedStatsMap = GameState.getDerivedStats state |> AMap.force
-    derivedStatsMap |> HashMap.tryFindV entityId
-
-  /// Returns fully calculated stats including equipment and effects.
-  /// Alias for getDerivedStatsSnapshot (same implementation).
-  let getEffectiveStats entityId (state: GameState) =
-
-    getDerivedStatsSnapshot entityId state
-
-  // ============================================================================
-  // STATECHANGE APPLICATION HELPERS
-  // ============================================================================
-
-  /// Apply a StateChange using Resolution.apply (for entity updates only).
-  let applyEntityChange (state: GameState) (change: StateChange) =
-    Resolution.apply state change
-
-  /// Apply a StateChange with time update (for tick operations).
-  let applyWithTime (state: GameState) (change: StateChange) =
-    GameState.applyTick state change
-
-  /// Force and apply an adaptive StateChange.
-  let forceAndApply (state: GameState) (changeAVal: aval<StateChange>) =
-    let change = AVal.force changeAVal
-    applyEntityChange state change
-
-  let forceAndApplyWithTime (state: GameState) (changeAVal: aval<StateChange>) =
-    let change = AVal.force changeAVal
-    applyWithTime state change
+  /// Force and apply an adaptive StateChange with time update. (applyTick)
+  let inline forceAndApply(state: GameState) =
+    AVal.force >> GameState.apply state

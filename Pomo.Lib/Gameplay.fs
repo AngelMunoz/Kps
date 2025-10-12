@@ -374,7 +374,7 @@ module GameState =
     }
   }
 
-  let applyTick (state: GameState) (change: StateChange) =
+  let apply (state: GameState) (change: StateChange) =
     transact(fun _ ->
       match change.gameTime with
       | ValueSome newTime -> state.gameTime.Value <- newTime

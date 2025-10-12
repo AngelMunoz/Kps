@@ -115,7 +115,7 @@ type PomoGame() as this =
     let struct (playerIdLocal, playerChange) =
       GameState.createEntity playerProfession playerStats [ Faction.Player ]
 
-    GameState.applyEntityChange state playerChange
+    GameState.apply state playerChange
     playerId <- playerIdLocal
 
     let enemyProfession = { Family = Magic; Stage = First }
@@ -130,7 +130,7 @@ type PomoGame() as this =
     let struct (enemyIdLocal, enemyChange) =
       GameState.createEntity enemyProfession enemyStats [ Faction.Enemy ]
 
-    GameState.applyEntityChange state enemyChange
+    GameState.apply state enemyChange
     enemyId <- enemyIdLocal
 
     // Set initial positions for visibility (Phase 6.1) and give player a basic ability (Phase 6.2)
@@ -188,8 +188,7 @@ type PomoGame() as this =
       | ValueSome state ->
         let deltaTicks = int64 gameTime.ElapsedGameTime.Ticks * 1L<Tick>
 
-        GameState.advanceTime deltaTicks state
-        |> GameState.forceAndApplyWithTime state
+        GameState.advanceTime deltaTicks state |> GameState.forceAndApply state
 
         let wheel = Mouse.GetState().ScrollWheelValue
         let delta = wheel - prevScroll
@@ -232,7 +231,7 @@ type PomoGame() as this =
               destination = { X = world.X; Y = world.Y }
             }
 
-          Resolution.step state moveCmd |> GameState.forceAndApply state
+          Resolution.resolve state moveCmd |> GameState.forceAndApply state
 
         prevRightMouseDown <- rightMouseDown
 
@@ -284,7 +283,7 @@ type PomoGame() as this =
           match selected with
           | ValueSome targetId ->
             GameState.activateAbility playerId 8<AbilityId> [| targetId |] state
-            |> GameState.forceAndApplyWithTime state
+            |> GameState.forceAndApply state
 
             Console.WriteLine($"[Ability] Activated 8 on {targetId}")
           | ValueNone ->
