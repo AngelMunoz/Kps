@@ -112,11 +112,20 @@ type PomoGame() as this =
       Charm = 10
     }
 
-    let struct (playerIdLocal, playerChange) =
-      GameState.createEntity playerProfession playerStats [ Faction.Player ]
+    let starterKit =
+      Pomo.Lib.Content.CharacterKitStore.definitions[playerProfession]
+
+    let playerChange =
+      starterKit
+      |> GameState.createEntity(fun stats -> {
+        stats with
+            Factions = HashSet.ofList [ Player ]
+      })
+
+    let _playerId = playerChange.additions |> HashMap.toKeySeq |> Seq.head
 
     GameState.apply state playerChange
-    playerId <- playerIdLocal
+    playerId <- _playerId
 
     let enemyProfession = { Family = Magic; Stage = First }
 
@@ -127,8 +136,16 @@ type PomoGame() as this =
       Charm = 10
     }
 
-    let struct (enemyIdLocal, enemyChange) =
-      GameState.createEntity enemyProfession enemyStats [ Faction.Enemy ]
+    let enemyKit = CharacterKitStore.definitions[enemyProfession]
+
+    let enemyChange =
+      enemyKit
+      |> GameState.createEntity(fun stats -> {
+        stats with
+            Factions = HashSet.ofList [ Enemy ]
+      })
+
+    let enemyIdLocal = enemyChange.additions |> HashMap.toKeySeq |> Seq.head
 
     GameState.apply state enemyChange
     enemyId <- enemyIdLocal
@@ -137,7 +154,7 @@ type PomoGame() as this =
     transact(fun _ ->
       let p = state.entities[playerId]
       let abilityId = 8<AbilityId>
-      let abilities = (clist [ abilityId ] :> alist<_>)
+      let abilities = HashSet.ofList [ abilityId ]
 
       let cooldowns: cmap<int<AbilityId>, int64<Tick>> =
         cmap [ (abilityId, 0L<Tick>) ]
@@ -188,7 +205,7 @@ type PomoGame() as this =
       | ValueSome state ->
         let deltaTicks = int64 gameTime.ElapsedGameTime.Ticks * 1L<Tick>
 
-        GameState.advanceTime deltaTicks state |> GameState.forceAndApply state
+        deltaTicks |> GameState.tick state |> GameState.forceAndApply state
 
         let wheel = Mouse.GetState().ScrollWheelValue
         let delta = wheel - prevScroll
@@ -311,7 +328,16 @@ type PomoGame() as this =
         * Matrix.CreateTranslation(halfW, halfH, 0f)
 
       let hudOpt = if isNull hudFont then ValueNone else ValueSome hudFont
-      RenderSystem.draw spriteBatch pixel hudOpt state view selected
+      let entities = state.entities |> AMap.force |> HashMap.toArrayV
+      let derived = GameState.getDerivedStats state |> AMap.force
+
+      RenderSystem.draw
+        struct (entities, derived)
+        spriteBatch
+        pixel
+        hudOpt
+        view
+        selected
     | _ -> ()
 
     base.Draw(gameTime)

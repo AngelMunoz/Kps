@@ -5,26 +5,23 @@ open Microsoft.Xna.Framework
 open Microsoft.Xna.Framework.Input
 
 module InputManager =
-  let screenToWorld (screenPos: Vector2) (view: Matrix) =
-    let inv = Matrix.Invert view
-    Vector2.Transform(screenPos, inv)
+  let inline screenToWorld (screenPos: Vector2) (view: Matrix) =
+    Vector2.Transform(screenPos, Matrix.Invert view)
 
-  let isLeftClickPressed() =
+  let inline isLeftClickPressed() =
     Mouse.GetState().LeftButton = ButtonState.Pressed
 
-  let isRightClickPressed() =
+  let inline isRightClickPressed() =
     Mouse.GetState().RightButton = ButtonState.Pressed
 
-  let isLeftClickReleased() =
+  let inline isLeftClickReleased() =
     Mouse.GetState().LeftButton = ButtonState.Released
 
-  let isRightClickReleased() =
+  let inline isRightClickReleased() =
     Mouse.GetState().RightButton = ButtonState.Released
 
-  let getMousePosition() =
+  let inline getMousePosition() =
     let ms = Mouse.GetState()
     Vector2(float32 ms.X, float32 ms.Y)
 
-  let isKeyPressed(key: Keys) =
-    let ks = Keyboard.GetState()
-    ks.IsKeyDown(key)
+  let inline isKeyPressed(key: Keys) = Keyboard.GetState() |> _.IsKeyDown(key)

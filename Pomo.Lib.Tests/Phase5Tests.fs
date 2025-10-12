@@ -113,7 +113,7 @@ let ``Each character kit should have at least one starter ability``() =
     let kit = kvp.Value
 
     Assert.True(
-      kit.StarterAbilities.Length > 0,
+      kit.StarterAbilities.Count > 0,
       $"Kit {kit.Name} has no starter abilities"
     )
 

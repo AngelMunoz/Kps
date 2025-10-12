@@ -369,7 +369,9 @@ module GameState =
 
 
     return {
-      entities = entities
+      updates = entities
+      additions = HashMap.empty
+      removals = Array.empty
       gameTime = ValueSome newTime
     }
   }
@@ -380,8 +382,18 @@ module GameState =
       | ValueSome newTime -> state.gameTime.Value <- newTime
       | ValueNone -> ()
 
-      for entityId, updatedComponents in change.entities do
-        state.entities[entityId] <- updatedComponents)
+      for entityId, updatedComponents in change.updates do
+        state.entities[entityId] <- updatedComponents
+
+      for entityId, newComponents in change.additions do
+        state.entities.Add(entityId, newComponents) |> ignore
+
+      for entityId in change.removals do
+        state.entities.Remove entityId |> ignore)
+
+
+module Projections =
+
 
   let aAlive entities =
     entities
@@ -404,3 +416,15 @@ module GameState =
       return readyTick <= gameTime
     })
     |> ASet.map(fun (id, abilityId, _) -> id, abilityId)
+
+  let aReadyForEntity entity gameTime =
+    entity.AbilityCooldowns
+    |> AMap.toASet
+    |> ASet.chooseA(fun (abilityId, readyTick) -> adaptive {
+      let! gameTime = gameTime
+
+      if readyTick <= gameTime then
+        return Some abilityId
+      else
+        return None
+    })

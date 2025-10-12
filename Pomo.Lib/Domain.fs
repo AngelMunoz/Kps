@@ -134,8 +134,8 @@ module Attributes =
     HV: int
 
     // Element % of attributes and resistances
-    ElementAttributes: FSharp.Data.Adaptive.HashMap<Element, float>
-    ElementResistances: FSharp.Data.Adaptive.HashMap<Element, float>
+    ElementAttributes: HashMap<Element, float>
+    ElementResistances: HashMap<Element, float>
   }
 
   [<Struct>]
@@ -178,7 +178,7 @@ module Inventory =
     Name: string
     Slot: Slot
     Rarity: Rarity
-    StatBonuses: ItemStatBonus array
+    StatBonuses: ItemStatBonus[]
     ElementalAttributes: HashMap<Attributes.Element, float>
     ElementalResistances: HashMap<Attributes.Element, float>
   }
@@ -235,7 +235,7 @@ module Effects =
 
   [<Struct>]
   type ActiveEffect = {
-    EffectId: int<EffectId> // Corresponds to a definition
+    EffectId: int<EffectId>
     SourceId: Guid<EntityId>
     RemainingTicks: int64<Tick>
     NextTickIn: int64<Tick>
@@ -259,11 +259,17 @@ module Abilities =
     DamageType: DamageType
   } with
 
-    static member inline (+)(a: DamageResult, b: DamageResult) : DamageResult = {
-      a with
-          BaseDamage = a.BaseDamage + b.BaseDamage
-          ElementalDamage = a.ElementalDamage + b.ElementalDamage
-    }
+    static member inline (+)(a: DamageResult, b: DamageResult) : DamageResult =
+      if a.DamageType <> b.DamageType then
+        failwith "Cannot add DamageResults of different DamageTypes"
+      elif a.Element <> b.Element then
+        failwith "Cannot add DamageResults of different Elements"
+      else
+        {
+          a with
+              BaseDamage = a.BaseDamage + b.BaseDamage
+              ElementalDamage = a.ElementalDamage + b.ElementalDamage
+        }
 
   [<Struct>]
   type CalculationContext = {
@@ -325,7 +331,24 @@ module CharacterKits =
     Profession: Classification.Profession
     Name: string
     BaseStats: Attributes.BaseAttributes
-    StarterAbilities: int<AbilityId>[]
+    StarterAbilities: int<AbilityId> HashSet
+  }
+
+module Components =
+  open Effects
+  open Inventory
+
+  type EntityComponents = {
+    AbilityCooldowns: amap<int<AbilityId>, int64<Tick>>
+    Effects: ActiveEffect alist
+    Identity: Classification.Profession
+    BaseStats: Attributes.BaseAttributes
+    Resources: Attributes.Resources
+    Position: Position
+    Movement: Movement
+    Factions: Classification.Faction HashSet
+    Abilities: int<AbilityId> HashSet
+    Equipment: HashMap<Slot, Equipment>
   }
 
 module Rules =
@@ -353,24 +376,9 @@ module Rules =
   type Command =
     | UseAbility of abilityAction: UseAbilityAction
     | Move of moveAction: MoveAction
+    | RemoveEntities of entityIds: Guid<EntityId> seq
+    | AddEntities of HashMap<Guid<EntityId>, Components.EntityComponents>
 
-
-module Components =
-  open Effects
-  open Inventory
-
-  type EntityComponents = {
-    Factions: Classification.Faction HashSet
-    Identity: Classification.Profession
-    BaseStats: Attributes.BaseAttributes
-    Resources: Attributes.Resources
-    Position: Position
-    Movement: Movement
-    Effects: alist<ActiveEffect>
-    Abilities: alist<int<AbilityId>>
-    AbilityCooldowns: amap<int<AbilityId>, int64<Tick>>
-    Equipment: HashMap<Slot, Equipment>
-  }
 
 module Services =
   open Abilities
@@ -400,6 +408,8 @@ module State =
 
   [<Struct>]
   type StateChange = {
-    entities: HashMap<Guid<EntityId>, EntityComponents>
+    updates: HashMap<Guid<EntityId>, EntityComponents>
+    additions: HashMap<Guid<EntityId>, EntityComponents>
+    removals: Guid<EntityId>[]
     gameTime: int64<Tick> voption
   }

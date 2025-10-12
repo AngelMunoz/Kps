@@ -104,9 +104,9 @@ module private Phase3Helpers =
         Path = []
       }
       Position = { X = 0f; Y = 0f }
-      Effects = (activeEffects :> alist<_>)
-      Abilities = (clist abilities :> alist<_>)
-      AbilityCooldowns = (cooldowns :> amap<_, _>)
+      Effects = activeEffects
+      Abilities = HashSet.ofList abilities
+      AbilityCooldowns = cooldowns
       Equipment = HashMap.empty
     }
 
@@ -772,7 +772,7 @@ type ``Phase3 - Cooldown Management``() =
 
     // Act & Assert: Check initial readiness (all abilities should be ready)
     let readyAbilitiesInitial =
-      Gameplay.GameState.aReadyAbilities state.entities state.gameTime
+      Gameplay.Projections.aReadyAbilities state.entities state.gameTime
       |> ASet.force
 
     let attackerAbilitiesInitial =
@@ -799,7 +799,7 @@ type ``Phase3 - Cooldown Management``() =
 
     // Check that melee is no longer ready, but spell still is
     let readyAfterMelee =
-      Gameplay.GameState.aReadyAbilities state.entities state.gameTime
+      Gameplay.Projections.aReadyAbilities state.entities state.gameTime
       |> ASet.force
 
     let attackerAbilitiesAfterMelee =
@@ -817,7 +817,7 @@ type ``Phase3 - Cooldown Management``() =
 
     // Check that melee is ready again
     let readyAfterCooldown =
-      Gameplay.GameState.aReadyAbilities state.entities state.gameTime
+      Gameplay.Projections.aReadyAbilities state.entities state.gameTime
       |> ASet.force
 
     let attackerAbilitiesAfterCooldown =
@@ -844,7 +844,7 @@ type ``Phase3 - Cooldown Management``() =
 
     // Check that spell is no longer ready, but melee still is
     let readyAfterSpell =
-      Gameplay.GameState.aReadyAbilities state.entities state.gameTime
+      Gameplay.Projections.aReadyAbilities state.entities state.gameTime
       |> ASet.force
 
     let attackerAbilitiesAfterSpell =
@@ -862,7 +862,7 @@ type ``Phase3 - Cooldown Management``() =
 
     // Check that both abilities are ready again
     let readyAfterBothCooldowns =
-      Gameplay.GameState.aReadyAbilities state.entities state.gameTime
+      Gameplay.Projections.aReadyAbilities state.entities state.gameTime
       |> ASet.force
 
     let attackerAbilitiesAfterBoth =

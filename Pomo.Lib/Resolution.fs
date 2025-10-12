@@ -246,41 +246,35 @@ module Resolution =
       actorStats
       requirements
       =
-      adaptive {
-        let! hasAllRequirements =
-          requirements
-          |> AList.ofArray
-          |> AList.forallA(fun req ->
-            match req with
-            | StatRequirement(stat, minValue) ->
-              let actualValue =
-                match stat with
-                | Power -> actorStats.AP
-                | Magic -> actorStats.MA
-                | Sense -> actorStats.DA
-                | Charm -> actorStats.HP
-                | AP -> actorStats.AP
-                | AC -> actorStats.AC
-                | DX -> actorStats.DX
-                | MP -> actorStats.MP
-                | MA -> actorStats.MA
-                | MD -> actorStats.MD
-                | WT -> actorStats.WT
-                | DA -> actorStats.DA
-                | LK -> actorStats.LK
-                | HP -> actorStats.HP
-                | DP -> actorStats.DP
-                | HV -> actorStats.HV
+      requirements
+      |> Array.forall(fun req ->
+        match req with
+        | StatRequirement(stat, minValue) ->
+          let actualValue =
+            match stat with
+            | Power -> actorStats.AP
+            | Magic -> actorStats.MA
+            | Sense -> actorStats.DA
+            | Charm -> actorStats.HP
+            | AP -> actorStats.AP
+            | AC -> actorStats.AC
+            | DX -> actorStats.DX
+            | MP -> actorStats.MP
+            | MA -> actorStats.MA
+            | MD -> actorStats.MD
+            | WT -> actorStats.WT
+            | DA -> actorStats.DA
+            | LK -> actorStats.LK
+            | HP -> actorStats.HP
+            | DP -> actorStats.DP
+            | HV -> actorStats.HV
 
-              AVal.constant(actualValue >= minValue)
-            | AbilityRequirement abilityId ->
-              actor.Abilities |> AList.exists(fun a -> a = abilityId)
-            | FormulaRequirement _ ->
-              // For now, return true - formula validation would be implemented later
-              AVal.constant true)
-
-        return hasAllRequirements
-      }
+          actualValue >= minValue
+        | AbilityRequirement abilityId ->
+          actor.Abilities |> HashSet.exists(fun a -> a = abilityId)
+        | FormulaRequirement _ ->
+          // For now, return true - formula validation would be implemented later
+          true)
 
     let resolveTaunt rparams ractors initialTarget = adaptive {
       let! actor = rparams.entities |> AMap.tryFind ractors.actor
@@ -551,7 +545,7 @@ module Resolution =
         let struct (hasEnoughResource, cost) =
           ValidateAction.checkResourceCost actor abilityDef
 
-        let! hasRequirements =
+        let hasRequirements =
           ValidateAction.checkAbilityRequirements
             actor
             actorStats
@@ -657,11 +651,13 @@ module Resolution =
             action.abilityDefinition
 
         return {
-          entities =
+          updates =
             HashMap.ofList [
               actorId, actorWithCooldown
               targetId, targetAfterEffects
             ]
+          additions = HashMap.empty
+          removals = Array.empty
           gameTime = ValueNone
         }
       }
@@ -681,7 +677,9 @@ module Resolution =
       | OnCooldown
       | MissingRequirements ->
         return {
-          entities = HashMap.empty
+          updates = HashMap.empty
+          additions = HashMap.empty
+          removals = Array.empty
           gameTime = ValueNone
         }
       | ValidAction action ->
@@ -700,7 +698,9 @@ module Resolution =
       | ValueSome(Passive _) ->
         // Passive abilities cannot be invoked
         return {
-          entities = HashMap.empty
+          updates = HashMap.empty
+          additions = HashMap.empty
+          removals = Array.empty
           gameTime = ValueNone
         }
       | ValueSome(Active abilityDef) ->
@@ -729,11 +729,13 @@ module Resolution =
           // Use unified resolver for all ability types
           resolveAbility action.abilityId (rparams, ractors))
         |> AList.fold
-          (fun acc result -> HashMap.union acc result.entities)
+          (fun acc result -> HashMap.union acc result.updates)
           HashMap.empty
 
       return {
-        entities = components
+        updates = components
+        additions = HashMap.empty
+        removals = Array.empty
         gameTime = ValueNone
       }
     }
@@ -754,25 +756,45 @@ module Resolution =
 
     match cmd with
     | UseAbility action -> resolveUseAbility action resolverParams
-    | Move action ->
+    | Move action -> adaptive {
+        let! entity = state.entities |> AMap.tryFind action.actor
+
+        match entity with
+        | Some e ->
+          let updatedEntity = {
+            e with
+                EntityComponents.Movement.Destination =
+                  ValueSome action.destination
+          }
+
+          return {
+            updates = HashMap.ofList [ action.actor, updatedEntity ]
+            additions = HashMap.empty
+            removals = Array.empty
+            gameTime = ValueNone
+          }
+        | None ->
+          return {
+            updates = HashMap.empty
+            additions = HashMap.empty
+            removals = Array.empty
+            gameTime = ValueNone
+          }
+      }
+    | RemoveEntities entityIds -> adaptive {
+        return {
+          updates = HashMap.empty
+          additions = HashMap.empty
+          removals = entityIds |> Seq.toArray
+          gameTime = ValueNone
+        }
+      }
+    | AddEntities entitiesToAdd ->
         adaptive {
-          let! entity = state.entities |> AMap.tryFind action.actor
-
-          match entity with
-          | Some e ->
-            let updatedEntity = {
-              e with
-                  EntityComponents.Movement.Destination =
-                    ValueSome action.destination
-            }
-
-            return {
-              entities = HashMap.ofList [ action.actor, updatedEntity ]
-              gameTime = ValueNone
-            }
-          | None ->
-            return {
-              entities = HashMap.empty
-              gameTime = ValueNone
-            }
+          return {
+            updates = HashMap.empty
+            additions = entitiesToAdd
+            removals = Array.empty
+            gameTime = ValueNone
+          }
         }

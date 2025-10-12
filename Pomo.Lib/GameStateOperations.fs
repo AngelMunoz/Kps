@@ -62,20 +62,19 @@ module GameState =
   /// Creates a new entity with the given profession and base attributes.
   /// Returns the new EntityId and StateChange to apply via Resolution.apply.
   let createEntity
-    (profession: Profession)
-    (baseStats: BaseAttributes)
-    factions
+    (configure: EntityComponents -> EntityComponents)
+    (kit: CharacterKits.CharacterKit)
     =
 
     let newId = Guid.NewGuid() |> UMX.tag<EntityId>
 
     let newEntity = {
-      Factions = HashSet.ofSeq factions
-      Identity = profession
-      BaseStats = baseStats
+      Factions = HashSet.empty
+      Identity = kit.Profession
+      BaseStats = kit.BaseStats
       Resources = {
-        HP = baseStats.Charm * 10
-        MP = baseStats.Magic * 5
+        HP = kit.BaseStats.Charm * 10
+        MP = kit.BaseStats.Magic * 5
         Status = Alive
       }
       Position = { X = 0f; Y = 0f }
@@ -85,52 +84,28 @@ module GameState =
         Path = []
       }
       Effects = AList.empty
-      Abilities = AList.empty
+      Abilities = kit.StarterAbilities
       AbilityCooldowns = AMap.empty
       Equipment = HashMap.empty
     }
 
-    let change = {
-      entities = HashMap.ofList [ newId, newEntity ]
+    {
+      updates = HashMap.empty
+      additions = HashMap.ofList [ newId, configure newEntity ]
+      removals = Array.empty
       gameTime = ValueNone
     }
 
-    struct (newId, change)
+  /// Removes an entity from the game state.
+  let removeEntity entityId = {
+    updates = HashMap.empty
+    additions = HashMap.empty
+    removals = [| entityId |]
+    gameTime = ValueNone
+  }
 
-  /// Removes an entity from the game.
-  /// Returns StateChange with entity marked as Dead.
-  let removeEntity entityId (state: GameState) : StateChange =
-
-    let entitiesMap = state.entities |> AMap.force
-
-    match entitiesMap |> HashMap.tryFindV entityId with
-    | ValueSome components ->
-      let removedComponents = {
-        components with
-            Resources = {
-              components.Resources with
-                  Status = Dead
-            }
-      }
-
-      {
-        entities = HashMap.ofList [ entityId, removedComponents ]
-        gameTime = ValueNone
-      }
-    | ValueNone ->
-        {
-          entities = HashMap.empty
-          gameTime = ValueNone
-        }
-
-  /// Retrieves entity components (non-reactive query).
-  /// Uses synchronous access to entities map.
   let getEntity entityId (state: GameState) =
-    state.entities |> AMap.force |> HashMap.tryFindV entityId
-
-  // ============================================================================
-  // EQUIPMENT OPERATIONS
-  // ============================================================================
+    state.entities |> AMap.tryFind entityId |> AVal.force
 
   /// Equips an item to the specified slot.
   /// Returns StateChange or error (entity not found, invalid slot).
@@ -170,7 +145,9 @@ module GameState =
         }
 
         Ok {
-          entities = HashMap.ofList [ entityId, updatedComponents ]
+          updates = HashMap.ofList [ entityId, updatedComponents ]
+          additions = HashMap.empty
+          removals = Array.empty
           gameTime = ValueNone
         }
 
@@ -195,7 +172,9 @@ module GameState =
 
 
       Ok {
-        entities = HashMap.ofList [ entityId, updatedComponents ]
+        updates = HashMap.ofList [ entityId, updatedComponents ]
+        additions = HashMap.empty
+        removals = Array.empty
         gameTime = ValueNone
       }
 
@@ -229,18 +208,12 @@ module GameState =
       }
 
       Ok {
-        entities = HashMap.ofList [ entityId, updatedComponents ]
+        updates = HashMap.ofList [ entityId, updatedComponents ]
+        additions = HashMap.empty
+        removals = Array.empty
         gameTime = ValueNone
       }
 
-  // ============================================================================
-  // ABILITY OPERATIONS
-  // ============================================================================
-
-  /// Primary interface for using abilities in combat.
-  /// Uses existing Command pattern: Creates UseAbility command and calls Resolution.step.
-  /// Returns adaptive StateChange for reactive resolution.
-  /// MonoGame must evaluate with AVal.force and apply.
   let activateAbility
     entityId
     (abilityId: int<AbilityId>)
@@ -257,409 +230,24 @@ module GameState =
     let command = UseAbility action
     Resolution.evaluate state command
 
-  /// Adds a new ability to an entity's ability list.
-  /// Direct operation: modifies Abilities alist.
-  let learnAbility entityId (abilityId: int<AbilityId>) (state: GameState) =
-
-    let entitiesMap = state.entities |> AMap.force
-
-    match entitiesMap |> HashMap.tryFindV entityId with
-    | ValueNone -> Error EntityNotFound
-    | ValueSome components ->
-      // Check if ability already known
-      let knownAbilities = components.Abilities |> AList.force
-
-      if knownAbilities |> IndexList.exists(fun _ v -> v = abilityId) then
-        Error(OperationError.AbilityError AlreadyKnown)
-      else
-        // Add ability to the list
-        let updatedAbilities = components.Abilities |> AList.force
-        let newAbilities = updatedAbilities |> IndexList.add abilityId
-
-        let updatedComponents = {
-          components with
-              Abilities = AList.ofIndexList newAbilities
-        }
-
-        Ok {
-          entities = HashMap.ofList [ entityId, updatedComponents ]
-          gameTime = ValueNone
-        }
-
-  /// Removes an ability from an entity.
-  /// Direct operation: removes from Abilities alist.
-  let forgetAbility entityId (abilityId: int<AbilityId>) (state: GameState) =
-
-    let entitiesMap = state.entities |> AMap.force
-
-    match entitiesMap |> HashMap.tryFindV entityId with
-    | ValueNone -> Error EntityNotFound
-    | ValueSome components ->
-      let knownAbilities = components.Abilities |> AList.force
-
-      if not(knownAbilities |> IndexList.exists(fun _ v -> v = abilityId)) then
-        Error(OperationError.AbilityError NotKnown)
-      else
-        let updatedAbilities =
-          knownAbilities |> IndexList.filter((<>) abilityId)
-
-        let updatedComponents = {
-          components with
-              Abilities = AList.ofIndexList updatedAbilities
-        }
-
-        Ok {
-          entities = HashMap.ofList [ entityId, updatedComponents ]
-          gameTime = ValueNone
-        }
-
-  // ============================================================================
-  // PROFESSION ADVANCEMENT
-  // ============================================================================
-
-  /// Advances entity's profession to next stage (First → Second → Third).
-  /// Validates stage progression rules and updates BaseStats and Identity.Profession.
-  let advanceStage entityId (state: GameState) =
-
-    let entitiesMap = state.entities |> AMap.force
-
-    match entitiesMap |> HashMap.tryFindV entityId with
-    | ValueNone -> Error EntityNotFound
-    | ValueSome components ->
-      match components.Identity.Stage with
-      | Third -> Error(OperationError.AdvancementError AlreadyMaxStage)
-      | First ->
-        let newProfession = {
-          components.Identity with
-              Stage = Second
-        }
-        // Boost base stats on advancement
-        let newBaseStats = {
-          components.BaseStats with
-              Power = components.BaseStats.Power + 2
-              Magic = components.BaseStats.Magic + 2
-              Sense = components.BaseStats.Sense + 2
-              Charm = components.BaseStats.Charm + 2
-        }
-
-        let updatedComponents = {
-          components with
-              Identity = newProfession
-              BaseStats = newBaseStats
-        }
-
-        Ok {
-          entities = HashMap.ofList [ entityId, updatedComponents ]
-          gameTime = ValueNone
-        }
-      | Second ->
-        let newProfession = {
-          components.Identity with
-              Stage = Third
-        }
-
-        let newBaseStats = {
-          components.BaseStats with
-              Power = components.BaseStats.Power + 3
-              Magic = components.BaseStats.Magic + 3
-              Sense = components.BaseStats.Sense + 3
-              Charm = components.BaseStats.Charm + 3
-        }
-
-        let updatedComponents = {
-          components with
-              Identity = newProfession
-              BaseStats = newBaseStats
-        }
-
-        Ok {
-          entities = HashMap.ofList [ entityId, updatedComponents ]
-          gameTime = ValueNone
-        }
-
-  /// Query operation: checks if entity meets requirements for stage advancement.
-  /// No state mutation, no StateChange needed.
-  let canAdvanceStage entityId (state: GameState) : bool =
-
-    let entitiesMap = state.entities |> AMap.force
-
-    match entitiesMap |> HashMap.tryFindV entityId with
-    | ValueNone -> false
-    | ValueSome components ->
-      match components.Identity.Stage with
-      | Third -> false
-      | First
-      | Second -> true
-
-  // ============================================================================
-  // RESOURCE MANAGEMENT
-  // ============================================================================
-
-  /// Restores HP (capped at max HP from DerivedStats).
-  /// Direct operation: modifies Resources.
-  let healEntity entityId (amount: int) (state: GameState) =
-
-    if amount < 0 then
-      Error(OperationError.ResourceError InvalidAmount)
-    else
-      let entitiesMap = state.entities |> AMap.force
-
-      match entitiesMap |> HashMap.tryFindV entityId with
-      | ValueNone -> Error EntityNotFound
-      | ValueSome components ->
-        // Get derived stats to find max HP - force derivedStats map first
-        let derivedStatsMap = GameState.getDerivedStats state |> AMap.force
-
-        let maxHP = derivedStatsMap[entityId].HP
-
-        let newHP = min (components.Resources.HP + amount) maxHP
-        let updatedResources = { components.Resources with HP = newHP }
-
-        let updatedComponents = {
-          components with
-              Resources = updatedResources
-        }
-
-        Ok {
-          entities = HashMap.ofList [ entityId, updatedComponents ]
-          gameTime = ValueNone
-        }
-
-  /// Restores MP (capped at max MP from DerivedStats).
-  /// Direct operation: modifies Resources.
-  let restoreMP entityId (amount: int) (state: GameState) =
-
-    if amount < 0 then
-      Error(ResourceError InvalidAmount)
-    else
-      let entitiesMap = state.entities |> AMap.force
-
-      match entitiesMap |> HashMap.tryFindV entityId with
-      | ValueNone -> Error EntityNotFound
-      | ValueSome components ->
-        // Get derived stats to find max MP
-        let derivedStatsMap = GameState.getDerivedStats state |> AMap.force
-        let maxMP = derivedStatsMap[entityId].MP
-        let newMP = min (components.Resources.MP + amount) maxMP
-        let updatedResources = { components.Resources with MP = newMP }
-
-        let updatedComponents = {
-          components with
-              Resources = updatedResources
-        }
-
-        Ok {
-          entities = HashMap.ofList [ entityId, updatedComponents ]
-          gameTime = ValueNone
-        }
-
-  /// Applies direct damage (bypasses combat formulas).
-  /// Direct operation: reduces HP, checks for death.
-  let damageEntity entityId (amount: int) (state: GameState) =
-
-    if amount < 0 then
-      Error(OperationError.ResourceError InvalidAmount)
-    else
-      let entitiesMap = state.entities |> AMap.force
-
-      match entitiesMap |> HashMap.tryFindV entityId with
-      | ValueNone -> Error EntityNotFound
-      | ValueSome components ->
-        let newHP = max (components.Resources.HP - amount) 0
-        let newStatus = if newHP = 0 then Dead else components.Resources.Status
-
-        let updatedResources = {
-          components.Resources with
-              HP = newHP
-              Status = newStatus
-        }
-
-        let updatedComponents = {
-          components with
-              Resources = updatedResources
-        }
-
-        Ok {
-          entities = HashMap.ofList [ entityId, updatedComponents ]
-          gameTime = ValueNone
-        }
-
-  /// Manually sets entity status (Alive, Dead, Disabled).
-  /// Direct operation: modifies Resources.Status.
-  let setResourceStatus entityId (status: Status) (state: GameState) =
-
-    let entitiesMap = state.entities |> AMap.force
-
-    match entitiesMap |> HashMap.tryFindV entityId with
-    | ValueNone -> Error EntityNotFound
-    | ValueSome components ->
-      let updatedResources = {
-        components.Resources with
-            Status = status
-      }
-
-      let updatedComponents = {
-        components with
-            Resources = updatedResources
-      }
-
-      Ok {
-        entities = HashMap.ofList [ entityId, updatedComponents ]
-        gameTime = ValueNone
-      }
-
-  // ============================================================================
-  // EFFECT MANAGEMENT
-  // ============================================================================
-
-  /// Manually applies an effect to a target (duration, source entity).
-  /// Direct operation: adds ActiveEffect to Effects alist.
-  let applyEffect
-    targetId
-    sourceId
-    (effectId: int<EffectId>)
-    (duration: int64<Tick>)
-    (state: GameState)
-    =
-
-    // Verify effect exists in store
-    match state.services.effectStore.tryFind effectId with
-    | ValueNone -> Error(OperationError.EffectError EffectNotFound)
-    | ValueSome effectDef ->
-      let entitiesMap = state.entities |> AMap.force
-
-      match entitiesMap |> HashMap.tryFindV targetId with
-      | ValueNone -> Error EntityNotFound
-      | ValueSome components ->
-        // ActiveEffect uses: SourceId, RemainingTicks, NextTickIn, Stacks, Definition
-        let newEffect = {
-          EffectId = effectId
-          SourceId = sourceId
-          RemainingTicks = duration
-          NextTickIn = 0L<Tick> // Immediate first tick
-          Stacks = 1
-          Definition = effectDef
-        }
-
-        let currentEffects = components.Effects |> AList.force
-        let updatedEffects = currentEffects |> IndexList.add newEffect
-
-        let updatedComponents = {
-          components with
-              Effects = AList.ofIndexList updatedEffects
-        }
-
-        Ok {
-          entities = HashMap.ofList [ targetId, updatedComponents ]
-          gameTime = ValueNone
-        }
-
-  /// Removes all instances of an effect from an entity.
-  /// Direct operation: filters Effects alist.
-  let removeEffect entityId (effectId: int<EffectId>) (state: GameState) =
-
-    let entitiesMap = state.entities |> AMap.force
-
-    match entitiesMap |> HashMap.tryFindV entityId with
-    | ValueNone -> Error EntityNotFound
-    | ValueSome components ->
-      let currentEffects = components.Effects |> AList.force
-
-      let filteredEffects =
-        currentEffects |> IndexList.filter(fun e -> e.EffectId <> effectId)
-
-      let updatedComponents = {
-        components with
-            Effects = AList.ofIndexList filteredEffects
-      }
-
-      Ok {
-        entities = HashMap.ofList [ entityId, updatedComponents ]
-        gameTime = ValueNone
-      }
-
-  /// Removes all effects from an entity.
-  /// Direct operation: clears Effects alist.
-  let clearAllEffects entityId (state: GameState) =
-
-    let entitiesMap = state.entities |> AMap.force
-
-    match entitiesMap |> HashMap.tryFindV entityId with
-    | ValueNone -> Error EntityNotFound
-    | ValueSome components ->
-      let updatedComponents = {
-        components with
-            Effects = AList.empty
-      }
-
-      Ok {
-        entities = HashMap.ofList [ entityId, updatedComponents ]
-        gameTime = ValueNone
-      }
-
-  // ============================================================================
-  // TIME & SIMULATION
-  // ============================================================================
-
-  /// Advances game time and processes tick-based effects.
-  /// Uses existing tick mechanism: Calls GameState.tick from Gameplay.fs.
-  /// Returns adaptive StateChange (DoT/HoT damage, effect expiration).
-  /// MonoGame evaluates and applies via GameState.applyTick.
-  let advanceTime
-    (deltaTicks: int64<Tick>)
-    (state: GameState)
-    : aval<StateChange> =
-
-    GameState.tick state deltaTicks
-
-  /// Clears all ability cooldowns (for testing/debug).
-  /// Direct operation: clears AbilityCooldowns amap.
-  let resetCooldowns entityId (state: GameState) =
-
-    let entitiesMap = state.entities |> AMap.force
-
-    match entitiesMap |> HashMap.tryFindV entityId with
-    | ValueNone -> Error EntityNotFound
-    | ValueSome components ->
-      let updatedComponents = {
-        components with
-            AbilityCooldowns = AMap.empty
-      }
-
-      Ok {
-        entities = HashMap.ofList [ entityId, updatedComponents ]
-        gameTime = ValueNone
-      }
-
-  // ============================================================================
-  // QUERY OPERATIONS (NON-REACTIVE)
-  // ============================================================================
-
   /// Returns all alive entities.
   /// Uses ASet.force on existing adaptive projection.
-  let getAliveEntities(state: GameState) =
-
-    let aliveSet = GameState.aAlive state.entities
-    ASet.force aliveSet |> HashSet.toArray
+  let inline getAliveEntities(state: GameState) =
+    Projections.aAlive state.entities |> ASet.force
 
   /// Returns abilities not on cooldown for an entity.
   /// Uses direct access to AbilityCooldowns and Abilities.
-  let getReadyAbilities entityId (state: GameState) =
+  let inline getReadyAbilities entityId (state: GameState) =
+    adaptive {
+      let! found = state.entities |> AMap.tryFind entityId
 
-    let entitiesMap = state.entities |> AMap.force
-
-    match entitiesMap |> HashMap.tryFindV entityId with
-    | ValueNone -> IndexList.empty
-    | ValueSome components ->
-      let currentTime = state.gameTime |> AVal.force
-      let cooldowns = components.AbilityCooldowns |> AMap.force
-      let abilities = components.Abilities |> AList.force
-
-      abilities
-      |> IndexList.filter(fun abilityId ->
-        match cooldowns |> HashMap.tryFindV abilityId with
-        | ValueNone -> true // No cooldown = ready
-        | ValueSome expiryTime -> currentTime >= expiryTime)
+      match found with
+      | None -> return HashSet.empty
+      | Some components ->
+        return!
+          Projections.aReadyForEntity components state.gameTime |> ASet.toAVal
+    }
+    |> AVal.force
 
   /// Forces evaluation of adaptive stats and returns snapshot.
   let inline getDerivedStatsSnapshot entityId (state: GameState) =

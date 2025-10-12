@@ -451,7 +451,8 @@ module CharacterKitStore =
           Sense = 8
           Charm = 12
         }
-        StarterAbilities = [| 8<AbilityId> |]
+        StarterAbilities =
+          FSharp.Data.Adaptive.HashSet.ofArray [| 8<AbilityId> |]
       }
       { Family = Power; Stage = Second },
       {
@@ -463,7 +464,8 @@ module CharacterKitStore =
           Sense = 12
           Charm = 17
         }
-        StarterAbilities = [| 8<AbilityId>; 1<AbilityId> |]
+        StarterAbilities =
+          FSharp.Data.Adaptive.HashSet.ofArray [| 8<AbilityId>; 1<AbilityId> |]
       }
       { Family = Power; Stage = Third },
       {
@@ -475,7 +477,12 @@ module CharacterKitStore =
           Sense = 15
           Charm = 22
         }
-        StarterAbilities = [| 8<AbilityId>; 1<AbilityId>; 100<AbilityId> |]
+        StarterAbilities =
+          FSharp.Data.Adaptive.HashSet.ofArray [|
+            8<AbilityId>
+            1<AbilityId>
+            100<AbilityId>
+          |]
       }
       { Family = Magic; Stage = First },
       {
@@ -487,7 +494,8 @@ module CharacterKitStore =
           Sense = 10
           Charm = 8
         }
-        StarterAbilities = [| 2<AbilityId>; 4<AbilityId> |]
+        StarterAbilities =
+          FSharp.Data.Adaptive.HashSet.ofArray [| 2<AbilityId>; 4<AbilityId> |]
       }
       { Family = Magic; Stage = Second },
       {
@@ -499,7 +507,12 @@ module CharacterKitStore =
           Sense = 14
           Charm = 12
         }
-        StarterAbilities = [| 2<AbilityId>; 4<AbilityId>; 6<AbilityId> |]
+        StarterAbilities =
+          FSharp.Data.Adaptive.HashSet.ofArray [|
+            2<AbilityId>
+            4<AbilityId>
+            6<AbilityId>
+          |]
       }
       { Family = Magic; Stage = Third },
       {
@@ -511,12 +524,13 @@ module CharacterKitStore =
           Sense = 18
           Charm = 15
         }
-        StarterAbilities = [|
-          2<AbilityId>
-          4<AbilityId>
-          6<AbilityId>
-          9<AbilityId>
-        |]
+        StarterAbilities =
+          FSharp.Data.Adaptive.HashSet.ofArray [|
+            2<AbilityId>
+            4<AbilityId>
+            6<AbilityId>
+            9<AbilityId>
+          |]
       }
       { Family = Sense; Stage = First },
       {
@@ -528,7 +542,8 @@ module CharacterKitStore =
           Sense = 15
           Charm = 10
         }
-        StarterAbilities = [| 8<AbilityId>; 3<AbilityId> |]
+        StarterAbilities =
+          FSharp.Data.Adaptive.HashSet.ofArray [| 8<AbilityId>; 3<AbilityId> |]
       }
       { Family = Sense; Stage = Second },
       {
@@ -540,7 +555,12 @@ module CharacterKitStore =
           Sense = 22
           Charm = 14
         }
-        StarterAbilities = [| 8<AbilityId>; 3<AbilityId>; 6<AbilityId> |]
+        StarterAbilities =
+          FSharp.Data.Adaptive.HashSet.ofArray [|
+            8<AbilityId>
+            3<AbilityId>
+            6<AbilityId>
+          |]
       }
       { Family = Sense; Stage = Third },
       {
@@ -552,12 +572,13 @@ module CharacterKitStore =
           Sense = 30
           Charm = 18
         }
-        StarterAbilities = [|
-          8<AbilityId>
-          3<AbilityId>
-          6<AbilityId>
-          9<AbilityId>
-        |]
+        StarterAbilities =
+          FSharp.Data.Adaptive.HashSet.ofArray [|
+            8<AbilityId>
+            3<AbilityId>
+            6<AbilityId>
+            9<AbilityId>
+          |]
       }
       { Family = Charm; Stage = First },
       {
@@ -569,7 +590,12 @@ module CharacterKitStore =
           Sense = 8
           Charm = 15
         }
-        StarterAbilities = [| 8<AbilityId>; 5<AbilityId>; 7<AbilityId> |]
+        StarterAbilities =
+          FSharp.Data.Adaptive.HashSet.ofArray [|
+            8<AbilityId>
+            5<AbilityId>
+            7<AbilityId>
+          |]
       }
       { Family = Charm; Stage = Second },
       {
@@ -581,12 +607,13 @@ module CharacterKitStore =
           Sense = 12
           Charm = 22
         }
-        StarterAbilities = [|
-          8<AbilityId>
-          5<AbilityId>
-          7<AbilityId>
-          4<AbilityId>
-        |]
+        StarterAbilities =
+          FSharp.Data.Adaptive.HashSet.ofArray [|
+            8<AbilityId>
+            5<AbilityId>
+            7<AbilityId>
+            4<AbilityId>
+          |]
       }
       { Family = Charm; Stage = Third },
       {
@@ -598,13 +625,14 @@ module CharacterKitStore =
           Sense = 15
           Charm = 30
         }
-        StarterAbilities = [|
-          8<AbilityId>
-          5<AbilityId>
-          7<AbilityId>
-          4<AbilityId>
-          101<AbilityId>
-        |]
+        StarterAbilities =
+          FSharp.Data.Adaptive.HashSet.ofArray [|
+            8<AbilityId>
+            5<AbilityId>
+            7<AbilityId>
+            4<AbilityId>
+            101<AbilityId>
+          |]
       }
     ]
 

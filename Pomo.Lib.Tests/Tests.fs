@@ -112,9 +112,9 @@ module private TestHelpers =
         Destination = ValueNone
         Path = []
       }
-      Effects = (clist [] :> alist<_>)
-      Abilities = (clist abilities :> alist<_>)
-      AbilityCooldowns = (cooldowns :> amap<_, _>)
+      Effects = clist []
+      Abilities = HashSet.ofList abilities
+      AbilityCooldowns = cooldowns
       Equipment = HashMap.empty
     }
 

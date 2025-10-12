@@ -26,6 +26,7 @@ The architecture is based on a layered approach with clear separation of concern
   dotnet run --project Pomo.DesktopGL
   ```
 - **Running tests**: The tests are located in the `Pomo.Lib.Tests` project. You can run them using the `dotnet run --project Pomo.Lib.Tests` command.
+- **Integration tests**: Integration tests can be found in the `Pomo.Core.Tests` project. These tests ensure that the integration between `Pomo.Lib` and `Pomo.Core` works as expected.
 
 ## Architectural and Coding Principles
 
@@ -188,6 +189,7 @@ This project uses a reactive architecture with FSharp.Data.Adaptive (FDA) for it
 ## Phase 6.1 Progress (2025-10-11)
 
 A minimal visual validation is now in place:
+
 - Entities now include a Position component in the core domain and default to (0,0).
 - The MonoGame runtime renders entities with simple HP bars using a dedicated RenderSystem.
 - Entity bodies are rendered as circles sized by profession stage (First/Second/Third) and colored by faction.
@@ -195,11 +197,13 @@ A minimal visual validation is now in place:
 - Basic entity labels (Profession Family/Stage) are rendered above health bars.
 
 How to verify visually:
+
 1. Build the solution: `dotnet build`
 2. Run the desktop project: `dotnet run --project Pomo.DesktopGL`
 3. You should see two labeled circles with health bars on a blue background. The view centers on the player and zoom adjusts with mouse wheel.
 
 Notes:
+
 - This completes the visual goals for Phase 6.1 (including circle rendering and a dedicated RenderSystem module).
 - See docs/Core-Game-Plan.md for the detailed roadmap and progress.
 
@@ -208,12 +212,13 @@ Notes:
 Phase 6.2 is now complete, delivering a functional input and targeting system.
 
 How to verify visually:
+
 1. Build and run the DesktopGL project.
 2. Left-click on entities (player or enemy) to select them. A yellow highlight indicates the current selection.
 3. With an enemy selected, press the '1' key to activate a basic melee attack. Damage will be applied, and the enemy's health bar will decrease.
 4. Right-click anywhere on the screen to move the player entity to that location.
 
 Notes:
+
 - This completes the goals for Phase 6.2.
 - Phase 6.3 (Movement & Navigation) is now in progress.
-
