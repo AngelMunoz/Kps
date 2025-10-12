@@ -4,6 +4,214 @@ Pomo.Lib main goal is to an adaptive library for real time rpg games.
 
 It should provide a way to define characters, abilities, items and provide game systems to easily integrate with different game engines like MonoGame, Godot, etc.
 
+## Architecture
+
+### Per-Scenario GameState Architecture
+
+The game uses a **Per-Scenario GameState architecture** to support split-screen and network multiplayer scenarios. Each scenario owns its own state independently, allowing:
+
+- **Multiple active scenarios simultaneously**: Different players in different locations
+- **Independent battle contexts**: One scenario in combat, another in peaceful exploration
+- **Independent time progression**: Each scenario ticks independently
+- **Efficient rendering**: Direct scenario lookup for split-screen viewports
+
+**Key Types**:
+- **ScenarioState**: Contains scenario definition, entities, gameTime, and battleContext
+- **PlayerContext**: Tracks player's current scenario, controlled entity, and camera
+- **GameState**: Root state containing all scenarios, players, parties, and services
+
+## Spatial System
+
+### Position Component
+
+Entities have a **Position** component that defines their location in 2D space:
+- **X**: Horizontal coordinate (float32)
+- **Y**: Vertical coordinate (float32)
+
+Position is used for rendering, collision detection, and movement calculations.
+
+### Movement Component
+
+Entities can move through scenarios with the **Movement** component:
+- **Speed**: Movement rate in units per second (float32)
+- **Destination**: Target position (Position voption)
+- **Path**: List of waypoints to follow (Position list)
+
+Movement respects terrain constraints and collision boundaries. Different terrain types can affect movement speed (e.g., Water slows movement).
+
+### Camera System
+
+Each player has a **Camera** for viewing the game world:
+- Follows the player's controlled entity
+- Supports zoom controls
+- Converts between screen and world coordinates
+
+## Scenario System
+
+### Scenario
+
+A **Scenario** represents a distinct game area with its own rules and content:
+- **ScenarioId**: Unique identifier (Guid<ScenarioId>)
+- **Name**: Human-readable name
+- **BoundsWidth/BoundsHeight**: World bounds in units (float32)
+- **TerrainObjects**: List of collision objects with terrain properties
+- **VisualLayers**: Background/foreground sprites without collision
+- **BattleEnabled**: Whether combat mechanics are active (bool)
+- **CombatType**: Targeting rules for this scenario (ScenarioCombatType)
+- **Transitions**: Portals/doors to other scenarios
+
+### Terrain Types
+
+Terrain defines the properties of different areas:
+- **Walkable**: Standard passable terrain
+- **Blocked**: Impassable obstacles
+- **Water**: Passable but slower movement
+- **Hazard**: Causes damage over time
+
+### Collision Geometry
+
+Collision uses **polygon-based shapes** for organic, natural boundaries (not tile-based grids):
+- **Circle**: Defined by center point and radius
+- **Polygon**: Arbitrary convex polygon with vertex list
+- **None**: Visual-only objects without collision
+
+This allows for 2.5D graphics with natural boundaries for objects like corals, trees, and rocks.
+
+### Terrain Objects
+
+**TerrainObject** represents physical objects in a scenario:
+- **ObjectId**: Unique identifier (Guid<ObjectId>)
+- **Position**: Location in world space
+- **CollisionGeometry**: Shape for collision detection
+- **TerrainType**: Terrain properties (Walkable, Blocked, etc.)
+- **DepthLayer**: Z-order for 2.5D rendering (0.0 = background, 1.0 = foreground)
+- **SpriteId**: Visual representation reference (optional)
+
+### Visual Layers
+
+**VisualLayer** provides background/foreground graphics without collision:
+- **SpriteId**: Visual asset reference
+- **Position**: Location in world space
+- **DepthLayer**: Z-order for rendering
+- **Parallax**: Scrolling speed multiplier for depth effects
+
+### Scenario Transitions
+
+**ScenarioTransition** defines connections between scenarios:
+- **FromPosition**: Trigger location in current scenario
+- **ToScenarioId**: Target scenario identifier
+- **ToPosition**: Arrival location in target scenario
+- **RequiresCondition**: Optional validation function (e.g., requires key item)
+
+Transitions allow entity migration between scenarios while preserving stats, equipment, and effects.
+
+## Combat System
+
+### Scenario Combat Types
+
+**ScenarioCombatType** determines targeting rules for each scenario:
+
+- **PvE (Player vs Environment)**: Default mode
+  - Players can target NPCs and monsters only
+  - Players **cannot** target other players
+  - Use case: Towns, cooperative dungeons, story scenarios
+
+- **PvP (Player vs Player)**:
+  - Players can target enemy players (not in same party)
+  - Players can target NPCs and monsters
+  - Players **cannot** target party members with offensive abilities
+  - Use case: Arenas, dueling zones, competitive areas
+
+- **PvPvE (Player vs Player vs Environment)**:
+  - Players can target both enemy players and NPCs
+  - Players **cannot** target party members with offensive abilities
+  - Use case: Open-world PvP zones, faction warfare
+
+**Friendly Abilities Exception**: Healing and buff abilities can target party members in all combat types.
+
+### Party System
+
+**Party** groups players together for cooperative play:
+- **PartyId**: Unique identifier (Guid<PartyId>)
+- **Members**: Set of player entity IDs (HashSet<Guid<EntityId>>)
+- **Name**: Party name
+
+**Party Benefits**:
+- Friendly fire protection (cannot target party members with offensive abilities)
+- Shared targeting restrictions
+- Coordinated strategies
+
+Solo players are treated as single-member parties.
+
+### Battle Context
+
+**BattleContext** manages combat engagement state per scenario:
+- **IsActive**: Whether battle mechanics are currently engaged (bool)
+- **Participants**: Entities involved in combat (HashSet<Guid<EntityId>>)
+- **StartTick**: When battle began (int64<Tick>)
+- **CanDisengage**: Whether participants can flee (bool)
+
+**Battle Engagement**:
+Triggered by hostile entity proximity, forced encounters, or player-initiated combat. When engaged:
+- Movement may be restricted
+- Combat abilities are enabled
+- Effect and cooldown processing is active
+- Targeting rules enforced based on scenario combat type
+
+**Battle Disengagement**:
+Occurs when all hostiles are defeated, flee action succeeds, or scenario transition happens.
+
+**Peaceful Scenarios**:
+When `BattleEnabled = false`:
+- No hostile detection
+- Combat abilities are disabled/grayed out
+- Passive effects still process
+- Full movement freedom
+- Targeting rules still apply
+
+## Input System
+
+### Input Actions
+
+**InputAction** represents player input commands:
+- **NavigateTo**: Click/tap to move to target position (Vector2)
+- **SelectEntity**: Click/tap to select entity (Guid<EntityId>)
+- **ActivateAbility**: Press hotkey (0-9) or UI button to use ability (int)
+- **ConfirmTarget**: Finalize target selection (Guid<EntityId>[])
+- **CancelAction**: Cancel current action/targeting
+
+### Targeting Modes
+
+Ability activation uses context-aware targeting based on ability type:
+- **Self**: Auto-targets actor, no selection needed
+- **SingleAlly/SingleEnemy**: Click to select one target entity
+- **MultiTarget**: Click multiple entities (with max count limit)
+- **AoE (Area of Effect)**: Drag to show area indicator, release to confirm
+
+Visual feedback indicates valid (green) and invalid (red/grayed) targets during selection.
+
+## Rendering System
+
+### 2.5D Depth Ordering
+
+The rendering system uses **DepthLayer** for pseudo-3D visual ordering:
+- **DepthLayer**: Float value where 0.0 = background, 1.0 = foreground
+- **Y-Sorting**: Entities further down (higher Y) render in front (pseudo-3D effect)
+- **Combined Ordering**: DepthLayer and Y-position provide fine control
+
+Example: Tree trunk in front of player, but player in front of tree leaves.
+
+### Pathfinding
+
+Movement uses **polygon-aware pathfinding**:
+- **Grid Overlay Approach**: Generate coarse navigation grid over scenario bounds
+- **Polygon Validation**: Mark grid cells as walkable/blocked based on polygon overlaps
+- **A* Algorithm**: Calculate optimal path on grid
+- **Path Validation**: Ensure waypoints don't intersect collision polygons
+- **Dynamic Recalculation**: Update path if obstacles change
+
+Cost function considers distance, terrain type, and entity speed.
+
 ## Damage Types
 
 There are two primary damage types in the engine:
