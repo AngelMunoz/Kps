@@ -113,7 +113,9 @@ Progress Update (2025-10-11):
 - GameStateOperations.createEntity initializes Position to (0,0).
 - Pomo.Core renders entities as colored rectangles with simple HP bars using a 1x1 pixel texture and SpriteBatch.
 - Initial positions for a player (green) and an enemy (red) are set so both are visible on screen.
-- Not yet implemented: camera follow/zoom, labels, circle rendering, dedicated RenderSystem module.
+- Implemented simple camera follow (centers on player) and mouse wheel zoom (0.5x–2x).
+- Implemented basic entity labels (Profession Family/Stage) above health bars using Hud font.
+- Not yet implemented: circle rendering and dedicated RenderSystem module.
 
 **Goal**: See entities on screen and verify core library integration
 
