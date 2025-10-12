@@ -231,7 +231,7 @@ type PomoGame() as this =
               destination = { X = world.X; Y = world.Y }
             }
 
-          Resolution.resolve state moveCmd |> GameState.forceAndApply state
+          Resolution.evaluate state moveCmd |> GameState.forceAndApply state
 
         prevRightMouseDown <- rightMouseDown
 

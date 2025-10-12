@@ -255,7 +255,7 @@ module GameState =
     }
 
     let command = UseAbility action
-    Resolution.resolve state command
+    Resolution.evaluate state command
 
   /// Adds a new ability to an entity's ability list.
   /// Direct operation: modifies Abilities alist.

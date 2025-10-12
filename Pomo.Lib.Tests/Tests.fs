@@ -216,7 +216,7 @@ type ``Action Resolution``() =
         abilityId = melee
       }
 
-    let delta = Resolution.resolve state action
+    let delta = Resolution.evaluate state action
     let change = delta |> AVal.force
     GameState.apply state change
 
@@ -272,7 +272,7 @@ type ``Action Resolution``() =
         abilityId = spell
       }
 
-    let delta = Resolution.resolve state action
+    let delta = Resolution.evaluate state action
     let change: StateChange = delta |> AVal.force
     GameState.apply state change
 
@@ -320,7 +320,7 @@ type ``Action Resolution``() =
         abilityId = spell
       })
 
-    let delta = Resolution.resolve state action
+    let delta = Resolution.evaluate state action
     let change = delta |> AVal.force
     GameState.apply state change
 
@@ -373,7 +373,7 @@ type ``Action Resolution``() =
         abilityId = melee
       })
 
-    let delta = Resolution.resolve state action
+    let delta = Resolution.evaluate state action
     let change = delta |> AVal.force
     GameState.apply state change
 
@@ -416,7 +416,7 @@ type ``Action Resolution``() =
         abilityId = melee
       })
 
-    let delta1 = Resolution.resolve state action1
+    let delta1 = Resolution.evaluate state action1
     let change1 = delta1 |> AVal.force
     GameState.apply state change1
 
@@ -428,7 +428,7 @@ type ``Action Resolution``() =
         abilityId = melee
       })
 
-    let delta2 = Resolution.resolve state action2
+    let delta2 = Resolution.evaluate state action2
     let change2 = delta2 |> AVal.force
     GameState.apply state change2
 
@@ -468,7 +468,7 @@ type ``Action Resolution``() =
         abilityId = melee
       })
 
-    let delta = Resolution.resolve state action
+    let delta = Resolution.evaluate state action
     let change = delta |> AVal.force
     GameState.apply state change
 
@@ -520,7 +520,7 @@ type ``Action Resolution``() =
         abilityId = melee
       })
 
-    let delta1 = Resolution.resolve state action1
+    let delta1 = Resolution.evaluate state action1
     let change1 = delta1 |> AVal.force
     GameState.apply state change1
 
@@ -540,7 +540,7 @@ type ``Action Resolution``() =
         abilityId = melee
       })
 
-    let delta2 = Resolution.resolve state action2
+    let delta2 = Resolution.evaluate state action2
     let change2 = delta2 |> AVal.force
     GameState.apply state change2
 

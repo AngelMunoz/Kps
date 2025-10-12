@@ -160,7 +160,7 @@ type ``Phase3 - Stun``() =
         abilityId = melee
       }
 
-    let delta = Resolution.resolve state action
+    let delta = Resolution.evaluate state action
     let change = delta |> AVal.force
     Gameplay.GameState.apply state change
 
@@ -211,7 +211,7 @@ type ``Phase3 - Silence``() =
         abilityId = silence
       }
 
-    let spellDelta = Resolution.resolve state spellAction
+    let spellDelta = Resolution.evaluate state spellAction
     let spellChange = spellDelta |> AVal.force
     Gameplay.GameState.apply state spellChange
 
@@ -270,7 +270,7 @@ type ``Phase3 - Silence``() =
         abilityId = meeleWithcost
       }
 
-    let meleeDelta = Resolution.resolve state meleeAction
+    let meleeDelta = Resolution.evaluate state meleeAction
     let meleeChange = meleeDelta |> AVal.force
     Gameplay.GameState.apply state meleeChange
 
@@ -295,7 +295,7 @@ type ``Phase3 - Silence``() =
         abilityId = melee
       }
 
-    let meleeWithCostDelta = Resolution.resolve state meleeWithNoCostAction
+    let meleeWithCostDelta = Resolution.evaluate state meleeWithNoCostAction
     let meleeWithCostChange = meleeWithCostDelta |> AVal.force
     Gameplay.GameState.apply state meleeWithCostChange
 
@@ -373,7 +373,7 @@ type ``Phase3 - Taunt``() =
         abilityId = melee
       }
 
-    let delta = Resolution.resolve state action
+    let delta = Resolution.evaluate state action
     let change = delta |> AVal.force
     Gameplay.GameState.apply state change
 
@@ -413,7 +413,7 @@ type ``Phase3 - Effect Stacking``() =
 
     let applySpell() =
       let delta =
-        Resolution.resolve
+        Resolution.evaluate
           state
           (UseAbility {
             actor = casterId
@@ -474,7 +474,7 @@ type ``Phase3 - Effect Stacking``() =
 
     let applySpell() =
       let delta =
-        Resolution.resolve
+        Resolution.evaluate
           state
           (UseAbility {
             actor = casterId
@@ -554,7 +554,7 @@ type ``Phase3 - Effect Stacking``() =
 
     let applySpell() =
       let delta =
-        Resolution.resolve
+        Resolution.evaluate
           state
           (UseAbility {
             actor = casterId
@@ -625,7 +625,7 @@ type ``Phase3 - Effect Stacking``() =
 
     let applySpell() =
       let delta =
-        Resolution.resolve
+        Resolution.evaluate
           state
           (UseAbility {
             actor = casterId
@@ -713,7 +713,7 @@ type ``Phase3 - Determinism``() =
 
     let performAttack state =
       let delta =
-        Resolution.resolve
+        Resolution.evaluate
           state
           (UseAbility {
             actor = attackerId
@@ -786,7 +786,7 @@ type ``Phase3 - Cooldown Management``() =
 
     // Use melee ability (puts it on cooldown)
     let meleeDelta =
-      Resolution.resolve
+      Resolution.evaluate
         state
         (UseAbility {
           actor = attackerId
@@ -831,7 +831,7 @@ type ``Phase3 - Cooldown Management``() =
 
     // Use spell ability (puts it on cooldown - spell has 5000L<ticks> cooldown)
     let spellDelta =
-      Resolution.resolve
+      Resolution.evaluate
         state
         (UseAbility {
           actor = attackerId

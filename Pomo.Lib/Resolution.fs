@@ -738,7 +738,7 @@ module Resolution =
       }
     }
 
-  let resolve (state: GameState) (cmd: Command) : aval<StateChange> =
+  let evaluate (state: GameState) (cmd: Command) : aval<StateChange> =
     let derivedStats = GameState.getDerivedStats state
     let enemies = GameState.getEnemies state
     let allies = GameState.getAllies state
