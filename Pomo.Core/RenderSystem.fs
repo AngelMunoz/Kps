@@ -40,7 +40,7 @@ module RenderSystem =
     | Stage.Second -> mediumCircle
     | Stage.Third -> largeCircle
 
-  let draw (sb: SpriteBatch) (pixel: Texture2D) (hud: SpriteFont voption) (state: GameState) (view: Matrix) =
+  let draw (sb: SpriteBatch) (pixel: Texture2D) (hud: SpriteFont voption) (state: GameState) (view: Matrix) (selected: Guid<EntityId> voption) =
     let entities = state.entities |> AMap.force |> HashMap.toArrayV
     let derived = GameState.getDerivedStats state |> AMap.force
     sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null, null, view)
@@ -58,6 +58,16 @@ module RenderSystem =
         let x = pos.X - w * 0.5f
         let y = pos.Y - h * 0.5f
         sb.Draw(circle, Vector2(x, y), color)
+        match selected with
+        | ValueSome sid when sid = id ->
+          let scale = 1.25f
+          let sw = w * scale
+          let sh = h * scale
+          let sx = pos.X - sw * 0.5f
+          let sy = pos.Y - sh * 0.5f
+          let dest = Rectangle(int sx, int sy, int sw, int sh)
+          sb.Draw(circle, dest, Color(255, 255, 0, 120))
+        | _ -> ()
       else
         let w, h = 24f, 24f
         sb.Draw(pixel, Rectangle(int pos.X, int pos.Y, int w, int h), color)
