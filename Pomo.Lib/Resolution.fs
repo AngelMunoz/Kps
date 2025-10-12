@@ -754,6 +754,28 @@ module Resolution =
 
     match cmd with
     | UseAbility action -> resolveUseAbility action resolverParams
+    | Move action ->
+        adaptive {
+          let! entity = state.entities |> AMap.tryFind action.actor
+
+          match entity with
+          | Some e ->
+            let updatedEntity = {
+              e with
+                  EntityComponents.Movement.Destination =
+                    ValueSome action.destination
+            }
+
+            return {
+              entities = HashMap.ofList [ action.actor, updatedEntity ]
+              gameTime = ValueNone
+            }
+          | None ->
+            return {
+              entities = HashMap.empty
+              gameTime = ValueNone
+            }
+        }
 
   let apply (state: GameState) (change: StateChange) =
     transact(fun _ ->

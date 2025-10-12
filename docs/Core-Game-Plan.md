@@ -182,6 +182,8 @@ Progress Update (2025-10-11):
 
 **Goal**: Interact with entities through mouse/touch and keyboard
 
+**Status**: ✅ **COMPLETE** (2025-10-11)
+
 ### 6.2.1 Input Management
 - **InputManager.fs** (Pomo.Core):
   - Mouse/Touch input state tracking
@@ -221,24 +223,26 @@ Progress Update (2025-10-11):
 5. Visual feedback: animation placeholder, damage numbers, effect icons
 
 **Deliverables**:
-- [ ] InputManager.fs with mouse/touch/keyboard handling
-- [ ] Entity selection with visual highlighting
-- [ ] Targeting system for all ability types
-- [ ] Ability activation integrated with core library
-- [ ] Visual feedback for ability use (placeholder animations)
+- [x] InputManager.fs with mouse/touch/keyboard handling
+- [x] Entity selection with visual highlighting
+- [x] Targeting system for all ability types
+- [x] Ability activation integrated with core library
+- [x] Visual feedback for ability use (placeholder animations)
 
 **Testing Requirements**:
-- [ ] Unit tests for InputAction parsing and screen-to-world coordinate conversion
-- [ ] Integration test: Simulate mouse clicks and verify entity selection
-- [ ] Targeting test: Verify each targeting mode (Self, SingleTarget, MultiTarget, AoE) works correctly
-- [ ] Ability activation test: Trigger ability via input and verify StateChange is applied
-- [ ] Input validation test: Verify invalid targets are rejected appropriately
+- [x] Unit tests for InputAction parsing and screen-to-world coordinate conversion
+- [x] Integration test: Simulate mouse clicks and verify entity selection
+- [x] Targeting test: Verify each targeting mode (Self, SingleTarget, MultiTarget, AoE) works correctly
+- [x] Ability activation test: Trigger ability via input and verify StateChange is applied
+- [x] Input validation test: Verify invalid targets are rejected appropriately
 
 ---
 
 ## Phase 6.3 — Movement & Navigation
 
 **Goal**: Move entities within a scenario
+
+**Status**: 🚧 **IN PROGRESS**
 
 ### 6.3.1 Movement System
 - **Movement Component** (Pomo.Lib):
@@ -260,13 +264,12 @@ Progress Update (2025-10-11):
 
 ### 6.3.2 Navigation Input
 - **Click-to-Move**:
-  - Click screen position
-  - Set entity destination
-  - Entity moves toward destination
+  - Right-click screen position to set player destination.
+  - Entity moves toward destination.
 - **Visual Feedback**:
-  - Show movement destination marker
-  - Trail/path visualization
-  - Animate entity position
+  - Animate entity position.
+  - Show movement destination marker (future).
+  - Trail/path visualization (future).
 
 ### 6.3.3 Movement Constraints (Basic)
 - **Boundary Checking**:
@@ -277,10 +280,10 @@ Progress Update (2025-10-11):
   - Stop movement if collision detected
 
 **Deliverables**:
-- [ ] Movement component in Domain
-- [ ] Move command and resolution
-- [ ] Click-to-move input handling
-- [ ] Movement animation and visual feedback
+- [x] Movement component in Domain
+- [x] Move command and resolution
+- [x] Click-to-move input handling
+- [x] Movement animation and visual feedback
 - [ ] Basic boundary and collision checking
 
 **Testing Requirements**:
@@ -430,7 +433,7 @@ type ScenarioTransition = {
   - Show transition points (portals, doors) as visual indicators
 
 **Deliverables**:
-- [ ] Scenario domain types in Pomo.Lib (Scenario, ScenarioState, PlayerContext, CollisionGeometry, TerrainObject, VisualLayer, updated GameState)
+- [ ] Scenario domain types in Pomo.Lib (Scenario, ScenarioState, PlayerContext, CollisionGeometry, TerrainObject, ObjectId, VisualLayer, TerrainType, ScenarioTransition)
 - [ ] ScenarioManager module with per-scenario operations
 - [ ] GameState refactored to per-scenario architecture
 - [ ] Polygon-based terrain rendering system with depth sorting

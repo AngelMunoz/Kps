@@ -27,9 +27,13 @@ type ResourceType =
   | MP
 
 [<Struct>]
-type Position = {
-  X: float32
-  Y: float32
+type Position = { X: float32; Y: float32 }
+
+[<Struct>]
+type Movement = {
+  Speed: float32 // units per second
+  Destination: Position voption
+  Path: Position list
 }
 
 [<Struct>]
@@ -340,7 +344,15 @@ module Rules =
   }
 
   [<Struct>]
-  type Command = UseAbility of action: UseAbilityAction
+  type MoveAction = {
+    actor: Guid<EntityId>
+    destination: Position
+  }
+
+  [<Struct>]
+  type Command =
+    | UseAbility of abilityAction: UseAbilityAction
+    | Move of moveAction: MoveAction
 
 
 module Components =
@@ -353,6 +365,7 @@ module Components =
     BaseStats: Attributes.BaseAttributes
     Resources: Attributes.Resources
     Position: Position
+    Movement: Movement
     Effects: alist<ActiveEffect>
     Abilities: alist<int<AbilityId>>
     AbilityCooldowns: amap<int<AbilityId>, int64<Tick>>

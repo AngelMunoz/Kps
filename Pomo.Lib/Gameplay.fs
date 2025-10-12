@@ -335,6 +335,9 @@ module GameState =
             components.Effects
             time
 
+        let movedComponents =
+          Pomo.Lib.Movement.Update.updateEntity time components
+
         let! derivedStats = getDerivedStats state |> AMap.tryFind entityId
 
         let maxHp =
@@ -347,12 +350,12 @@ module GameState =
         let finalHp = max 0 (newHp - tickResult.Damage)
 
         let updatedResources = {
-          components.Resources with
+          movedComponents.Resources with
               HP = finalHp
         }
 
         let updatedComponents = {
-          components with
+          movedComponents with
               Effects = updatedEffects |> AList.ofIndexList
               Resources = updatedResources
         }

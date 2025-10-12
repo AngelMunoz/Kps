@@ -44,6 +44,7 @@ type PomoGame() as this =
   let mutable cameraPos: Vector2 = Vector2.Zero
   let mutable selected: Guid<EntityId> voption = ValueNone
   let mutable prevMouseDown: bool = false
+  let mutable prevRightMouseDown: bool = false
   let mutable prevKey1Down: bool = false
 
   do
@@ -51,6 +52,7 @@ type PomoGame() as this =
       typeof<GraphicsDeviceManager>,
       graphicsDeviceManager
     )
+
     this.IsMouseVisible <- true
 
     base.Content.RootDirectory <- "Content"
@@ -135,7 +137,9 @@ type PomoGame() as this =
       let p = state.entities[playerId]
       let abilityId = 8<AbilityId>
       let abilities = (clist [ abilityId ] :> alist<_>)
-      let cooldowns: cmap<int<AbilityId>, int64<Tick>> = cmap [ (abilityId, 0L<Tick>) ]
+
+      let cooldowns: cmap<int<AbilityId>, int64<Tick>> =
+        cmap [ (abilityId, 0L<Tick>) ]
 
       state.entities[playerId] <-
         {
@@ -209,46 +213,87 @@ type PomoGame() as this =
         let vp = this.GraphicsDevice.Viewport
         let halfW = float32 vp.Width / 2.0f
         let halfH = float32 vp.Height / 2.0f
+
         let view =
           Matrix.CreateTranslation(-cameraPos.X, -cameraPos.Y, 0f)
           * Matrix.CreateScale(zoom)
           * Matrix.CreateTranslation(halfW, halfH, 0f)
 
-        let mouseDown = InputManager.isLeftClickPressed()
-        if (mouseDown && not prevMouseDown) || (prevMouseDown && not mouseDown) then
+        let rightMouseDown = InputManager.isRightClickPressed()
+
+        if rightMouseDown && not prevRightMouseDown then
           let mouseScreen = InputManager.getMousePosition()
           let world = InputManager.screenToWorld mouseScreen view
+
+          let moveCmd =
+            Rules.Move {
+              actor = playerId
+              destination = { X = world.X; Y = world.Y }
+            }
+
+          let moveChange =
+            Pomo.Lib.Rules.Resolution.step state moveCmd |> AVal.force
+
+          Pomo.Lib.Rules.Resolution.apply state moveChange
+
+        prevRightMouseDown <- rightMouseDown
+
+        let mouseDown = InputManager.isLeftClickPressed()
+
+        if (mouseDown && not prevMouseDown) then
+          let mouseScreen = InputManager.getMousePosition()
+          let world = InputManager.screenToWorld mouseScreen view
+
+          Console.WriteLine(
+            $"[Input] World {world.X},{world.Y} Zoom {zoom} Camera {cameraPos.X},{cameraPos.Y}"
+          )
+
           let entities = state.entities |> AMap.force |> HashMap.toArrayV
+
           let inline radiusOfStage s =
             match s with
             | Stage.First -> 12f
             | Stage.Second -> 16f
             | Stage.Third -> 20f
+
           let mutable found: Guid<EntityId> voption = ValueNone
+
           for struct (id, comp) in entities do
             let dx = world.X - comp.Position.X
             let dy = world.Y - comp.Position.Y
             let r = radiusOfStage comp.Identity.Stage
-            let dist2 = dx*dx + dy*dy
-            let inside = dist2 <= r*r
-            Console.WriteLine($"[Input] Check {id} Pos {comp.Position.X},{comp.Position.Y} Dist2 {dist2} R2 {r*r} Inside {inside}")
+            let dist2 = dx * dx + dy * dy
+            let inside = dist2 <= r * r
+
+            Console.WriteLine(
+              $"[Input] Check {id} Pos {comp.Position.X},{comp.Position.Y} Dist2 {dist2} R2 {r * r} Inside {inside}"
+            )
+
             if inside then
               found <- ValueSome id
+
           selected <- found
+
           match selected with
           | ValueSome sid -> Console.WriteLine($"[Input] Selected {sid}")
           | ValueNone -> Console.WriteLine("[Input] Selection cleared")
+
         prevMouseDown <- mouseDown
 
         let key1 = Keyboard.GetState().IsKeyDown(Keys.D1)
+
         if key1 && not prevKey1Down then
           match selected with
           | ValueSome targetId ->
-            let act = activateAbility playerId (8<AbilityId>) [| targetId |] state
+            let act =
+              activateAbility playerId (8<AbilityId>) [| targetId |] state
+
             let ch = AVal.force act
             applyWithTime state ch
             Console.WriteLine($"[Ability] Activated 8 on {targetId}")
-          | ValueNone -> Console.WriteLine("[Ability] No target selected for ability 8")
+          | ValueNone ->
+            Console.WriteLine("[Ability] No target selected for ability 8")
+
         prevKey1Down <- key1
 
         base.Update(gameTime)
@@ -264,10 +309,12 @@ type PomoGame() as this =
       let vp = this.GraphicsDevice.Viewport
       let halfW = float32 vp.Width / 2.0f
       let halfH = float32 vp.Height / 2.0f
+
       let view =
         Matrix.CreateTranslation(-cameraPos.X, -cameraPos.Y, 0f)
         * Matrix.CreateScale(zoom)
         * Matrix.CreateTranslation(halfW, halfH, 0f)
+
       let hudOpt = if isNull hudFont then ValueNone else ValueSome hudFont
       RenderSystem.init this.GraphicsDevice
       RenderSystem.draw spriteBatch pixel hudOpt state view selected

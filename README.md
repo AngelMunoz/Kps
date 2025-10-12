@@ -202,3 +202,18 @@ How to verify visually:
 Notes:
 - This completes the visual goals for Phase 6.1 (including circle rendering and a dedicated RenderSystem module).
 - See docs/Core-Game-Plan.md for the detailed roadmap and progress.
+
+## Phase 6.2 Progress (2025-10-11)
+
+Phase 6.2 is now complete, delivering a functional input and targeting system.
+
+How to verify visually:
+1. Build and run the DesktopGL project.
+2. Left-click on entities (player or enemy) to select them. A yellow highlight indicates the current selection.
+3. With an enemy selected, press the '1' key to activate a basic melee attack. Damage will be applied, and the enemy's health bar will decrease.
+4. Right-click anywhere on the screen to move the player entity to that location.
+
+Notes:
+- This completes the goals for Phase 6.2.
+- Phase 6.3 (Movement & Navigation) is now in progress.
+

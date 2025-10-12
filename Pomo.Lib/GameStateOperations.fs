@@ -79,6 +79,11 @@ module GameStateOperations =
         Status = Alive
       }
       Position = { X = 0f; Y = 0f }
+      Movement = {
+        Speed = 100f
+        Destination = ValueNone
+        Path = []
+      }
       Effects = AList.empty
       Abilities = AList.empty
       AbilityCooldowns = AMap.empty

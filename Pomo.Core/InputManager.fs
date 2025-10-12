@@ -12,13 +12,19 @@ module InputManager =
   let isLeftClickPressed() =
     Mouse.GetState().LeftButton = ButtonState.Pressed
 
+  let isRightClickPressed() =
+    Mouse.GetState().RightButton = ButtonState.Pressed
+
   let isLeftClickReleased() =
     Mouse.GetState().LeftButton = ButtonState.Released
+
+  let isRightClickReleased() =
+    Mouse.GetState().RightButton = ButtonState.Released
 
   let getMousePosition() =
     let ms = Mouse.GetState()
     Vector2(float32 ms.X, float32 ms.Y)
 
-  let isKeyPressed (key: Keys) =
+  let isKeyPressed(key: Keys) =
     let ks = Keyboard.GetState()
     ks.IsKeyDown(key)
