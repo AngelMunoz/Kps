@@ -15,6 +15,7 @@
     <Compile Include="Movement.fs" />
     <Compile Include="Gameplay.fs" />
     <Compile Include="Resolution.fs" />
+    <Compile Include="Collision.fs" />
     <Compile Include="GameStateOperations.fs" />
   </ItemGroup>
 

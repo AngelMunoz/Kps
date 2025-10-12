@@ -23,17 +23,16 @@ type ScenarioTransition = {
   RequiresCondition: (unit -> bool) voption
 }
 
-[<Struct>]
 type Scenario = {
   Id: Guid<ScenarioId>
   Name: string
   BoundsWidth: float32
   BoundsHeight: float32
-  TerrainObjects: TerrainObject list
-  VisualLayers: VisualLayer list
   BattleEnabled: bool
   CombatType: ScenarioCombatType
-  Transitions: ScenarioTransition list
+  TerrainObjects: TerrainObject IndexList
+  VisualLayers: VisualLayer[]
+  Transitions: ScenarioTransition[]
 }
 
 [<Struct>]
@@ -55,11 +54,11 @@ module ScenarioState =
       Name = name
       BoundsWidth = boundsWidth
       BoundsHeight = boundsHeight
-      TerrainObjects = []
-      VisualLayers = []
       BattleEnabled = false
       CombatType = PvE
-      Transitions = []
+      TerrainObjects = IndexList.empty
+      VisualLayers = Array.empty
+      Transitions = Array.empty
     }
     entities = cmap()
     gameTime = cval 0L<Tick>

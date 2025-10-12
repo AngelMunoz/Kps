@@ -1,6 +1,6 @@
 ﻿# Core Game Plan - MonoGame Integration & Gameplay Systems
 
-**Status**: 🚧 **IN PROGRESS** - Phases 6.1 & 6.2 & 6.3 & 6.4 complete; Phase 6.5 ready
+**Status**: 🚧 **IN PROGRESS** - Phases 6.1 & 6.2 & 6.3 & 6.4 complete; Phase 6.5 in progress
 
 **Created**: 2025-10-11
 **Updated**: 2025-10-12
@@ -539,6 +539,13 @@ type ScenarioTransition = {
 ## Phase 6.5 — Terrain-Aware Movement & Pathfinding
 
 **Goal**: Entities respect terrain and navigate intelligently
+
+Progress Update (2025-10-12):
+
+- Implemented `Collision.fs` module with point-in-polygon and circle-polygon intersection algorithms.
+- Optimized `Scenario` domain type for performance: `TerrainObjects` is now `IndexList`, `VisualLayers` and `Transitions` are arrays.
+- Refactored collision queries (`canMoveTo`, `queryTerrainObjects`) to use tail-recursive, index-based iteration, eliminating list-based allocations.
+- Core collision detection is now ready for integration into the movement system.
 
 ### 6.5.1 Polygon Collision Detection
 
