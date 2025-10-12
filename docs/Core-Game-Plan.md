@@ -1,6 +1,6 @@
 ﻿# Core Game Plan - MonoGame Integration & Gameplay Systems
 
-**Status**: 🚧 **IN PROGRESS** - Phases 6.1 & 6.2 complete; Phase 6.3 (Movement & Navigation) in progress
+**Status**: 🚧 **IN PROGRESS** - Phases 6.1 & 6.2 & 6.3 complete; Phase 6.4 in progress
 
 **Created**: 2025-10-11
 
