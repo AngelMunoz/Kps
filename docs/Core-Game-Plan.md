@@ -13,6 +13,7 @@
 This document outlines the implementation plan for integrating the Pomo.Lib RPG framework with MonoGame to create a playable game experience. The focus is on visual feedback, player interaction, scenario-based gameplay, and battle system engagement.
 
 **Primary Goals**:
+
 1. **Visual Feedback**: See entities on screen with geometric shape placeholders
 2. **Player Input**: Mouse/touch-based navigation and targeting
 3. **Combat Interaction**: Activate abilities against enemies and see results
@@ -21,6 +22,7 @@ This document outlines the implementation plan for integrating the Pomo.Lib RPG 
 6. **Battle Management**: Engage/disengage battle mechanics for peaceful vs combat scenarios
 
 **Input Design Philosophy**:
+
 - **Mouse/Touch Navigation**: Click/tap screen to move player entities
 - **Ability Activation**: Keyboard (0-9) or on-screen buttons
 - **Targeting System**: Drag pointer for directional abilities, click entities for targeted abilities
@@ -35,6 +37,7 @@ This document outlines the implementation plan for integrating the Pomo.Lib RPG 
 ### Why Per-Scenario State?
 
 The game is designed with **split-screen and multiplayer** as core requirements. This means:
+
 - **Multiple players in different scenarios simultaneously**: Player 1 in Forest, Player 2 in Town
 - **Independent battle contexts**: One player in combat, another exploring peacefully
 - **Independent time progression**: Each scenario can tick independently (future: pause, slow-motion)
@@ -109,6 +112,7 @@ type GameState = {
 ## Phase 6.1 — Basic Rendering & Visual Feedback
 
 Progress Update (2025-10-11):
+
 - Implemented Position component in Pomo.Lib.Domain and added to EntityComponents.
 - GameStateOperations.createEntity initializes Position to (0,0).
 - Pomo.Core renders entities as colored rectangles with simple HP bars using a 1x1 pixel texture and SpriteBatch.
@@ -120,6 +124,7 @@ Progress Update (2025-10-11):
 **Goal**: See entities on screen and verify core library integration
 
 ### 6.1.1 Entity Rendering System
+
 - **Geometric Placeholder Rendering**:
   - Circles for entities (player = green, enemy = red, neutral = blue)
   - Size based on entity stage (First = small, Second = medium, Third = large)
@@ -136,6 +141,7 @@ Progress Update (2025-10-11):
   - Zoom controls (mouse wheel or pinch gesture)
 
 ### 6.1.2 Domain Extensions for Positioning
+
 - **Add Position Component** (Pomo.Lib):
   ```fsharp
   [<Struct>]
@@ -151,6 +157,7 @@ Progress Update (2025-10-11):
   - Support position updates in StateChange mechanism
 
 ### 6.1.3 Rendering Pipeline
+
 - **RenderSystem.fs** (Pomo.Core):
   - Query alive entities from GameState
   - Render each entity as geometric shape at position
@@ -163,6 +170,7 @@ Progress Update (2025-10-11):
   - Dead entities: `Color.Gray` (faded)
 
 **Deliverables**:
+
 - [ ] Position component added to Domain
 - [ ] RenderSystem.fs with entity rendering
 - [ ] Health bar rendering
@@ -170,6 +178,7 @@ Progress Update (2025-10-11):
 - [ ] Visual verification: see 2 entities (player, enemy) on screen with health bars
 
 **Testing Requirements**:
+
 - [ ] Unit tests for Position component initialization and validation
 - [ ] Integration test: Create entities with positions and verify rendering output
 - [ ] Visual test: Confirm entities render at correct screen positions
@@ -185,6 +194,7 @@ Progress Update (2025-10-11):
 **Status**: ✅ **COMPLETE** (2025-10-11)
 
 ### 6.2.1 Input Management
+
 - **InputManager.fs** (Pomo.Core):
   - Mouse/Touch input state tracking
   - Keyboard state for ability hotkeys (0-9)
@@ -201,6 +211,7 @@ Progress Update (2025-10-11):
   ```
 
 ### 6.2.2 Entity Selection & Targeting
+
 - **Selection System**:
   - Click/tap entity to select
   - Visual highlight for selected entity (outline, glow effect)
@@ -216,6 +227,7 @@ Progress Update (2025-10-11):
   - Show ability range indicators
 
 ### 6.2.3 Ability Activation Flow
+
 1. Press ability hotkey (0-9) or click UI button
 2. Enter targeting mode based on ability type
 3. Select targets (if required)
@@ -223,6 +235,7 @@ Progress Update (2025-10-11):
 5. Visual feedback: animation placeholder, damage numbers, effect icons
 
 **Deliverables**:
+
 - [x] InputManager.fs with mouse/touch/keyboard handling
 - [x] Entity selection with visual highlighting
 - [x] Targeting system for all ability types
@@ -230,6 +243,7 @@ Progress Update (2025-10-11):
 - [x] Visual feedback for ability use (placeholder animations)
 
 **Testing Requirements**:
+
 - [x] Unit tests for InputAction parsing and screen-to-world coordinate conversion
 - [x] Integration test: Simulate mouse clicks and verify entity selection
 - [x] Targeting test: Verify each targeting mode (Self, SingleTarget, MultiTarget, AoE) works correctly
@@ -245,6 +259,7 @@ Progress Update (2025-10-11):
 **Status**: 🚧 **IN PROGRESS**
 
 ### 6.3.1 Movement System
+
 - **Movement Component** (Pomo.Lib):
   ```fsharp
   [<Struct>]
@@ -263,6 +278,7 @@ Progress Update (2025-10-11):
   - Stop when destination reached
 
 ### 6.3.2 Navigation Input
+
 - **Click-to-Move**:
   - Right-click screen position to set player destination.
   - Entity moves toward destination.
@@ -272,6 +288,7 @@ Progress Update (2025-10-11):
   - Trail/path visualization (future).
 
 ### 6.3.3 Movement Constraints (Basic)
+
 - **Boundary Checking**:
   - Define scenario bounds
   - Clamp movement to within bounds
@@ -280,6 +297,7 @@ Progress Update (2025-10-11):
   - Stop movement if collision detected
 
 **Deliverables**:
+
 - [x] Movement component in Domain
 - [x] Move command and resolution
 - [x] Click-to-move input handling
@@ -287,6 +305,7 @@ Progress Update (2025-10-11):
 - [ ] Basic boundary and collision checking
 
 **Testing Requirements**:
+
 - [ ] Unit tests for Movement component and path calculation
 - [ ] Movement resolution test: Verify Move command updates entity position correctly
 - [ ] Boundary test: Verify entities cannot move outside scenario bounds
@@ -403,6 +422,7 @@ type ScenarioTransition = {
 ```
 
 ### 6.4.2 Scenario Management (Pomo.Lib)
+
 - **ScenarioManager Module**:
   - createScenarioState: Scenario -> EngineServices -> ScenarioState
   - getScenarioState: Guid<ScenarioId> -> GameState -> ScenarioState voption
@@ -416,6 +436,7 @@ type ScenarioTransition = {
   - Battle context is per-scenario
 
 ### 6.4.3 Terrain Rendering (Pomo.Core)
+
 - **Polygon-Based Rendering**:
   - Render TerrainObjects with sprites at specified positions
   - Depth-sorted rendering (sort by DepthLayer: background to foreground)
@@ -433,6 +454,7 @@ type ScenarioTransition = {
   - Show transition points (portals, doors) as visual indicators
 
 **Deliverables**:
+
 - [ ] Scenario domain types in Pomo.Lib (Scenario, ScenarioState, PlayerContext, CollisionGeometry, TerrainObject, ObjectId, VisualLayer, TerrainType, ScenarioTransition)
 - [ ] ScenarioManager module with per-scenario operations
 - [ ] GameState refactored to per-scenario architecture
@@ -441,6 +463,7 @@ type ScenarioTransition = {
 - [ ] Migration from single GameState to per-scenario architecture
 
 **Testing Requirements**:
+
 - [ ] Unit tests for Scenario, ScenarioState, CollisionGeometry, and TerrainObject creation
 - [ ] ScenarioManager test: Create scenario state and verify entity ownership
 - [ ] Per-scenario time test: Verify each scenario has independent gameTime
@@ -457,6 +480,7 @@ type ScenarioTransition = {
 **Goal**: Entities respect terrain and navigate intelligently
 
 ### 6.5.1 Polygon Collision Detection
+
 - **Collision Module** (Pomo.Lib):
   - Point-in-polygon algorithm (ray casting) for movement validation
   - Circle-polygon intersection for entity radius checks
@@ -471,15 +495,16 @@ type ScenarioTransition = {
   - Visual warning for hazard areas (pulsing effect, warning icon)
 
 ### 6.5.2 Pathfinding (Grid Overlay or NavMesh)
+
 - **Option A: Grid Overlay + Polygon Validation (Simpler, Recommended for Phase 6.5)**:
   - Generate coarse navigation grid over scenario bounds
   - Mark grid cells as walkable/blocked based on polygon overlaps
-  - Use A* on grid for pathfinding
+  - Use A\* on grid for pathfinding
   - Final path validation: ensure waypoints don't intersect collision polygons
   - Cost function: distance, terrain type, entity speed
 - **Option B: Navigation Mesh (Advanced, Future)**:
   - Define walkable areas as polygons (NavMesh)
-  - A* over polygon graph for precise pathfinding
+  - A\* over polygon graph for precise pathfinding
   - More complex authoring but exact walkable boundaries
 - **Movement Integration**:
   - Calculate path when destination set
@@ -487,6 +512,7 @@ type ScenarioTransition = {
   - Recalculate if path blocked or dynamic obstacles appear
 
 ### 6.5.3 Movement Visual Refinements
+
 - **Path Preview**:
   - Show path line before movement
   - Indicate path validity (green = valid, red = invalid/blocked)
@@ -497,6 +523,7 @@ type ScenarioTransition = {
   - Smooth acceleration/deceleration
 
 **Deliverables**:
+
 - [ ] Polygon collision detection module (point-in-polygon, circle-polygon)
 - [ ] Spatial partitioning for efficient collision queries
 - [ ] Hazard detection and effect application
@@ -505,11 +532,12 @@ type ScenarioTransition = {
 - [ ] Terrain-based movement speed
 
 **Testing Requirements**:
+
 - [ ] Point-in-polygon test: Verify algorithm correctly detects interior/exterior points
 - [ ] Circle-polygon test: Verify entity radius collision with polygon boundaries
 - [ ] Movement validation test: Verify entities cannot move into Blocked polygons
 - [ ] Hazard test: Verify damage/effects applied when entity overlaps Hazard geometry
-- [ ] Pathfinding test: Grid overlay A* produces valid paths around polygon obstacles
+- [ ] Pathfinding test: Grid overlay A\* produces valid paths around polygon obstacles
 - [ ] Path validation test: Invalid paths (no route) handled correctly
 - [ ] Spatial partitioning test: Verify efficient collision queries (performance)
 - [ ] Terrain speed test: Verify movement speed varies by terrain type
@@ -521,6 +549,7 @@ type ScenarioTransition = {
 **Goal**: Move between scenarios
 
 ### 6.6.1 Transition Detection
+
 - **Proximity Check**:
   - Detect when entity near transition point
   - Visual indicator: portal/door highlight
@@ -529,6 +558,7 @@ type ScenarioTransition = {
   - Check transition conditions
 
 ### 6.6.2 Transition Execution
+
 - **Scene Loading**:
   - Unload current scenario entities
   - Load target scenario
@@ -541,6 +571,7 @@ type ScenarioTransition = {
   - Loading indicator if needed
 
 ### 6.6.3 Scenario Definitions
+
 - **Multi-Scenario Content**:
   - Define 3+ test scenarios
   - Various terrain types and layouts
@@ -551,6 +582,7 @@ type ScenarioTransition = {
   - Dungeon (battle enabled, hazards)
 
 **Deliverables**:
+
 - [ ] Transition detection and triggering
 - [ ] Scenario loading/unloading system (per-scenario architecture)
 - [ ] Entity migration between scenarios
@@ -559,6 +591,7 @@ type ScenarioTransition = {
 - [ ] State preservation during transitions
 
 **Testing Requirements**:
+
 - [ ] Transition detection test: Verify proximity triggers activate correctly
 - [ ] Entity migration test: Verify entity removed from old scenario, added to new scenario (per-scenario architecture)
 - [ ] State preservation test: Entity stats, equipment, effects preserved during transition
@@ -573,6 +606,7 @@ type ScenarioTransition = {
 **Goal**: Control when battle mechanics are active and enforce PvE/PvP/PvPvE targeting rules
 
 ### 6.7.1 Battle Context & Combat Types (Pomo.Lib)
+
 ```fsharp
 // Scenario combat type determines targeting rules
 [<Struct>]
@@ -623,12 +657,14 @@ type GameState = {
 ### 6.7.2 Targeting Rules by Combat Type
 
 **PvE Scenarios (Default)**:
+
 - **Allowed Targets**: Non-player entities (NPCs, enemies, monsters)
 - **Forbidden Targets**: Other player entities (regardless of party affiliation)
 - **Use Case**: Towns, cooperative dungeons, story scenarios
 - **Validation**: `isPlayerEntity(target) = false` for all offensive abilities
 
 **PvP Scenarios**:
+
 - **Allowed Targets**:
   - Enemy players (players not in the same party as the actor)
   - Non-player entities (NPCs, enemies)
@@ -639,6 +675,7 @@ type GameState = {
   - NPCs always valid
 
 **PvPvE Scenarios**:
+
 - **Allowed Targets**:
   - Enemy players (players not in the same party as the actor)
   - Non-player entities (NPCs, enemies, monsters)
@@ -647,10 +684,12 @@ type GameState = {
 - **Validation**: Same as PvP
 
 **Friendly Abilities Exception**:
+
 - Healing and buff abilities can target party members in all combat types
 - Validation checks `ability.IsFriendly` flag to allow party targeting
 
 ### 6.7.3 Battle Engagement Rules
+
 - **Engagement Triggers**:
   - Hostile entity proximity (if scenario allows)
   - Forced battle (boss encounters, story events)
@@ -668,6 +707,7 @@ type GameState = {
   - PvP combat timeout (optional)
 
 ### 6.7.4 Party System
+
 - **Party Formation**:
   - Players can form/join parties
   - Party members share targeting restrictions
@@ -681,6 +721,7 @@ type GameState = {
   - Can target any valid enemy based on scenario type
 
 ### 6.7.5 Peaceful Scenario Behavior
+
 - **Battle Disabled Scenarios**:
   - No hostile detection
   - Combat abilities disabled/grayed out
@@ -693,6 +734,7 @@ type GameState = {
   - Targeting validation always enforced
 
 ### 6.7.6 Visual Battle Indicators
+
 - **Battle State UI**:
   - Battle engaged indicator
   - Participant list with party affiliation colors
@@ -705,6 +747,7 @@ type GameState = {
   - Valid/invalid targets indicated during ability selection
 
 **Deliverables**:
+
 - [ ] ScenarioCombatType and Party domain types (per-scenario)
 - [ ] BattleContext domain types (per-scenario)
 - [ ] Targeting validation based on combat type and party affiliation
@@ -715,6 +758,7 @@ type GameState = {
 - [ ] Context-aware UI and abilities
 
 **Testing Requirements**:
+
 - [ ] Per-scenario battle test: Verify each scenario has independent BattleContext
 - [ ] PvE targeting test: Verify players cannot target other players in PvE scenarios
 - [ ] PvP targeting test: Verify players can target enemy players (not in same party) in PvP scenarios
@@ -735,6 +779,7 @@ type GameState = {
 **Goal**: Inspect entity stats, equipment, and abilities
 
 ### 6.8.1 Character Sheet UI
+
 - **Stats Panel**:
   - Display all derived stats (AP, MA, HP, MP, etc.)
   - Show base attributes (Power, Magic, Sense, Charm)
@@ -748,6 +793,7 @@ type GameState = {
   - Advancement indicator (if can advance)
 
 ### 6.8.2 Equipment View
+
 - **Equipment Slots**:
   - Visual representation of 7 slots (Head, Chest, Legs, Hands, Weapon1, Weapon2, Accessory)
   - Show equipped items or empty slots
@@ -758,6 +804,7 @@ type GameState = {
   - Unequip items
 
 ### 6.8.3 Ability List
+
 - **Ability Panel**:
   - List all known abilities
   - Show cooldown status
@@ -769,6 +816,7 @@ type GameState = {
   - Effects list
 
 ### 6.8.4 UI Implementation
+
 - **Panel System** (Pomo.Core):
   - Toggleable UI panels (F1 = character sheet)
   - Modal dialogs for detailed views
@@ -778,6 +826,7 @@ type GameState = {
   - Update on state change
 
 **Deliverables**:
+
 - [ ] Character sheet UI with stats display
 - [ ] Equipment view with slots
 - [ ] Ability list panel
@@ -785,6 +834,7 @@ type GameState = {
 - [ ] Tooltips and detail views
 
 **Testing Requirements**:
+
 - [ ] Stats display test: Verify derived stats calculated and displayed correctly
 - [ ] Equipment slot test: Verify all 7 slots render with equipped items or empty
 - [ ] Ability list test: Verify abilities display with correct cooldown status
@@ -798,6 +848,7 @@ type GameState = {
 **Goal**: Improve game feel with animations and effects
 
 ### 6.9.1 Ability Visual Effects
+
 - **Damage Numbers**:
   - Floating text showing damage/healing amounts
   - Color-coded (damage = red, heal = green, critical = yellow)
@@ -811,6 +862,7 @@ type GameState = {
   - Icon overlays on entities
 
 ### 6.9.2 Sound Effects (Optional)
+
 - **Audio Feedback**:
   - Ability activation sounds
   - Hit/miss sounds
@@ -818,6 +870,7 @@ type GameState = {
   - Background music per scenario type
 
 ### 6.9.3 UI Polish
+
 - **Transitions & Animations**:
   - Panel slide in/out
   - Button hover effects
@@ -828,6 +881,7 @@ type GameState = {
   - Responsive feedback for all actions
 
 **Deliverables**:
+
 - [ ] Damage number system
 - [ ] Ability visual effects (basic)
 - [ ] Status effect indicators
@@ -835,6 +889,7 @@ type GameState = {
 - [ ] UI animations and polish
 
 **Testing Requirements**:
+
 - [ ] Damage numbers test: Verify numbers display with correct values and colors
 - [ ] Visual effects test: Verify effects play on ability activation and impact
 - [ ] Status indicator test: Verify active effects display as icons/particles on entities
@@ -848,6 +903,7 @@ type GameState = {
 **Goal**: Additional features for richer gameplay
 
 ### 6.10.1 AI System (Basic)
+
 - **Enemy AI Behavior**:
   - Idle: patrol or stand
   - Detect: chase player if in range
@@ -859,6 +915,7 @@ type GameState = {
   - Ability usage rules
 
 ### 6.10.2 Quest/Objective System (Optional)
+
 - **Objective Types**:
   - Defeat X enemies
   - Reach location
@@ -869,6 +926,7 @@ type GameState = {
   - Completion rewards
 
 ### 6.10.3 Save/Load System
+
 - **Game State Serialization**:
   - Save current GameState to file
   - Serialize scenarios, entities, progress
@@ -878,6 +936,7 @@ type GameState = {
   - Auto-save on scenario transition
 
 ### 6.10.4 Inventory System (Future)
+
 - **Item Collection**:
   - Loot drops from enemies
   - Items in scenarios
@@ -887,12 +946,14 @@ type GameState = {
   - Equipment management
 
 **Deliverables**:
+
 - [ ] Basic enemy AI
 - [ ] Quest/objective system (optional)
 - [ ] Save/load functionality
 - [ ] Inventory system (future)
 
 **Testing Requirements**:
+
 - [ ] AI behavior test: Verify enemy AI states (idle, detect, combat, flee) transition correctly
 - [ ] AI decision test: Verify target selection and ability usage follow defined rules
 - [ ] Save/load test: Verify GameState serialization preserves all scenarios, entities, and player contexts
@@ -906,6 +967,7 @@ type GameState = {
 Based on the Core Game Plan requirements and **Per-Scenario GameState architecture**, we need to refactor Pomo.Lib:
 
 ### Domain Extensions (Phase 6.1-6.7)
+
 1. **Position Component**: Add to EntityComponents (Phase 6.1)
 2. **Movement Component**: Speed, destination, path (Phase 6.3)
 3. **Scenario Types**: Scenario, ScenarioState, PlayerContext, CollisionGeometry, TerrainObject, ObjectId, VisualLayer, TerrainType, ScenarioTransition (Phase 6.4)
@@ -916,7 +978,9 @@ Based on the Core Game Plan requirements and **Per-Scenario GameState architectu
 8. **Camera Type**: Camera for PlayerContext (Phase 6.1)
 
 ### GameState Refactoring (Phase 6.4-6.7) - Per-Scenario Architecture
+
 **Before** (Current single-state):
+
 ```fsharp
 type GameState = {
   entities: cmap<Guid<EntityId>, EntityComponents>
@@ -926,6 +990,7 @@ type GameState = {
 ```
 
 **After** (Per-scenario state with party system):
+
 ```fsharp
 type ScenarioState = {
   scenario: Scenario
@@ -943,15 +1008,17 @@ type GameState = {
 ```
 
 ### New Modules
+
 - **ScenarioManager.fs**: Scenario loading, transitions, polygon collision queries
 - **Collision.fs**: Polygon collision detection (point-in-polygon, circle-polygon, spatial partitioning)
-- **Pathfinding.fs**: Grid overlay A* algorithm with polygon validation
+- **Pathfinding.fs**: Grid overlay A\* algorithm with polygon validation
 - **Movement.fs**: Movement resolution and polygon collision validation
 
 ### GameStateOperations Extensions (Per-Scenario Architecture)
+
 - moveEntity: Guid<EntityId> -> Position -> Guid<ScenarioId> -> GameState -> Result<StateChange, Error>
-- canMoveTo: Position -> ScenarioState -> bool  // Polygon collision check
-- queryTerrainObjects: Position -> float32 -> ScenarioState -> TerrainObject list  // Query objects within radius
+- canMoveTo: Position -> ScenarioState -> bool // Polygon collision check
+- queryTerrainObjects: Position -> float32 -> ScenarioState -> TerrainObject list // Query objects within radius
 - engageBattle: Guid<EntityId> list -> Guid<ScenarioId> -> GameState -> Result<StateChange, Error>
 - disengageBattle: Guid<ScenarioId> -> GameState -> Result<StateChange, Error>
 - transitionPlayerScenario: int -> Guid<ScenarioId> -> Position -> GameState -> Result<StateChange, Error>
@@ -963,6 +1030,7 @@ type GameState = {
 ## Implementation Timeline & Priorities
 
 ### Priority 1 (Core Validation)
+
 - Phase 6.1: Basic Rendering ⭐⭐⭐
 - Phase 6.2: Input & Targeting ⭐⭐⭐
 - Phase 6.3: Movement (basic) ⭐⭐⭐
@@ -970,6 +1038,7 @@ type GameState = {
 **Goal**: Validate core library works in real gameplay - see entities, move, use abilities
 
 ### Priority 2 (Scenario Foundation)
+
 - Phase 6.4: Scenario System ⭐⭐
 - Phase 6.5: Terrain-Aware Movement ⭐⭐
 - Phase 6.6: Scenario Transitions ⭐⭐
@@ -977,12 +1046,14 @@ type GameState = {
 **Goal**: Build scenario-based gameplay structure
 
 ### Priority 3 (Battle System)
+
 - Phase 6.7: Battle Engagement ⭐⭐
 - Phase 6.8: Detail Views ⭐
 
 **Goal**: Complete battle system with context awareness
 
 ### Priority 4 (Polish & Extensions)
+
 - Phase 6.9: Visual Polish ⭐
 - Phase 6.10: Advanced Features (as needed)
 
@@ -993,6 +1064,7 @@ type GameState = {
 ## Success Criteria
 
 ### Phase 6.1-6.3 Success (Core Validation)
+
 ✅ Can see player and enemy entities on screen
 ✅ Can move player by clicking screen
 ✅ Can activate ability using keyboard and target enemy
@@ -1002,6 +1074,7 @@ type GameState = {
 ✅ Integration tests verify input → StateChange → visual feedback flow
 
 ### Phase 6.4-6.6 Success (Scenarios & Per-Scenario Architecture)
+
 ✅ Per-scenario GameState architecture implemented and tested
 ✅ Can navigate terrain with polygon-based collision (walkable/blocked areas)
 ✅ Polygon collision detection works correctly (point-in-polygon, circle-polygon)
@@ -1014,6 +1087,7 @@ type GameState = {
 ✅ Integration tests verify scenario transitions preserve entity state
 
 ### Phase 6.7 Success (Battle System)
+
 ✅ Battle engages automatically when near hostile
 ✅ Combat abilities only work in battle context
 ✅ Peaceful scenarios have no battle mechanics
@@ -1022,6 +1096,7 @@ type GameState = {
 ✅ Battle engagement/disengagement tests pass
 
 ### Phase 6.8-6.10 Success (Complete)
+
 ✅ Can view detailed entity stats and equipment
 ✅ Visual polish makes game feel responsive
 ✅ Basic AI provides challenge
@@ -1035,15 +1110,17 @@ type GameState = {
 ## Testing Strategy
 
 ### Unit Tests (Per Phase)
+
 - **Domain Components**: Position, Movement, Scenario, ScenarioState, PlayerContext, CollisionGeometry, TerrainObject, VisualLayer, TerrainType
 - **Collision Detection**: Point-in-polygon algorithm, circle-polygon intersection, spatial partitioning efficiency
 - **ScenarioManager Operations**: createScenarioState, entity ownership, polygon collision queries
 - **Per-Scenario Architecture**: Independent time, battle contexts, entity isolation
 - **GameStateOperations**: All API functions with per-scenario parameters (canMoveTo, queryTerrainObjects)
-- **Pathfinding**: Grid overlay A* with polygon validation, path correctness
+- **Pathfinding**: Grid overlay A\* with polygon validation, path correctness
 - **AI Behavior**: State transitions, decision making
 
 ### Functional Tests
+
 - Entity rendering at correct positions
 - Input handling for all action types
 - Ability activation through UI
@@ -1054,6 +1131,7 @@ type GameState = {
 - Multi-scenario active state (split-screen support)
 
 ### Integration Tests
+
 - MonoGame Update/Draw loop performance
 - GameState queries from rendering (per-scenario entity lookups)
 - Input → StateChange → Visual feedback flow
@@ -1063,6 +1141,7 @@ type GameState = {
 - Save/load with per-scenario state preservation
 
 ### Per-Scenario Architecture Testing
+
 - **Independent State**: Verify each scenario has own entities, time, battleContext
 - **Entity Ownership**: Verify entities belong to correct scenario, no cross-references
 - **Player Transitions**: Verify entity migration between scenarios preserves state
@@ -1071,6 +1150,7 @@ type GameState = {
 - **Performance**: Verify O(1) scenario lookup, no global entity filtering
 
 ### Playtesting Goals
+
 - Core mechanics feel responsive
 - Visual feedback is clear
 - Navigation is intuitive

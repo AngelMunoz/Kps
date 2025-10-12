@@ -1,4 +1,4 @@
-# Phase 5.6 - Database Migration & Content System
+# Database Migration & Content System
 
 **Status**: 📋 **PLANNING** - Optional future enhancement
 
@@ -7,6 +7,7 @@
 ## Overview
 
 This phase transitions the hardcoded content definitions in `Content.fs` to a SQLite database, enabling:
+
 - Dynamic content loading without recompilation
 - Easier content authoring and modding support
 - Potential for runtime content updates
@@ -19,7 +20,9 @@ This phase transitions the hardcoded content definitions in `Content.fs` to a SQ
 ## 1. Goals & Motivation
 
 ### 1.1 Current State
+
 All game content is defined in `Content.fs`:
+
 - **EffectStore**: ~7 effect definitions (Poison, Regen, Silence, etc.)
 - **AbilityStore**: ~7 ability definitions (Fireball, Melee Attack, etc.)
 - **FormulaStore**: ~4 formula definitions (Physical+Neutral, Fire+Magical, etc.)
@@ -27,17 +30,20 @@ All game content is defined in `Content.fs`:
 - **CharacterKitStore**: ~12 character kits
 
 **Pros of Current Approach**:
+
 - ✅ Type-safe at compile time
 - ✅ Fast (no I/O overhead)
 - ✅ Simple to reason about
 
 **Cons of Current Approach**:
+
 - ❌ Requires recompilation for content changes
 - ❌ No modding support
 - ❌ Hard to balance (designers need to edit F# code)
 - ❌ No content versioning
 
 ### 1.2 Benefits of Database Approach
+
 - ✅ **Dynamic Content**: Load content at runtime from SQLite
 - ✅ **Designer-Friendly**: Non-programmers can edit content
 - ✅ **Modding Support**: Players can create custom content
@@ -46,6 +52,7 @@ All game content is defined in `Content.fs`:
 - ✅ **Hot Reload**: Change content without restarting game (dev mode)
 
 ### 1.3 Trade-offs
+
 - ⚠️ **Complexity**: Need schema, migrations, loading logic
 - ⚠️ **Type Safety**: Runtime validation instead of compile-time
 - ⚠️ **Performance**: Database I/O (mitigated by caching)
@@ -58,6 +65,7 @@ All game content is defined in `Content.fs`:
 ### 2.1 Core Tables
 
 #### **Effects Table**
+
 ```sql
 CREATE TABLE Effects (
     EffectId INTEGER PRIMARY KEY,
@@ -79,6 +87,7 @@ CREATE INDEX idx_effects_kind ON Effects(Kind);
 ```
 
 #### **Effect Modifiers Table**
+
 ```sql
 CREATE TABLE EffectModifiers (
     ModifierId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,6 +116,7 @@ CREATE INDEX idx_effect_modifiers_effect ON EffectModifiers(EffectId);
 ```
 
 #### **Abilities Table**
+
 ```sql
 CREATE TABLE Abilities (
     AbilityId INTEGER PRIMARY KEY,
@@ -129,6 +139,7 @@ CREATE INDEX idx_abilities_profession ON Abilities(Profession);
 ```
 
 #### **Ability Effects Table** (Junction)
+
 ```sql
 CREATE TABLE AbilityEffects (
     AbilityId INTEGER NOT NULL REFERENCES Abilities(AbilityId) ON DELETE CASCADE,
@@ -141,6 +152,7 @@ CREATE INDEX idx_ability_effects_ability ON AbilityEffects(AbilityId);
 ```
 
 #### **Ability Requirements Table**
+
 ```sql
 CREATE TABLE AbilityRequirements (
     RequirementId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -154,6 +166,7 @@ CREATE INDEX idx_ability_requirements_ability ON AbilityRequirements(AbilityId);
 ```
 
 #### **Formulas Table**
+
 ```sql
 CREATE TABLE Formulas (
     FormulaId INTEGER PRIMARY KEY,
@@ -172,6 +185,7 @@ CREATE INDEX idx_formulas_damage_type ON Formulas(DamageType);
 ```
 
 #### **Equipment Table**
+
 ```sql
 CREATE TABLE Equipment (
     ItemId INTEGER PRIMARY KEY,
@@ -188,6 +202,7 @@ CREATE INDEX idx_equipment_rarity ON Equipment(Rarity);
 ```
 
 #### **Equipment Stat Bonuses Table**
+
 ```sql
 CREATE TABLE EquipmentStatBonuses (
     BonusId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -201,6 +216,7 @@ CREATE INDEX idx_equipment_stat_bonuses_item ON EquipmentStatBonuses(ItemId);
 ```
 
 #### **Equipment Elemental Attributes Table**
+
 ```sql
 CREATE TABLE EquipmentElementalAttributes (
     AttributeId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -214,6 +230,7 @@ CREATE INDEX idx_equipment_elemental_attributes_item ON EquipmentElementalAttrib
 ```
 
 #### **Equipment Elemental Resistances Table**
+
 ```sql
 CREATE TABLE EquipmentElementalResistances (
     ResistanceId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -227,6 +244,7 @@ CREATE INDEX idx_equipment_elemental_resistances_item ON EquipmentElementalResis
 ```
 
 #### **Character Kits Table**
+
 ```sql
 CREATE TABLE CharacterKits (
     KitId INTEGER PRIMARY KEY,
@@ -246,6 +264,7 @@ CREATE INDEX idx_character_kits_family_stage ON CharacterKits(Family, Stage);
 ```
 
 #### **Character Kit Abilities Table** (Junction)
+
 ```sql
 CREATE TABLE CharacterKitAbilities (
     KitId INTEGER NOT NULL REFERENCES CharacterKits(KitId) ON DELETE CASCADE,
@@ -259,6 +278,7 @@ CREATE INDEX idx_character_kit_abilities_kit ON CharacterKitAbilities(KitId);
 ### 2.2 Metadata & Versioning
 
 #### **Schema Version Table**
+
 ```sql
 CREATE TABLE SchemaVersion (
     Version INTEGER PRIMARY KEY,
@@ -270,6 +290,7 @@ INSERT INTO SchemaVersion (Version, Description) VALUES (1, 'Initial schema');
 ```
 
 #### **Content Version Table**
+
 ```sql
 CREATE TABLE ContentVersion (
     ContentType TEXT PRIMARY KEY CHECK(ContentType IN ('Effects', 'Abilities', 'Formulas', 'Equipment', 'CharacterKits')),
@@ -292,12 +313,14 @@ INSERT INTO ContentVersion (ContentType, Version) VALUES
 ### 3.1 Migration Scripts
 
 #### **Step 1: Create Empty Database**
+
 ```powershell
 # create-database.ps1
 sqlite3 Content.db < schema.sql
 ```
 
 #### **Step 2: Generate Seed Data from Content.fs**
+
 Create an F# script that reads `Content.fs` definitions and generates SQL INSERT statements:
 
 ```fsharp
@@ -339,6 +362,7 @@ generateAll()
 ```
 
 #### **Step 3: Seed Database**
+
 ```powershell
 # seed-database.ps1
 dotnet fsi GenerateSeedData.fsx
@@ -346,6 +370,7 @@ sqlite3 Content.db < seed-data.sql
 ```
 
 ### 3.2 Validation Script
+
 After migration, validate that all data is correctly inserted:
 
 ```sql
@@ -739,6 +764,7 @@ type HotReloadContentManager(dbPath: string) =
 ## 7. Testing Strategy
 
 ### 7.1 Database Schema Tests
+
 ```fsharp
 // Test that schema is correctly applied
 [<Fact>]
@@ -755,6 +781,7 @@ let ``Schema creates all tables`` () =
 ```
 
 ### 7.2 Data Migration Tests
+
 ```fsharp
 // Test that Content.fs data matches database data
 [<Fact>]
@@ -774,6 +801,7 @@ let ``Database contains same effects as Content.fs`` () =
 ```
 
 ### 7.3 Performance Tests
+
 ```fsharp
 [<Fact>]
 let ``Loading all content takes less than 100ms`` () =
@@ -796,30 +824,35 @@ let ``Loading all content takes less than 100ms`` () =
 ## 8. Migration Path
 
 ### 8.1 Phase 1: Schema & Migration Scripts
+
 - [ ] Design and create SQLite schema
 - [ ] Write seed data generation script
 - [ ] Create validation scripts
 - [ ] Document schema and relationships
 
 ### 8.2 Phase 2: Database Access Layer
+
 - [ ] Implement `ContentDatabase` class
 - [ ] Implement parsers for all domain types
 - [ ] Write unit tests for loading logic
 - [ ] Performance benchmarking
 
 ### 8.3 Phase 3: Store Services
+
 - [ ] Implement `DatabaseEffectStore`
 - [ ] Implement `DatabaseAbilityStore`
 - [ ] Implement `DatabaseFormulaStore`
 - [ ] Add caching layer for performance
 
 ### 8.4 Phase 4: Integration & Testing
+
 - [ ] Integrate with GameState initialization
 - [ ] Run full test suite with database content
 - [ ] Compare behavior with hardcoded content
 - [ ] Fix any discrepancies
 
 ### 8.5 Phase 5: Tooling & Polish
+
 - [ ] Create content editor CLI tools
 - [ ] Implement hot reload for dev mode
 - [ ] Document content authoring workflow
@@ -830,6 +863,7 @@ let ``Loading all content takes less than 100ms`` () =
 ## 9. Complexity Analysis
 
 ### 9.1 Estimated Effort
+
 - **Schema Design**: 4-6 hours
 - **Migration Scripts**: 8-12 hours
 - **Database Access Layer**: 16-24 hours
@@ -840,6 +874,7 @@ let ``Loading all content takes less than 100ms`` () =
 **Total**: ~56-82 hours (7-10 days of focused work)
 
 ### 9.2 Risk Assessment
+
 - ⚠️ **Medium Risk**: Schema changes require migration logic
 - ⚠️ **Medium Risk**: Performance degradation if not cached properly
 - ⚠️ **Low Risk**: Type safety issues (mitigated by validation)
@@ -847,6 +882,7 @@ let ``Loading all content takes less than 100ms`` () =
 ### 9.3 Recommendation
 
 **Defer to Post-Phase 6**:
+
 - The current hardcoded approach is sufficient for Phase 6 (MonoGame integration)
 - Database migration is a **nice-to-have** for content authoring and modding
 - Can be implemented incrementally after core gameplay is stable
@@ -859,6 +895,7 @@ let ``Loading all content takes less than 100ms`` () =
 ## 10. Deliverables
 
 ### 10.1 Code Deliverables
+
 - [ ] `schema.sql` - Complete database schema
 - [ ] `GenerateSeedData.fsx` - F# script to generate seed data from Content.fs
 - [ ] `ContentDatabase.fs` - Database access layer
@@ -867,12 +904,14 @@ let ``Loading all content takes less than 100ms`` () =
 - [ ] Unit tests for all database operations
 
 ### 10.2 Documentation Deliverables
+
 - [x] This design document
 - [ ] Schema documentation with ER diagrams
 - [ ] Content authoring guide
 - [ ] Migration runbook
 
 ### 10.3 Data Deliverables
+
 - [ ] `Content.db` - Seeded SQLite database with all current content
 - [ ] `validate-content.sql` - Validation queries
 
