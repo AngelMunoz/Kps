@@ -9,12 +9,31 @@ open Pomo.Lib.Domain.Components
 [<Measure>]
 type ScenarioId
 
+[<Struct>]
+type ScenarioCombatType =
+  | PvE
+  | PvP
+  | PvPvE
+
+[<Struct>]
+type ScenarioTransition = {
+  FromPosition: Position
+  ToScenarioId: Guid<ScenarioId>
+  ToPosition: Position
+  RequiresCondition: (unit -> bool) voption
+}
 
 [<Struct>]
 type Scenario = {
   Id: Guid<ScenarioId>
   Name: string
-  Bounds: ScenarioBounds
+  BoundsWidth: float32
+  BoundsHeight: float32
+  TerrainObjects: TerrainObject list
+  VisualLayers: VisualLayer list
+  BattleEnabled: bool
+  CombatType: ScenarioCombatType
+  Transitions: ScenarioTransition list
 }
 
 [<Struct>]
@@ -24,13 +43,74 @@ type ScenarioState = {
   gameTime: cval<int64<Tick>>
 }
 
+type GameStateScenarios = {
+  scenarios: cmap<Guid<ScenarioId>, ScenarioState>
+  activeScenarioId: Guid<ScenarioId> cval
+}
+
 module ScenarioState =
-  let create id name bounds : ScenarioState = {
+  let create id name boundsWidth boundsHeight : ScenarioState = {
     scenario = {
       Id = id
       Name = name
-      Bounds = bounds
+      BoundsWidth = boundsWidth
+      BoundsHeight = boundsHeight
+      TerrainObjects = []
+      VisualLayers = []
+      BattleEnabled = false
+      CombatType = PvE
+      Transitions = []
     }
     entities = cmap()
     gameTime = cval 0L<Tick>
   }
+
+module ScenarioManager =
+  open Pomo.Lib.Domain.State
+
+  let createScenarioState(scenario: Scenario) : ScenarioState = {
+    scenario = scenario
+    entities = cmap()
+    gameTime = cval 0L<Tick>
+  }
+
+  let getScenarioState
+    (scenarioId: Guid<ScenarioId>)
+    (gameState: GameStateScenarios)
+    : ScenarioState voption =
+    gameState.scenarios
+    |> AMap.tryFind scenarioId
+    |> AVal.force
+    |> ValueOption.ofOption
+
+  let addEntityToScenario
+    (scenarioId: Guid<ScenarioId>)
+    (entityId: Guid<EntityId>)
+    (entityComponents: EntityComponents)
+    : StateChange =
+    {
+      updates = HashMap.empty
+      additions = HashMap.single entityId entityComponents
+      removals = [||]
+      gameTime = ValueNone
+    }
+
+  let removeEntityFromScenario
+    (scenarioId: Guid<ScenarioId>)
+    (entityId: Guid<EntityId>)
+    : StateChange =
+    {
+      updates = HashMap.empty
+      additions = HashMap.empty
+      removals = [| entityId |]
+      gameTime = ValueNone
+    }
+
+  let listScenarios
+    (gameState: GameStateScenarios)
+    : (Guid<ScenarioId> * string) list =
+    gameState.scenarios
+    |> AMap.toAVal
+    |> AVal.force
+    |> HashMap.toList
+    |> List.map(fun (id, state) -> (id, state.scenario.Name))

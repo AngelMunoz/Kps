@@ -20,6 +20,9 @@ type AbilityId
 [<Measure>]
 type FormulaId
 
+[<Measure>]
+type ObjectId
+
 // Core types available at namespace level
 [<Struct>]
 type ResourceType =
@@ -42,6 +45,37 @@ type ScenarioBounds = {
   Height: float32
   CenterX: float32
   CenterY: float32
+}
+
+[<Struct>]
+type TerrainType =
+  | Walkable
+  | Blocked
+  | Water
+  | Hazard
+
+[<Struct>]
+type CollisionGeometry =
+  | Circle of center: Position * radius: float32
+  | Polygon of vertices: Position[]
+  | NoCollision
+
+[<Struct>]
+type TerrainObject = {
+  Id: Guid<ObjectId>
+  Position: Position
+  CollisionGeometry: CollisionGeometry
+  TerrainType: TerrainType
+  DepthLayer: float32
+  SpriteId: string voption
+}
+
+[<Struct>]
+type VisualLayer = {
+  SpriteId: string
+  Position: Position
+  DepthLayer: float32
+  Parallax: float32
 }
 
 [<Struct>]

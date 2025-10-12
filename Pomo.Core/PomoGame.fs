@@ -339,6 +339,13 @@ type PomoGame() as this =
 
       let derived = GameState.getDerivedStats state |> AVal.force |> AMap.force
 
+      let bounds = {
+        Width = scenario.scenario.BoundsWidth
+        Height = scenario.scenario.BoundsHeight
+        CenterX = 0f
+        CenterY = 0f
+      }
+
       RenderSystem.draw
         struct (entities, derived)
         spriteBatch
@@ -346,7 +353,7 @@ type PomoGame() as this =
         hudOpt
         view
         selected
-        scenario.scenario.Bounds
+        bounds
     | _ -> ()
 
     base.Draw(gameTime)

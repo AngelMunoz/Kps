@@ -80,7 +80,7 @@ Collision uses **polygon-based shapes** for organic, natural boundaries (not til
 
 - **Circle**: Defined by center point and radius
 - **Polygon**: Arbitrary convex polygon with vertex list
-- **None**: Visual-only objects without collision
+- **NoCollision**: Visual-only objects without collision
 
 This allows for 2.5D graphics with natural boundaries for objects like corals, trees, and rocks.
 

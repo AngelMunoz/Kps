@@ -297,15 +297,8 @@ module GameState =
   let create'(services: Services.EngineServices) =
     let initialScenarioId = %Guid.NewGuid()
 
-    let initialBounds = {
-      Width = 2000f
-      Height = 2000f
-      CenterX = 0f
-      CenterY = 0f
-    }
-
     let initialScenarioState =
-      ScenarioState.create initialScenarioId "Initial" initialBounds
+      ScenarioState.create initialScenarioId "Test Scenario" 2000f 2000f
 
     {
       scenarios = cmap [ initialScenarioId, initialScenarioState ]
@@ -377,10 +370,17 @@ module GameState =
             components.Effects
             time
 
+        let bounds = {
+          Width = scenario.scenario.BoundsWidth
+          Height = scenario.scenario.BoundsHeight
+          CenterX = 0f
+          CenterY = 0f
+        }
+
         let movedComponents =
           Pomo.Lib.Movement.Update.updateEntityWithContext
             time
-            scenario.scenario.Bounds
+            bounds
             (scenario.entities |> AMap.force)
             entityId
             components

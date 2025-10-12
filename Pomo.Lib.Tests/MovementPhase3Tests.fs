@@ -55,7 +55,8 @@ module MovementPhase3Tests =
       active with
           scenario = {
             active.scenario with
-                Bounds = newBounds
+                BoundsWidth = newBounds.Width
+                BoundsHeight = newBounds.Height
           }
     }
 
@@ -66,11 +67,11 @@ module MovementPhase3Tests =
     let changeAVal = GameState.tick state (5_000_000L<Tick>)
     GameState.apply state (AVal.force changeAVal)
     let final = getEntity state id
-    let b = (getActiveScenario state).scenario.Bounds
-    let halfW = b.Width * 0.5f
-    let halfH = b.Height * 0.5f
-    Assert.InRange(final.Position.X, b.CenterX - halfW, b.CenterX + halfW)
-    Assert.InRange(final.Position.Y, b.CenterY - halfH, b.CenterY + halfH)
+    let scenario = (getActiveScenario state).scenario
+    let halfW = scenario.BoundsWidth * 0.5f
+    let halfH = scenario.BoundsHeight * 0.5f
+    Assert.InRange(final.Position.X, 0f - halfW, 0f + halfW)
+    Assert.InRange(final.Position.Y, 0f - halfH, 0f + halfH)
 
   [<Fact>]
   let ``Entities do not overlap after movement``() =
@@ -88,7 +89,8 @@ module MovementPhase3Tests =
       active with
           scenario = {
             active.scenario with
-                Bounds = newBounds
+                BoundsWidth = newBounds.Width
+                BoundsHeight = newBounds.Height
           }
     }
 
