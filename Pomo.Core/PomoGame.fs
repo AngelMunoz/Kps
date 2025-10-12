@@ -16,8 +16,9 @@ open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Classification
 open Pomo.Lib.Domain.Services
+open Pomo.Lib.Rules
 open Pomo.Lib.Content
-open Pomo.Lib.Operations.GameStateOperations
+open Pomo.Lib.Operations
 open FSharp.Data.Adaptive
 
 type PomoGame() as this =
@@ -112,9 +113,9 @@ type PomoGame() as this =
     }
 
     let struct (playerIdLocal, playerChange) =
-      createEntity playerProfession playerStats [ Faction.Player ]
+      GameState.createEntity playerProfession playerStats [ Faction.Player ]
 
-    applyEntityChange state playerChange
+    GameState.applyEntityChange state playerChange
     playerId <- playerIdLocal
 
     let enemyProfession = { Family = Magic; Stage = First }
@@ -127,9 +128,9 @@ type PomoGame() as this =
     }
 
     let struct (enemyIdLocal, enemyChange) =
-      createEntity enemyProfession enemyStats [ Faction.Enemy ]
+      GameState.createEntity enemyProfession enemyStats [ Faction.Enemy ]
 
-    applyEntityChange state enemyChange
+    GameState.applyEntityChange state enemyChange
     enemyId <- enemyIdLocal
 
     // Set initial positions for visibility (Phase 6.1) and give player a basic ability (Phase 6.2)
@@ -186,9 +187,9 @@ type PomoGame() as this =
       match gameState with
       | ValueSome state ->
         let deltaTicks = int64 gameTime.ElapsedGameTime.Ticks * 1L<Tick>
-        let tickChangeAVal = advanceTime deltaTicks state
-        let tickChange = AVal.force tickChangeAVal
-        applyWithTime state tickChange
+
+        GameState.advanceTime deltaTicks state
+        |> GameState.forceAndApplyWithTime state
 
         let wheel = Mouse.GetState().ScrollWheelValue
         let delta = wheel - prevScroll
@@ -231,10 +232,7 @@ type PomoGame() as this =
               destination = { X = world.X; Y = world.Y }
             }
 
-          let moveChange =
-            Pomo.Lib.Rules.Resolution.step state moveCmd |> AVal.force
-
-          Pomo.Lib.Rules.Resolution.apply state moveChange
+          Resolution.step state moveCmd |> GameState.forceAndApply state
 
         prevRightMouseDown <- rightMouseDown
 
@@ -285,11 +283,9 @@ type PomoGame() as this =
         if key1 && not prevKey1Down then
           match selected with
           | ValueSome targetId ->
-            let act =
-              activateAbility playerId (8<AbilityId>) [| targetId |] state
+            GameState.activateAbility playerId 8<AbilityId> [| targetId |] state
+            |> GameState.forceAndApplyWithTime state
 
-            let ch = AVal.force act
-            applyWithTime state ch
             Console.WriteLine($"[Ability] Activated 8 on {targetId}")
           | ValueNone ->
             Console.WriteLine("[Ability] No target selected for ability 8")
@@ -316,7 +312,6 @@ type PomoGame() as this =
         * Matrix.CreateTranslation(halfW, halfH, 0f)
 
       let hudOpt = if isNull hudFont then ValueNone else ValueSome hudFont
-      RenderSystem.init this.GraphicsDevice
       RenderSystem.draw spriteBatch pixel hudOpt state view selected
     | _ -> ()
 

@@ -57,7 +57,7 @@ module Errors =
 open Errors
 
 /// High-level API surface for GameState operations
-module GameStateOperations =
+module GameState =
 
   /// Creates a new entity with the given profession and base attributes.
   /// Returns the new EntityId and StateChange to apply via Resolution.apply.
@@ -690,3 +690,7 @@ module GameStateOperations =
   let forceAndApply (state: GameState) (changeAVal: aval<StateChange>) =
     let change = AVal.force changeAVal
     applyEntityChange state change
+
+  let forceAndApplyWithTime (state: GameState) (changeAVal: aval<StateChange>) =
+    let change = AVal.force changeAVal
+    applyWithTime state change
