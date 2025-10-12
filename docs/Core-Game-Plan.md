@@ -115,7 +115,7 @@ Progress Update (2025-10-11):
 - Initial positions for a player (green) and an enemy (red) are set so both are visible on screen.
 - Implemented simple camera follow (centers on player) and mouse wheel zoom (0.5x–2x).
 - Implemented basic entity labels (Profession Family/Stage) above health bars using Hud font.
-- Not yet implemented: circle rendering and dedicated RenderSystem module.
+- Implemented circle rendering sized by stage and extracted a dedicated RenderSystem module.
 
 **Goal**: See entities on screen and verify core library integration
 

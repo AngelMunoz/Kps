@@ -189,15 +189,16 @@ This project uses a reactive architecture with FSharp.Data.Adaptive (FDA) for it
 
 A minimal visual validation is now in place:
 - Entities now include a Position component in the core domain and default to (0,0).
-- The MonoGame runtime renders entities as colored rectangles with simple HP bars.
+- The MonoGame runtime renders entities with simple HP bars using a dedicated RenderSystem.
+- Entity bodies are rendered as circles sized by profession stage (First/Second/Third) and colored by faction.
 - A simple camera follows the player and supports mouse wheel zoom (0.5x–2x).
 - Basic entity labels (Profession Family/Stage) are rendered above health bars.
 
 How to verify visually:
 1. Build the solution: `dotnet build`
 2. Run the desktop project: `dotnet run --project Pomo.DesktopGL`
-3. You should see two labeled rectangles with health bars on a blue background. The view centers on the player and zoom adjusts with mouse wheel.
+3. You should see two labeled circles with health bars on a blue background. The view centers on the player and zoom adjusts with mouse wheel.
 
 Notes:
-- This is part of Phase 6.1. Circle rendering and a dedicated RenderSystem module will be added next.
+- This completes the visual goals for Phase 6.1 (including circle rendering and a dedicated RenderSystem module).
 - See docs/Core-Game-Plan.md for the detailed roadmap and progress.

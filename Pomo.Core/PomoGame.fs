@@ -158,6 +158,7 @@ type PomoGame() as this =
     pixel.SetData<Color>([| Color.White |])
     hudFont <- this.Content.Load<SpriteFont>("Fonts/Hud")
     prevScroll <- Mouse.GetState().ScrollWheelValue
+    RenderSystem.init this.GraphicsDevice
 
 
   override this.Update(gameTime) =
@@ -212,73 +213,13 @@ type PomoGame() as this =
       let vp = this.GraphicsDevice.Viewport
       let halfW = float32 vp.Width / 2.0f
       let halfH = float32 vp.Height / 2.0f
-
       let view =
         Matrix.CreateTranslation(-cameraPos.X, -cameraPos.Y, 0f)
         * Matrix.CreateScale(zoom)
         * Matrix.CreateTranslation(halfW, halfH, 0f)
-
-      spriteBatch.Begin(
-        SpriteSortMode.Deferred,
-        BlendState.AlphaBlend,
-        SamplerState.PointClamp,
-        null,
-        null,
-        null,
-        view
-      )
-
-      for struct (id, comp) in entities do
-        let pos = comp.Position
-        let w, h = 24f, 24f
-        let rect = Rectangle(int pos.X, int pos.Y, int w, int h)
-
-        // Color by faction
-        let color =
-          if comp.Factions |> HashSet.contains Faction.Player then
-            Color.Green
-          elif comp.Factions |> HashSet.contains Faction.Enemy then
-            Color.Red
-          elif comp.Resources.Status = Attributes.Status.Dead then
-            Color.Gray
-          else
-            Color.Blue
-
-        // Body
-        spriteBatch.Draw(pixel, rect, color)
-
-        // Health bar (simple)
-        let maxHp =
-          match HashMap.tryFindV id derived with
-          | ValueSome stats -> stats.HP
-          | ValueNone -> comp.Resources.HP
-
-        let currentHp = comp.Resources.HP
-
-        let hpRatio =
-          if maxHp > 0 then float32 currentHp / float32 maxHp else 0f
-
-        let barW, barH = w, 4f
-        let barX, barY = pos.X, pos.Y - (barH + 2f)
-        let backRect = Rectangle(int barX, int barY, int barW, int barH)
-
-        let fillRect =
-          Rectangle(int barX, int barY, int(barW * hpRatio), int barH)
-
-        spriteBatch.Draw(pixel, backRect, Color(60, 60, 60))
-        spriteBatch.Draw(pixel, fillRect, Color.LimeGreen)
-
-        if not(isNull hudFont) then
-          let label = $"{comp.Identity.Family}/{comp.Identity.Stage}"
-          let textSize = hudFont.MeasureString(label)
-          let tx = pos.X + (w - textSize.X) * 0.5f
-          let ty = barY - textSize.Y - 2f
-          let textPos = Vector2(tx, ty)
-          let shadowPos = textPos + Vector2(1f, 1f)
-          spriteBatch.DrawString(hudFont, label, shadowPos, Color(0, 0, 0, 180))
-          spriteBatch.DrawString(hudFont, label, textPos, Color.White)
-
-      spriteBatch.End()
+      let hudOpt = if isNull hudFont then ValueNone else ValueSome hudFont
+      RenderSystem.init this.GraphicsDevice
+      RenderSystem.draw spriteBatch pixel hudOpt state view
     | _ -> ()
 
     base.Draw(gameTime)
