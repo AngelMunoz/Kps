@@ -16,6 +16,7 @@ The game uses a **Per-Scenario GameState architecture** to support split-screen 
 - **Efficient rendering**: Direct scenario lookup for split-screen viewports
 
 **Key Types**:
+
 - **ScenarioState**: Contains scenario definition, entities, gameTime, and battleContext
 - **PlayerContext**: Tracks player's current scenario, controlled entity, and camera
 - **GameState**: Root state containing all scenarios, players, parties, and services
@@ -25,6 +26,7 @@ The game uses a **Per-Scenario GameState architecture** to support split-screen 
 ### Position Component
 
 Entities have a **Position** component that defines their location in 2D space:
+
 - **X**: Horizontal coordinate (float32)
 - **Y**: Vertical coordinate (float32)
 
@@ -33,6 +35,7 @@ Position is used for rendering, collision detection, and movement calculations.
 ### Movement Component
 
 Entities can move through scenarios with the **Movement** component:
+
 - **Speed**: Movement rate in units per second (float32)
 - **Destination**: Target position (Position voption)
 - **Path**: List of waypoints to follow (Position list)
@@ -42,6 +45,7 @@ Movement respects terrain constraints and collision boundaries. Different terrai
 ### Camera System
 
 Each player has a **Camera** for viewing the game world:
+
 - Follows the player's controlled entity
 - Supports zoom controls
 - Converts between screen and world coordinates
@@ -51,6 +55,7 @@ Each player has a **Camera** for viewing the game world:
 ### Scenario
 
 A **Scenario** represents a distinct game area with its own rules and content:
+
 - **ScenarioId**: Unique identifier (Guid<ScenarioId>)
 - **Name**: Human-readable name
 - **BoundsWidth/BoundsHeight**: World bounds in units (float32)
@@ -63,6 +68,7 @@ A **Scenario** represents a distinct game area with its own rules and content:
 ### Terrain Types
 
 Terrain defines the properties of different areas:
+
 - **Walkable**: Standard passable terrain
 - **Blocked**: Impassable obstacles
 - **Water**: Passable but slower movement
@@ -71,6 +77,7 @@ Terrain defines the properties of different areas:
 ### Collision Geometry
 
 Collision uses **polygon-based shapes** for organic, natural boundaries (not tile-based grids):
+
 - **Circle**: Defined by center point and radius
 - **Polygon**: Arbitrary convex polygon with vertex list
 - **None**: Visual-only objects without collision
@@ -80,6 +87,7 @@ This allows for 2.5D graphics with natural boundaries for objects like corals, t
 ### Terrain Objects
 
 **TerrainObject** represents physical objects in a scenario:
+
 - **ObjectId**: Unique identifier (Guid<ObjectId>)
 - **Position**: Location in world space
 - **CollisionGeometry**: Shape for collision detection
@@ -90,6 +98,7 @@ This allows for 2.5D graphics with natural boundaries for objects like corals, t
 ### Visual Layers
 
 **VisualLayer** provides background/foreground graphics without collision:
+
 - **SpriteId**: Visual asset reference
 - **Position**: Location in world space
 - **DepthLayer**: Z-order for rendering
@@ -98,6 +107,7 @@ This allows for 2.5D graphics with natural boundaries for objects like corals, t
 ### Scenario Transitions
 
 **ScenarioTransition** defines connections between scenarios:
+
 - **FromPosition**: Trigger location in current scenario
 - **ToScenarioId**: Target scenario identifier
 - **ToPosition**: Arrival location in target scenario
@@ -112,11 +122,13 @@ Transitions allow entity migration between scenarios while preserving stats, equ
 **ScenarioCombatType** determines targeting rules for each scenario:
 
 - **PvE (Player vs Environment)**: Default mode
+
   - Players can target NPCs and monsters only
   - Players **cannot** target other players
   - Use case: Towns, cooperative dungeons, story scenarios
 
 - **PvP (Player vs Player)**:
+
   - Players can target enemy players (not in same party)
   - Players can target NPCs and monsters
   - Players **cannot** target party members with offensive abilities
@@ -132,11 +144,13 @@ Transitions allow entity migration between scenarios while preserving stats, equ
 ### Party System
 
 **Party** groups players together for cooperative play:
+
 - **PartyId**: Unique identifier (Guid<PartyId>)
 - **Members**: Set of player entity IDs (HashSet<Guid<EntityId>>)
 - **Name**: Party name
 
 **Party Benefits**:
+
 - Friendly fire protection (cannot target party members with offensive abilities)
 - Shared targeting restrictions
 - Coordinated strategies
@@ -146,6 +160,7 @@ Solo players are treated as single-member parties.
 ### Battle Context
 
 **BattleContext** manages combat engagement state per scenario:
+
 - **IsActive**: Whether battle mechanics are currently engaged (bool)
 - **Participants**: Entities involved in combat (HashSet<Guid<EntityId>>)
 - **StartTick**: When battle began (int64<Tick>)
@@ -153,6 +168,7 @@ Solo players are treated as single-member parties.
 
 **Battle Engagement**:
 Triggered by hostile entity proximity, forced encounters, or player-initiated combat. When engaged:
+
 - Movement may be restricted
 - Combat abilities are enabled
 - Effect and cooldown processing is active
@@ -163,6 +179,7 @@ Occurs when all hostiles are defeated, flee action succeeds, or scenario transit
 
 **Peaceful Scenarios**:
 When `BattleEnabled = false`:
+
 - No hostile detection
 - Combat abilities are disabled/grayed out
 - Passive effects still process
@@ -174,6 +191,7 @@ When `BattleEnabled = false`:
 ### Input Actions
 
 **InputAction** represents player input commands:
+
 - **NavigateTo**: Click/tap to move to target position (Vector2)
 - **SelectEntity**: Click/tap to select entity (Guid<EntityId>)
 - **ActivateAbility**: Press hotkey (0-9) or UI button to use ability (int)
@@ -183,6 +201,7 @@ When `BattleEnabled = false`:
 ### Targeting Modes
 
 Ability activation uses context-aware targeting based on ability type:
+
 - **Self**: Auto-targets actor, no selection needed
 - **SingleAlly/SingleEnemy**: Click to select one target entity
 - **MultiTarget**: Click multiple entities (with max count limit)
@@ -195,6 +214,7 @@ Visual feedback indicates valid (green) and invalid (red/grayed) targets during 
 ### 2.5D Depth Ordering
 
 The rendering system uses **DepthLayer** for pseudo-3D visual ordering:
+
 - **DepthLayer**: Float value where 0.0 = background, 1.0 = foreground
 - **Y-Sorting**: Entities further down (higher Y) render in front (pseudo-3D effect)
 - **Combined Ordering**: DepthLayer and Y-position provide fine control
@@ -204,9 +224,10 @@ Example: Tree trunk in front of player, but player in front of tree leaves.
 ### Pathfinding
 
 Movement uses **polygon-aware pathfinding**:
+
 - **Grid Overlay Approach**: Generate coarse navigation grid over scenario bounds
 - **Polygon Validation**: Mark grid cells as walkable/blocked based on polygon overlaps
-- **A* Algorithm**: Calculate optimal path on grid
+- **A\* Algorithm**: Calculate optimal path on grid
 - **Path Validation**: Ensure waypoints don't intersect collision polygons
 - **Dynamic Recalculation**: Update path if obstacles change
 

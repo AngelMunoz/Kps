@@ -37,6 +37,14 @@ type Movement = {
 }
 
 [<Struct>]
+type ScenarioBounds = {
+  Width: float32
+  Height: float32
+  CenterX: float32
+  CenterY: float32
+}
+
+[<Struct>]
 type Stat =
   // Base attributes
   | Power

@@ -55,8 +55,8 @@ module RenderSystem =
     (hud: SpriteFont voption)
     (view: Matrix)
     (selected: Guid<EntityId> voption)
+    (bounds: Pomo.Lib.Domain.ScenarioBounds)
     =
-
     sb.Begin(
       SpriteSortMode.Deferred,
       BlendState.AlphaBlend,
@@ -66,6 +66,25 @@ module RenderSystem =
       null,
       view
     )
+
+    let halfW = bounds.Width * 0.5f
+    let halfH = bounds.Height * 0.5f
+    let minX = bounds.CenterX - halfW
+    let maxX = bounds.CenterX + halfW
+    let minY = bounds.CenterY - halfH
+    let maxY = bounds.CenterY + halfH
+    let thickness = 2
+    let topI = int minY
+    let bottomI = int maxY - thickness
+    let leftI = int minX
+    let rightI = int maxX - thickness
+    let widthI = int bounds.Width
+    let heightI = int bounds.Height
+    let lineColor = Color(255, 255, 0, 160)
+    sb.Draw(pixel, Rectangle(leftI, topI, widthI, thickness), lineColor)
+    sb.Draw(pixel, Rectangle(leftI, bottomI, widthI, thickness), lineColor)
+    sb.Draw(pixel, Rectangle(leftI, topI, thickness, heightI), lineColor)
+    sb.Draw(pixel, Rectangle(rightI, topI, thickness, heightI), lineColor)
 
     for struct (id, comp: Components.EntityComponents) in entities do
       let pos = comp.Position

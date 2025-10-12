@@ -338,6 +338,7 @@ type PomoGame() as this =
         hudOpt
         view
         selected
+        state.bounds
     | _ -> ()
 
     base.Draw(gameTime)

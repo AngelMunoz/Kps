@@ -302,15 +302,26 @@ Progress Update (2025-10-11):
 - [x] Move command and resolution
 - [x] Click-to-move input handling
 - [x] Movement animation and visual feedback
-- [ ] Basic boundary and collision checking
+- [x] Basic boundary and collision checking (implemented via temporary `GameState.bounds` and simple radius-based entity collision)
 
 **Testing Requirements**:
 
-- [ ] Unit tests for Movement component and path calculation
-- [ ] Movement resolution test: Verify Move command updates entity position correctly
-- [ ] Boundary test: Verify entities cannot move outside scenario bounds
-- [ ] Collision test: Verify entities cannot overlap (radius-based collision)
-- [ ] Integration test: Click-to-move flow from input to position update
+- [x] Unit tests for Movement component and path calculation
+- [x] Movement resolution test: Verify Move command updates entity position correctly
+- [x] Boundary test: Verify entities cannot move outside scenario bounds (`ScenarioBounds` surrogate on `GameState`)
+- [x] Collision test: Verify entities cannot overlap (radius-based collision)
+- [x] Integration test: Click-to-move flow from input to position update
+
+### 6.3.4 Interim Bounds Implementation Rationale
+
+For Phase 6.3 we introduced a lightweight rectangular bounds record (`ScenarioBounds`) directly on `GameState` (`gameState.bounds`) to enable early boundary clamping and collision without committing to the full per-scenario architecture. This is an intentionally transitional design:
+
+- Keeps movement/collision logic simple while validating gameplay feel.
+- Avoids premature refactor to multi-scenario state before rendering/input loops are stable.
+- The field will be migrated/replaced in Phase 6.4 when the first `Scenario` is introduced; at that point bounds become part of `Scenario` and `GameState.bounds` is removed.
+- Collision currently uses only entity radii + rectangle clamping; polygon terrain collision will supersede this in Phase 6.5.
+
+No long-term coupling is created: movement update function already accepts bounds as a value parameter, making the migration to per-scenario trivial (pass `scenario.bounds` instead of `gameState.bounds`).
 
 ---
 
@@ -457,10 +468,10 @@ type ScenarioTransition = {
 
 - [ ] Scenario domain types in Pomo.Lib (Scenario, ScenarioState, PlayerContext, CollisionGeometry, TerrainObject, ObjectId, VisualLayer, TerrainType, ScenarioTransition)
 - [ ] ScenarioManager module with per-scenario operations
-- [ ] GameState refactored to per-scenario architecture
+- [ ] GameState refactored to per-scenario architecture (remove temporary `GameState.bounds`)
 - [ ] Polygon-based terrain rendering system with depth sorting
 - [ ] Sample scenario definition with TerrainObjects (test map with organic shapes)
-- [ ] Migration from single GameState to per-scenario architecture
+- [ ] Migration from single GameState to per-scenario architecture (entities relocated into initial ScenarioState)
 
 **Testing Requirements**:
 
@@ -1160,14 +1171,3 @@ type GameState = {
 - No major bugs or crashes
 
 ---
-
-## Next Steps
-
-1. **Start Phase 6.1**: Implement Position component and basic entity rendering
-2. **Create Test Scenario**: Define simple test map for movement validation
-3. **Establish Rendering Pipeline**: Set up SpriteBatch and camera system
-4. **Verify Core Integration**: Ensure GameState queries work correctly in Draw loop
-
----
-
-**Ready to begin implementation!**

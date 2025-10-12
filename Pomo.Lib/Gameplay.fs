@@ -15,6 +15,7 @@ type GameState = {
   entities: cmap<Guid<EntityId>, EntityComponents>
   gameTime: cval<int64<Tick>>
   services: Services.EngineServices
+  bounds: ScenarioBounds
 }
 
 
@@ -277,6 +278,12 @@ module GameState =
     entities = cmap()
     gameTime = cval 0L<Tick>
     services = services
+    bounds = {
+      Width = 2000f
+      Height = 2000f
+      CenterX = 0f
+      CenterY = 0f
+    }
   }
 
   let create() =
@@ -336,7 +343,12 @@ module GameState =
             time
 
         let movedComponents =
-          Pomo.Lib.Movement.Update.updateEntity time components
+          Pomo.Lib.Movement.Update.updateEntityWithContext
+            time
+            state.bounds
+            (state.entities |> AMap.force)
+            entityId
+            components
 
         let! derivedStats = getDerivedStats state |> AMap.tryFind entityId
 
