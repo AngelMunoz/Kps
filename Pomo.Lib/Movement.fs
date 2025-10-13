@@ -44,7 +44,11 @@ module PathMovement =
     let grid = Grid.createWithRadius scenario cellSize entityRadius
     AStar.findPath grid start goal
 
-  let getNextWaypoint (currentPos: Position) (path: Position list) (entityRadius: float32) =
+  let getNextWaypoint
+    (currentPos: Position)
+    (path: Position list)
+    (entityRadius: float32)
+    =
     match path with
     | [] -> struct (ValueNone, [])
     | next :: remaining ->
@@ -71,7 +75,9 @@ module PathfindingCommands =
     (movement: Movement)
     : Movement =
 
-    match PathMovement.calculatePath scenario start destination entityRadius with
+    match
+      PathMovement.calculatePath scenario start destination entityRadius
+    with
     | ValueSome path when path.Length > 1 -> {
         movement with
             Destination = ValueSome destination
@@ -342,7 +348,10 @@ module Update =
       | ValueNone -> components
     | currentPath ->
       let struct (nextWaypoint, remainingPath) =
-        PathMovement.getNextWaypoint components.Position currentPath entityRadius
+        PathMovement.getNextWaypoint
+          components.Position
+          currentPath
+          entityRadius
 
       match nextWaypoint with
       | ValueSome waypoint ->
@@ -370,7 +379,11 @@ module Update =
           match components.Movement.Destination with
           | ValueSome finalDest ->
             let newPath =
-              PathMovement.calculatePath scenario components.Position finalDest entityRadius
+              PathMovement.calculatePath
+                scenario
+                components.Position
+                finalDest
+                entityRadius
 
             match newPath with
             | ValueSome path when path.Length > 1 -> {
@@ -401,7 +414,11 @@ module Update =
           match components.Movement.Destination with
           | ValueSome finalDest ->
             let newPath =
-              PathMovement.calculatePath scenario components.Position finalDest entityRadius
+              PathMovement.calculatePath
+                scenario
+                components.Position
+                finalDest
+                entityRadius
 
             match newPath with
             | ValueSome path when path.Length > 1 -> {

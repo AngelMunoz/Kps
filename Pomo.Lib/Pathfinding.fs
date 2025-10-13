@@ -74,7 +74,11 @@ module Grid =
       OriginY = 0f
     }
 
-  let createWithRadius (scenario: Scenario) (cellSize: float32) (entityRadius: float32) : PathfindingGrid =
+  let createWithRadius
+    (scenario: Scenario)
+    (cellSize: float32)
+    (entityRadius: float32)
+    : PathfindingGrid =
     let width = int(ceil(scenario.BoundsWidth / cellSize))
     let height = int(ceil(scenario.BoundsHeight / cellSize))
 
@@ -90,8 +94,7 @@ module Grid =
         let isWalkable = Query.canMoveTo pos checkRadius scenario
 
         let cost =
-          let terrainObjs =
-            Query.queryTerrainObjects pos checkRadius scenario
+          let terrainObjs = Query.queryTerrainObjects pos checkRadius scenario
 
           let waterPenalty =
             terrainObjs
