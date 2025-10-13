@@ -477,15 +477,18 @@ module Update =
           checkEntityCollision clampedPos entityId entityRadius allEntities
 
         if entityCollision then
-          // Entity is blocking - try to recalculate path around the obstacle
+          // Entity is blocking - try to recalculate path around the obstacle using entity-aware pathfinding
           match components.Movement.Destination with
           | ValueSome finalDest ->
+            let entitiesArray = allEntities |> HashMap.toArrayV
             let newPath =
-              PathMovement.calculatePath
+              PathMovement.calculatePathWithEntities
                 scenario
                 components.Position
                 finalDest
                 entityRadius
+                entitiesArray
+                entityId
 
             match newPath with
             | ValueSome path when path.Length > 1 -> {
@@ -496,15 +499,32 @@ module Update =
                     }
               }
             | _ ->
-                // No valid path found - stop moving
-                {
-                  components with
-                      Movement = {
-                        components.Movement with
-                            Path = []
-                            Destination = ValueNone
-                      }
-                }
+                // No valid entity-aware path found - try basic pathfinding as fallback
+                let fallbackPath =
+                  PathMovement.calculatePath
+                    scenario
+                    components.Position
+                    finalDest
+                    entityRadius
+
+                match fallbackPath with
+                | ValueSome path when path.Length > 1 -> {
+                    components with
+                        Movement = {
+                          components.Movement with
+                              Path = Array.toList path.[1..]
+                        }
+                  }
+                | _ ->
+                    // No valid path found at all - stop moving
+                    {
+                      components with
+                          Movement = {
+                            components.Movement with
+                                Path = []
+                                Destination = ValueNone
+                          }
+                    }
           | ValueNone ->
               // No final destination - just stop
               {
