@@ -191,12 +191,15 @@ type PomoGame() as this =
         {
           Id = %Guid.NewGuid()
           Position = { X = 300f; Y = 200f }
-          CollisionGeometry = Polygon([|
-            { X = 280f; Y = 180f }
-            { X = 320f; Y = 180f }
-            { X = 320f; Y = 220f }
-            { X = 280f; Y = 220f }
-          |])
+          CollisionGeometry =
+            Polygon(
+              [|
+                { X = 280f; Y = 180f }
+                { X = 320f; Y = 180f }
+                { X = 320f; Y = 220f }
+                { X = 280f; Y = 220f }
+              |]
+            )
           TerrainType = TerrainType.Blocked
           DepthLayer = 0.6f
           SpriteId = ValueSome "wall"
@@ -237,8 +240,11 @@ type PomoGame() as this =
         }
       |]
 
-      let updatedTerrainObjects = 
-        terrainObjects |> List.fold (fun acc obj -> IndexList.add obj acc) scenario.scenario.TerrainObjects
+      let updatedTerrainObjects =
+        terrainObjects
+        |> List.fold
+          (fun acc obj -> IndexList.add obj acc)
+          scenario.scenario.TerrainObjects
 
       let updatedScenario = {
         scenario.scenario with
@@ -247,8 +253,11 @@ type PomoGame() as this =
       }
 
       // Update the scenario state
-      let updatedScenarioState = { scenario with scenario = updatedScenario }
-      
+      let updatedScenarioState = {
+        scenario with
+            scenario = updatedScenario
+      }
+
       // Update the scenario in the game state
       let activeScenarioId = state.activeScenarioId |> AVal.force
       state.scenarios.[activeScenarioId] <- updatedScenarioState)
@@ -262,7 +271,7 @@ type PomoGame() as this =
     Console.WriteLine("=== PHASE 6.5 & 6.6 VISUAL CONTROLS ===")
     Console.WriteLine("Right Click: Move with pathfinding (shows path preview)")
     Console.WriteLine("Key 2: Toggle pathfinding grid visualization")
-    Console.WriteLine("Left Click: Select entity")  
+    Console.WriteLine("Left Click: Select entity")
     Console.WriteLine("Key 1: Use ability on selected target")
     Console.WriteLine("")
     Console.WriteLine("Visual Elements:")
@@ -273,7 +282,11 @@ type PomoGame() as this =
     Console.WriteLine("- Green lines: Valid path preview")
     Console.WriteLine("- Red lines: Invalid path preview")
     Console.WriteLine("- Yellow borders: Scenario bounds")
-    Console.WriteLine("- Grid overlay: Pathfinding navigation grid (toggle with Key 2)")
+
+    Console.WriteLine(
+      "- Grid overlay: Pathfinding navigation grid (toggle with Key 2)"
+    )
+
     Console.WriteLine("=======================================")
     Console.WriteLine("")
 
@@ -341,14 +354,27 @@ type PomoGame() as this =
           let world = InputManager.screenToWorld mouseScreen view
 
           // Generate pathfinding preview
-          match scenario.entities |> AMap.force |> HashMap.tryFindV playerId with
+          match
+            scenario.entities |> AMap.force |> HashMap.tryFindV playerId
+          with
           | ValueSome playerComp ->
             let grid = Grid.create scenario.scenario 32.0f
-            match AStar.findPath grid playerComp.Position { X = world.X; Y = world.Y } with
+
+            match
+              AStar.findPath grid playerComp.Position {
+                X = world.X
+                Y = world.Y
+              }
+            with
             | ValueSome path ->
               currentPath <- path
-              pathPreview <- PathPreview.generatePreview scenario.scenario path 12.0f
-              Console.WriteLine($"[Pathfinding] Generated path with {path.Length} waypoints")
+
+              pathPreview <-
+                PathPreview.generatePreview scenario.scenario path 12.0f
+
+              Console.WriteLine(
+                $"[Pathfinding] Generated path with {path.Length} waypoints"
+              )
             | ValueNone ->
               currentPath <- Array.empty
               pathPreview <- Array.empty
@@ -425,7 +451,10 @@ type PomoGame() as this =
 
         if key2 && not prevKey2Down then
           showPathfindingGrid <- not showPathfindingGrid
-          Console.WriteLine($"[Debug] Pathfinding grid visibility: {showPathfindingGrid}")
+
+          Console.WriteLine(
+            $"[Debug] Pathfinding grid visibility: {showPathfindingGrid}"
+          )
 
         prevKey2Down <- key2
 

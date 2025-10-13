@@ -11,9 +11,13 @@ open Pomo.Lib.Collision
 open Pomo.Lib.Pathfinding
 
 module TerrainMovement =
-  let getTerrainSpeedModifier (pos: Position) (scenario: Scenario) (radius: float32) : float32 =
+  let getTerrainSpeedModifier
+    (pos: Position)
+    (scenario: Scenario)
+    (radius: float32)
+    : float32 =
     let terrainObjects = Query.queryTerrainObjects pos radius scenario
-    
+
     terrainObjects
     |> Array.tryHead
     |> function
@@ -29,52 +33,55 @@ module TerrainMovement =
     baseSpeed * (max 0.1f dexModifier)
 
 module PathMovement =
-  let calculatePath (scenario: Scenario) (start: Position) (goal: Position) : Position[] voption =
+  let calculatePath
+    (scenario: Scenario)
+    (start: Position)
+    (goal: Position)
+    : Position[] voption =
     let grid = Grid.create scenario 32.0f
     AStar.findPath grid start goal
 
-  let getNextWaypoint (currentPos: Position) (path: Position list) : Position voption * Position list =
+  let getNextWaypoint (currentPos: Position) (path: Position list) =
     match path with
-    | [] -> ValueNone, []
+    | [] -> struct (ValueNone, [])
     | next :: remaining ->
       let dx = next.X - currentPos.X
       let dy = next.Y - currentPos.Y
       let dist = sqrt(dx * dx + dy * dy)
-      
+
       if dist <= 16.0f then
         match remaining with
         | [] -> ValueNone, []
-        | nextNext :: _ -> ValueSome nextNext, remaining
+        | nextNext :: _ -> struct (ValueSome nextNext, remaining)
       else
-        ValueSome next, path
+        struct (ValueSome next, path)
 
 module PathfindingCommands =
-  let setDestinationWithPathfinding 
+  let setDestinationWithPathfinding
     (scenario: Scenario)
-    (start: Position) 
+    (start: Position)
     (destination: Position)
-    (movement: Movement) 
+    (movement: Movement)
     : Movement =
-    
+
     match PathMovement.calculatePath scenario start destination with
-    | ValueSome path when path.Length > 1 ->
-      {
+    | ValueSome path when path.Length > 1 -> {
         movement with
             Destination = ValueSome destination
             Path = Array.toList path.[1..] // Skip first position (current position)
       }
     | _ ->
-      {
-        movement with
-            Destination = ValueSome destination
-            Path = []
-      }
+        {
+          movement with
+              Destination = ValueSome destination
+              Path = []
+        }
 
 module Utils =
   let inline radiusOfStage(s: Stage) =
     match s with
     | Stage.First -> 12f
-    | Stage.Second -> 16f  
+    | Stage.Second -> 16f
     | Stage.Third -> 20f
 
 module Update =
@@ -103,8 +110,10 @@ module Update =
     let dx = destination.X - position.X
     let dy = destination.Y - position.Y
     let dist = sqrt(dx * dx + dy * dy)
-    
-    let terrainModifier = TerrainMovement.getTerrainSpeedModifier position scenario entityRadius
+
+    let terrainModifier =
+      TerrainMovement.getTerrainSpeedModifier position scenario entityRadius
+
     let adjustedSpeed = speed * terrainModifier
     let moveAmount = adjustedSpeed * elapsed
 
@@ -115,15 +124,21 @@ module Update =
       let newY = position.Y + dy / dist * moveAmount
       struct ({ X = newX; Y = newY }, false)
 
-  let updateEntity (time: int64<Tick>) (scenario: Scenario) (components: EntityComponents) =
+  let updateEntity
+    (time: int64<Tick>)
+    (scenario: Scenario)
+    (components: EntityComponents)
+    =
     let entityRadius = Utils.radiusOfStage components.Identity.Stage
-    
+
     match components.Movement.Path with
     | [] ->
       match components.Movement.Destination with
       | ValueSome dest ->
         let elapsedSeconds = float32 time / 10_000_000f
-        let adjustedSpeed = TerrainMovement.applyDexterityModifier components.Movement.Speed 10
+
+        let adjustedSpeed =
+          TerrainMovement.applyDexterityModifier components.Movement.Speed 10
 
         let struct (newPos, arrived) =
           moveTowards {
@@ -135,9 +150,11 @@ module Update =
             EntityRadius = entityRadius
           }
 
-        let validPos = 
-          if Query.canMoveTo newPos entityRadius scenario then newPos
-          else components.Position
+        let validPos =
+          if Query.canMoveTo newPos entityRadius scenario then
+            newPos
+          else
+            components.Position
 
         if arrived then
           {
@@ -151,14 +168,17 @@ module Update =
         else
           { components with Position = validPos }
       | ValueNone -> components
-      
+
     | path ->
-      let (nextWaypoint, remainingPath) = PathMovement.getNextWaypoint components.Position path
-      
+      let struct (nextWaypoint, remainingPath) =
+        PathMovement.getNextWaypoint components.Position path
+
       match nextWaypoint with
       | ValueSome waypoint ->
         let elapsedSeconds = float32 time / 10_000_000f
-        let adjustedSpeed = TerrainMovement.applyDexterityModifier components.Movement.Speed 10
+
+        let adjustedSpeed =
+          TerrainMovement.applyDexterityModifier components.Movement.Speed 10
 
         let struct (newPos, arrived) =
           moveTowards {
@@ -170,9 +190,11 @@ module Update =
             EntityRadius = entityRadius
           }
 
-        let validPos = 
-          if Query.canMoveTo newPos entityRadius scenario then newPos
-          else components.Position
+        let validPos =
+          if Query.canMoveTo newPos entityRadius scenario then
+            newPos
+          else
+            components.Position
 
         if arrived && remainingPath.IsEmpty then
           {
@@ -194,23 +216,24 @@ module Update =
                 }
           }
       | ValueNone ->
-        {
-          components with
-              Movement = {
-                components.Movement with
-                    Path = []
-                    Destination = ValueNone
-              }
-        }
+          {
+            components with
+                Movement = {
+                  components.Movement with
+                      Path = []
+                      Destination = ValueNone
+                }
+          }
 
-  let private checkEntityCollision 
-    (pos: Position) 
-    (entityId: Guid<EntityId>) 
-    (entityRadius: float32) 
-    (allEntities: HashMap<Guid<EntityId>, EntityComponents>) : bool =
+  let private checkEntityCollision
+    (pos: Position)
+    (entityId: Guid<EntityId>)
+    (entityRadius: float32)
+    (allEntities: HashMap<Guid<EntityId>, EntityComponents>)
+    : bool =
     let mutable collision = false
     let entitiesArray = allEntities |> HashMap.toArrayV
-    
+
     for struct (id, other) in entitiesArray do
       if id <> entityId && not collision then
         let otherR = Utils.radiusOfStage other.Identity.Stage
@@ -218,30 +241,33 @@ module Update =
         let dy = pos.Y - other.Position.Y
         let dist2 = dx * dx + dy * dy
         let rad = entityRadius + otherR
-        
+
         if dist2 < rad * rad then
           collision <- true
-    
+
     collision
 
-  let private clampToBounds (pos: Position) (bounds: ScenarioBounds) : Position =
+  let private clampToBounds
+    (pos: Position)
+    (bounds: ScenarioBounds)
+    : Position =
     let halfW = bounds.Width * 0.5f
     let halfH = bounds.Height * 0.5f
     let minX = bounds.CenterX - halfW
     let maxX = bounds.CenterX + halfW
     let minY = bounds.CenterY - halfH
     let maxY = bounds.CenterY + halfH
-    
-    let clampedX = 
+
+    let clampedX =
       if pos.X < minX then minX
       elif pos.X > maxX then maxX
       else pos.X
-      
-    let clampedY = 
+
+    let clampedY =
       if pos.Y < minY then minY
       elif pos.Y > maxY then maxY
       else pos.Y
-      
+
     { X = clampedX; Y = clampedY }
 
   let updateEntityWithContext
@@ -254,133 +280,16 @@ module Update =
     =
     let entityRadius = Utils.radiusOfStage components.Identity.Stage
     let elapsedSeconds = float32 time / 10_000_000f
-    
+
     // Handle pathfinding if we have a path
     match components.Movement.Path with
-    | currentPath when not currentPath.IsEmpty ->
-      let (nextWaypoint, remainingPath) = PathMovement.getNextWaypoint components.Position currentPath
-      
-      match nextWaypoint with
-      | ValueSome waypoint ->
-        let adjustedSpeed = TerrainMovement.applyDexterityModifier components.Movement.Speed 10
-        
-        let struct (proposedPos, arrived) =
-          moveTowards {
-            Position = components.Position
-            Destination = waypoint
-            Speed = adjustedSpeed
-            Elapsed = elapsedSeconds
-            Scenario = scenario
-            EntityRadius = entityRadius
-          }
-        
-        let clampedPos = clampToBounds proposedPos bounds
-        
-        // Check for entity collision
-        let entityCollision = checkEntityCollision clampedPos entityId entityRadius allEntities
-        
-        if entityCollision then
-          // Entity is blocking - try to recalculate path around the obstacle
-          match components.Movement.Destination with
-          | ValueSome finalDest ->
-            let newPath = PathMovement.calculatePath scenario components.Position finalDest
-            match newPath with
-            | ValueSome path when path.Length > 1 ->
-              {
-                components with
-                    Movement = {
-                      components.Movement with
-                          Path = Array.toList path.[1..]
-                    }
-              }
-            | _ ->
-              // No valid path found - stop moving
-              {
-                components with
-                    Movement = {
-                      components.Movement with
-                          Path = []
-                          Destination = ValueNone
-                    }
-              }
-          | ValueNone ->
-            // No final destination - just stop
-            {
-              components with
-                  Movement = {
-                    components.Movement with
-                        Path = []
-                  }
-            }
-        elif not (Query.canMoveTo clampedPos entityRadius scenario) then
-          // Terrain collision - recalculate path
-          match components.Movement.Destination with
-          | ValueSome finalDest ->
-            let newPath = PathMovement.calculatePath scenario components.Position finalDest
-            match newPath with
-            | ValueSome path when path.Length > 1 ->
-              {
-                components with
-                    Movement = {
-                      components.Movement with
-                          Path = Array.toList path.[1..]
-                    }
-              }
-            | _ ->
-              {
-                components with
-                    Movement = {
-                      components.Movement with
-                          Path = []
-                          Destination = ValueNone
-                    }
-              }
-          | ValueNone ->
-            {
-              components with
-                  Movement = {
-                    components.Movement with
-                        Path = []
-                  }
-            }
-        elif arrived && remainingPath.IsEmpty then
-          // Reached final destination
-          {
-            components with
-                Position = clampedPos
-                Movement = {
-                  components.Movement with
-                      Path = []
-                      Destination = ValueNone
-                }
-          }
-        else
-          // Continue moving along path
-          {
-            components with
-                Position = clampedPos
-                Movement = {
-                  components.Movement with
-                      Path = remainingPath
-                }
-          }
-      | ValueNone ->
-        // No more waypoints - clear path
-        {
-          components with
-              Movement = {
-                components.Movement with
-                    Path = []
-                    Destination = ValueNone
-              }
-        }
-    
     | [] ->
       // No path - handle direct movement to destination (fallback)
       match components.Movement.Destination with
       | ValueSome dest ->
-        let adjustedSpeed = TerrainMovement.applyDexterityModifier components.Movement.Speed 10
-        
+        let adjustedSpeed =
+          TerrainMovement.applyDexterityModifier components.Movement.Speed 10
+
         let struct (proposedPos, arrived) =
           moveTowards {
             Position = components.Position
@@ -390,13 +299,17 @@ module Update =
             Scenario = scenario
             EntityRadius = entityRadius
           }
-        
+
         let clampedPos = clampToBounds proposedPos bounds
-        
+
         // Check for entity collision
-        let entityCollision = checkEntityCollision clampedPos entityId entityRadius allEntities
-        
-        if entityCollision || not (Query.canMoveTo clampedPos entityRadius scenario) then
+        let entityCollision =
+          checkEntityCollision clampedPos entityId entityRadius allEntities
+
+        if
+          entityCollision
+          || not(Query.canMoveTo clampedPos entityRadius scenario)
+        then
           // Blocked - stop moving
           {
             components with
@@ -419,5 +332,120 @@ module Update =
             components with
                 Position = clampedPos
           }
-      | ValueNone -> 
-        components
+      | ValueNone -> components
+    | currentPath ->
+      let struct (nextWaypoint, remainingPath) =
+        PathMovement.getNextWaypoint components.Position currentPath
+
+      match nextWaypoint with
+      | ValueSome waypoint ->
+        let adjustedSpeed =
+          TerrainMovement.applyDexterityModifier components.Movement.Speed 10
+
+        let struct (proposedPos, arrived) =
+          moveTowards {
+            Position = components.Position
+            Destination = waypoint
+            Speed = adjustedSpeed
+            Elapsed = elapsedSeconds
+            Scenario = scenario
+            EntityRadius = entityRadius
+          }
+
+        let clampedPos = clampToBounds proposedPos bounds
+
+        // Check for entity collision
+        let entityCollision =
+          checkEntityCollision clampedPos entityId entityRadius allEntities
+
+        if entityCollision then
+          // Entity is blocking - try to recalculate path around the obstacle
+          match components.Movement.Destination with
+          | ValueSome finalDest ->
+            let newPath =
+              PathMovement.calculatePath scenario components.Position finalDest
+
+            match newPath with
+            | ValueSome path when path.Length > 1 -> {
+                components with
+                    Movement = {
+                      components.Movement with
+                          Path = Array.toList path.[1..]
+                    }
+              }
+            | _ ->
+                // No valid path found - stop moving
+                {
+                  components with
+                      Movement = {
+                        components.Movement with
+                            Path = []
+                            Destination = ValueNone
+                      }
+                }
+          | ValueNone ->
+              // No final destination - just stop
+              {
+                components with
+                    Movement = { components.Movement with Path = [] }
+              }
+        elif not(Query.canMoveTo clampedPos entityRadius scenario) then
+          // Terrain collision - recalculate path
+          match components.Movement.Destination with
+          | ValueSome finalDest ->
+            let newPath =
+              PathMovement.calculatePath scenario components.Position finalDest
+
+            match newPath with
+            | ValueSome path when path.Length > 1 -> {
+                components with
+                    Movement = {
+                      components.Movement with
+                          Path = Array.toList path.[1..]
+                    }
+              }
+            | _ ->
+                {
+                  components with
+                      Movement = {
+                        components.Movement with
+                            Path = []
+                            Destination = ValueNone
+                      }
+                }
+          | ValueNone ->
+              {
+                components with
+                    Movement = { components.Movement with Path = [] }
+              }
+        elif arrived && remainingPath.IsEmpty then
+          // Reached final destination
+          {
+            components with
+                Position = clampedPos
+                Movement = {
+                  components.Movement with
+                      Path = []
+                      Destination = ValueNone
+                }
+          }
+        else
+          // Continue moving along path
+          {
+            components with
+                Position = clampedPos
+                Movement = {
+                  components.Movement with
+                      Path = remainingPath
+                }
+          }
+      | ValueNone ->
+          // No more waypoints - clear path
+          {
+            components with
+                Movement = {
+                  components.Movement with
+                      Path = []
+                      Destination = ValueNone
+                }
+          }

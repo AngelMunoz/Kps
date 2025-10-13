@@ -764,17 +764,14 @@ module Resolution =
       match entity with
       | Some e ->
         // Use pathfinding to calculate the path
-        let updatedMovement = 
-          Pomo.Lib.Movement.PathfindingCommands.setDestinationWithPathfinding 
-            scenario.scenario 
-            e.Position 
-            action.destination 
+        let updatedMovement =
+          Pomo.Lib.Movement.PathfindingCommands.setDestinationWithPathfinding
+            scenario.scenario
+            e.Position
+            action.destination
             e.Movement
 
-        let updatedEntity = {
-          e with
-              Movement = updatedMovement
-        }
+        let updatedEntity = { e with Movement = updatedMovement }
 
         return {
           updates = HashMap.ofList [ action.actor, updatedEntity ]
