@@ -699,9 +699,10 @@ Progress Update (2025-10-13) - **PR #5 COMPLETE**:
 // Scenario combat type determines targeting rules
 [<Struct>]
 type ScenarioCombatType =
-  | PvE          // Player vs Environment (default) - players cannot target other players
-  | PvP          // Player vs Player - players can target enemy players (not in same party)
-  | PvPvE        // Player vs Player vs Environment - players can target both enemy players and NPCs
+  | PvE          // Player vs Environment (default) - players cannot target other players but can target NPCs
+  | PvP          // Player vs Player - players can target enemy players only (not in same party or NPCs)
+  | PvH        // Player vs Hostile - players can target both enemy players and NPCs
+
 
 // Party system for player grouping
 [<Measure>]
@@ -747,50 +748,92 @@ type GameState = {
 **PvE Scenarios (Default)**:
 
 - **Allowed Targets**: Non-player entities (NPCs, enemies, monsters)
-- **Forbidden Targets**: Other player entities (regardless of party affiliation)
+- **Forbidden Targets**: Other player entities (regardless of party affiliation) and Allied Faction NPCs
 - **Use Case**: Towns, cooperative dungeons, story scenarios
-- **Validation**: `isPlayerEntity(target) = false` for all offensive abilities
+- **Validation**: `isPlayerEntity(target) = false`, `isAllyFaction(target)` for all offensive abilities
 
 **PvP Scenarios**:
 
 - **Allowed Targets**:
   - Enemy players (players not in the same party as the actor)
-  - Non-player entities (NPCs, enemies)
-- **Forbidden Targets**: Allied players (players in the same party as the actor)
+- **Forbidden Targets**: Allied players (players in the same party as the actor), NPCs
 - **Use Case**: Arenas, dueling zones, competitive areas
 - **Validation**:
   - If `isPlayerEntity(target)`: Check `notInSameParty(actor, target)`
-  - NPCs always valid
+  - NPCs always invalid target
 
-**PvPvE Scenarios**:
+**PvH Scenarios**:
 
 - **Allowed Targets**:
   - Enemy players (players not in the same party as the actor)
   - Non-player entities (NPCs, enemies, monsters)
-- **Forbidden Targets**: Allied players (players in the same party as the actor)
+- **Forbidden Targets**: Allied players (players in the same party as the actor), Allied Faction NPCs
 - **Use Case**: Open-world PvP zones, faction warfare, competitive PvE
-- **Validation**: Same as PvP
+- **Validation**:
+  - If `isPlayerEntity(target)`: Check `notInSameParty(actor, target)`
+  - If `isNPC(target)`: Check `notAllyFaction(target)`
 
-**Friendly Abilities Exception**:
+**Friendly Abilities Exception**: Abilities have this `ActiveAbilityDefinition.TargetingType` field where you can check whether the ability is friendly or offensive.
 
-- Healing and buff abilities can target party members in all combat types
-- Validation checks `ability.IsFriendly` flag to allow party targeting
+```fsharp
+  [<Struct>]
+  type ResourceCost = { Type: ResourceType; Amount: int }
+
+  [<Struct>]
+  type TargetType =
+    | Self
+    | SingleAlly
+    | SingleEnemy
+    | MultiTarget of int
+
+  [<Struct>]
+  type PassiveAbilityDefinition = {
+    Id: int<AbilityId>
+    Name: string
+    Effects: int<EffectId>[]
+    Requirements: AbilityRequirement[]
+  }
+
+  [<Struct>]
+  type ActiveAbilityDefinition = {
+    Id: int<AbilityId>
+    Name: string
+    Cooldown: int64<Tick>
+    Cost: ResourceCost voption
+    Targeting: TargetType
+    FormulaId: int<FormulaId> voption
+    Effects: int<EffectId>[]
+    Requirements: AbilityRequirement[]
+  }
+```
+
+Please check `Pomo.Lib/Domain.fs` for the full definition.
+
+If multi-target abilities that are ally/party specific require disambiguation, a new DU case may be aded e.g
+
+```fsharp
+    | MultiTargetAllies of int
+```
+
+But first check when implementing if such case is required.
+
+**NOTE**: Healing/support abilities are exempt from targeting restrictions and can always target allies (including self).
 
 ### 6.7.3 Battle Engagement Rules
 
 - **Engagement Triggers**:
-  - Hostile entity proximity (if scenario allows)
-  - Forced battle (boss encounters, story events)
-  - Player initiates combat (attack action)
+  - User Enters into a hostile scenario, the battle mechanics are enabled always.
+  - Forced battle (boss encounters, story events) when battle is triggered only.
   - Player-to-player aggression in PvP/PvPvE scenarios
+  - Hostile enemies within aggro range (configurable, e.g., 10.0f units)
+  - Player requested engagement (e.g., attacking a hostile entity)
+  - First hostile action (ability use, attack) if the scenario is battle-enabled
 - **Engagement Effects**:
-  - Lock participants in battle (movement restricted)
   - Enable combat abilities
   - Start effect/cooldown processing
   - Enforce targeting rules based on scenario combat type
 - **Disengagement**:
-  - All hostiles defeated
-  - Flee action (if allowed)
+  - All hostiles defeated (boss encounters, story events)
   - Scenario transition
   - PvP combat timeout (optional)
 
@@ -803,7 +846,6 @@ type GameState = {
 - **Party Benefits**:
   - Shared experience/rewards (future)
   - Friendly fire protection
-  - Coordinated strategies
 - **Solo Players**:
   - Treated as single-member party
   - Can target any valid enemy based on scenario type
@@ -813,9 +855,10 @@ type GameState = {
 - **Battle Disabled Scenarios**:
   - No hostile detection
   - Combat abilities disabled/grayed out
+  - Healing/support abilities still usable
   - Effects still process (buffs, passive abilities)
   - Full movement freedom
-  - Targeting rules still apply (cannot target players in PvE)
+  - Targeting rules still apply
 - **Context Switching**:
   - Smooth transition between peaceful and combat
   - UI adapts to current context
