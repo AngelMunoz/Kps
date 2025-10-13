@@ -41,7 +41,7 @@ module PathMovement =
     : Position[] voption =
     // Use larger cell size and account for entity radius in collision detection
     let cellSize = max 24.0f (entityRadius * 2.5f) // Ensure cells are large enough for the entity
-    let grid = Grid.createWithRadius scenario cellSize entityRadius
+    let grid = Grid.createWithEntities scenario cellSize entityRadius [||] (Guid.Empty |> UMX.tag<EntityId>)
     AStar.findPath grid start goal
 
   let calculatePathWithEntities

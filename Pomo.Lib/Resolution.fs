@@ -13,6 +13,7 @@ open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Services
 open Pomo.Lib.Domain.Abilities
 open Pomo.Lib.Movement
+open Pomo.Lib.Scenario
 
 module Resolution =
   let calculateHitChance attackerStat defenderStat =
@@ -164,6 +165,7 @@ module Resolution =
     derivedStats: amap<Guid<EntityId>, DerivedStats>
     gameTime: cval<int64<Tick>>
     services: EngineServices
+    scenario: Scenario
   }
 
   type ResolverActors = {
@@ -687,6 +689,49 @@ module Resolution =
         return! AbilityResolution.resolve abilityId rparams ractors action
     }
 
+  let resolveMove
+    (action: MoveAction)
+    (resolverParams: ResolverParams)
+    : aval<StateChange> =
+    adaptive {
+      let! entity = resolverParams.entities |> AMap.tryFind action.actor
+
+      match entity with
+      | Some e ->
+        // Use entity-aware pathfinding to calculate the path
+        let entityRadius =
+          Pomo.Lib.Movement.Utils.radiusOfStage e.Identity.Stage
+
+        let allEntities = resolverParams.entities |> AMap.force
+        let entitiesArray = allEntities |> HashMap.toArrayV
+
+        let updatedMovement =
+          Pomo.Lib.Movement.PathfindingCommands.setDestinationWithEntities
+            resolverParams.scenario
+            e.Position
+            action.destination
+            entityRadius
+            entitiesArray
+            action.actor
+            e.Movement
+
+        let updatedEntity = { e with Movement = updatedMovement }
+
+        return {
+          updates = HashMap.ofList [ action.actor, updatedEntity ]
+          additions = HashMap.empty
+          removals = Array.empty
+          gameTime = ValueNone
+        }
+      | None ->
+        return {
+          updates = HashMap.empty
+          additions = HashMap.empty
+          removals = Array.empty
+          gameTime = ValueNone
+        }
+    }
+
   let resolveUseAbility
     (action: UseAbilityAction)
     (rparams: ResolverParams)
@@ -754,47 +799,12 @@ module Resolution =
       derivedStats = derivedStats
       gameTime = scenario.gameTime
       services = state.services
+      scenario = scenario.scenario
     }
 
     match cmd with
     | UseAbility action -> return! resolveUseAbility action resolverParams
-    | Move action ->
-      let! entity = scenario.entities |> AMap.tryFind action.actor
-
-      match entity with
-      | Some e ->
-        // Use entity-aware pathfinding to calculate the path
-        let entityRadius =
-          Pomo.Lib.Movement.Utils.radiusOfStage e.Identity.Stage
-
-        let allEntities = scenario.entities |> AMap.force
-        let entitiesArray = allEntities |> HashMap.toArrayV
-
-        let updatedMovement =
-          Pomo.Lib.Movement.PathfindingCommands.setDestinationWithEntities
-            scenario.scenario
-            e.Position
-            action.destination
-            entityRadius
-            entitiesArray
-            action.actor
-            e.Movement
-
-        let updatedEntity = { e with Movement = updatedMovement }
-
-        return {
-          updates = HashMap.ofList [ action.actor, updatedEntity ]
-          additions = HashMap.empty
-          removals = Array.empty
-          gameTime = ValueNone
-        }
-      | None ->
-        return {
-          updates = HashMap.empty
-          additions = HashMap.empty
-          removals = Array.empty
-          gameTime = ValueNone
-        }
+    | Move action -> return! resolveMove action resolverParams
     | RemoveEntities entityIds ->
       return {
         updates = HashMap.empty
