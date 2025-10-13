@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
@@ -11,6 +11,8 @@
     <Compile Include="FormulaParserTests.fs" />
     <Compile Include="Phase5Tests.fs" />
     <Compile Include="ScenarioTests.fs" />
+    <Compile Include="PathfindingTests.fs" />
+    <Compile Include="ScenarioTransitionTests.fs" />
     <Compile Include="Tests.fs" />
   </ItemGroup>
   <ItemGroup>

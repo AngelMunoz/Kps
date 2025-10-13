@@ -1012,6 +1012,7 @@ type ``Combat Mechanics Properties``() =
       derivedStats = GameState.getDerivedStats state |> AVal.force
       gameTime = (getActiveScenario state).gameTime
       services = state.services
+      scenario = (getActiveScenario state).scenario
     }
 
     let formulaId =

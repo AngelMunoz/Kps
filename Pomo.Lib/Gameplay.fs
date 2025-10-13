@@ -381,6 +381,7 @@ module GameState =
           Pomo.Lib.Movement.Update.updateEntityWithContext
             time
             bounds
+            scenario.scenario
             (scenario.entities |> AMap.force)
             entityId
             components
