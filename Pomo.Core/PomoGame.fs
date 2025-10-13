@@ -358,7 +358,13 @@ type PomoGame() as this =
             scenario.entities |> AMap.force |> HashMap.tryFindV playerId
           with
           | ValueSome playerComp ->
-            let grid = Grid.create scenario.scenario 32.0f
+            let entityRadius = 
+              match playerComp.Identity.Stage with
+              | Stage.First -> 12f
+              | Stage.Second -> 16f  
+              | Stage.Third -> 20f
+            let cellSize = max 24.0f (entityRadius * 2.5f)
+            let grid = Grid.createWithRadius scenario.scenario cellSize entityRadius
 
             match
               AStar.findPath grid playerComp.Position {
@@ -370,7 +376,7 @@ type PomoGame() as this =
               currentPath <- path
 
               pathPreview <-
-                PathPreview.generatePreview scenario.scenario path 12.0f
+                PathPreview.generatePreview scenario.scenario path entityRadius
 
               Console.WriteLine(
                 $"[Pathfinding] Generated path with {path.Length} waypoints"

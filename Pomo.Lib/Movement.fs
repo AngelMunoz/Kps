@@ -37,11 +37,14 @@ module PathMovement =
     (scenario: Scenario)
     (start: Position)
     (goal: Position)
+    (entityRadius: float32)
     : Position[] voption =
-    let grid = Grid.create scenario 32.0f
+    // Use larger cell size and account for entity radius in collision detection
+    let cellSize = max 24.0f (entityRadius * 2.5f) // Ensure cells are large enough for the entity
+    let grid = Grid.createWithRadius scenario cellSize entityRadius
     AStar.findPath grid start goal
 
-  let getNextWaypoint (currentPos: Position) (path: Position list) =
+  let getNextWaypoint (currentPos: Position) (path: Position list) (entityRadius: float32) =
     match path with
     | [] -> struct (ValueNone, [])
     | next :: remaining ->
@@ -49,9 +52,12 @@ module PathMovement =
       let dy = next.Y - currentPos.Y
       let dist = sqrt(dx * dx + dy * dy)
 
-      if dist <= 16.0f then
+      // Use dynamic waypoint tolerance based on entity radius and a minimum distance
+      let tolerance = max 20.0f (entityRadius * 1.5f)
+
+      if dist <= tolerance then
         match remaining with
-        | [] -> ValueNone, []
+        | [] -> struct (ValueNone, [])
         | nextNext :: _ -> struct (ValueSome nextNext, remaining)
       else
         struct (ValueSome next, path)
@@ -61,10 +67,11 @@ module PathfindingCommands =
     (scenario: Scenario)
     (start: Position)
     (destination: Position)
+    (entityRadius: float32)
     (movement: Movement)
     : Movement =
 
-    match PathMovement.calculatePath scenario start destination with
+    match PathMovement.calculatePath scenario start destination entityRadius with
     | ValueSome path when path.Length > 1 -> {
         movement with
             Destination = ValueSome destination
@@ -171,7 +178,7 @@ module Update =
 
     | path ->
       let struct (nextWaypoint, remainingPath) =
-        PathMovement.getNextWaypoint components.Position path
+        PathMovement.getNextWaypoint components.Position path entityRadius
 
       match nextWaypoint with
       | ValueSome waypoint ->
@@ -335,7 +342,7 @@ module Update =
       | ValueNone -> components
     | currentPath ->
       let struct (nextWaypoint, remainingPath) =
-        PathMovement.getNextWaypoint components.Position currentPath
+        PathMovement.getNextWaypoint components.Position currentPath entityRadius
 
       match nextWaypoint with
       | ValueSome waypoint ->
@@ -363,7 +370,7 @@ module Update =
           match components.Movement.Destination with
           | ValueSome finalDest ->
             let newPath =
-              PathMovement.calculatePath scenario components.Position finalDest
+              PathMovement.calculatePath scenario components.Position finalDest entityRadius
 
             match newPath with
             | ValueSome path when path.Length > 1 -> {
@@ -394,7 +401,7 @@ module Update =
           match components.Movement.Destination with
           | ValueSome finalDest ->
             let newPath =
-              PathMovement.calculatePath scenario components.Position finalDest
+              PathMovement.calculatePath scenario components.Position finalDest entityRadius
 
             match newPath with
             | ValueSome path when path.Length > 1 -> {

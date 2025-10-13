@@ -74,6 +74,50 @@ module Grid =
       OriginY = 0f
     }
 
+  let createWithRadius (scenario: Scenario) (cellSize: float32) (entityRadius: float32) : PathfindingGrid =
+    let width = int(ceil(scenario.BoundsWidth / cellSize))
+    let height = int(ceil(scenario.BoundsHeight / cellSize))
+
+    let cells =
+      Array2D.init width height (fun x y ->
+        let worldX = float32 x * cellSize + cellSize * 0.5f
+        let worldY = float32 y * cellSize + cellSize * 0.5f
+        let pos = { X = worldX; Y = worldY }
+
+        // Use entity radius for more accurate collision detection
+        // Add small buffer to prevent tight squeezes
+        let checkRadius = entityRadius + 4.0f
+        let isWalkable = Query.canMoveTo pos checkRadius scenario
+
+        let cost =
+          let terrainObjs =
+            Query.queryTerrainObjects pos checkRadius scenario
+
+          let waterPenalty =
+            terrainObjs
+            |> Array.tryFind(fun obj -> obj.TerrainType = Water)
+            |> function
+              | Some _ -> 2.0f
+              | None -> 1.0f
+
+          waterPenalty
+
+        {
+          X = x
+          Y = y
+          IsWalkable = isWalkable
+          Cost = cost
+        })
+
+    {
+      Width = width
+      Height = height
+      CellSize = cellSize
+      Cells = cells
+      OriginX = 0f
+      OriginY = 0f
+    }
+
   let worldToGrid (grid: PathfindingGrid) (worldPos: Position) : int * int =
     let gridX = int((worldPos.X - grid.OriginX) / grid.CellSize)
     let gridY = int((worldPos.Y - grid.OriginY) / grid.CellSize)
