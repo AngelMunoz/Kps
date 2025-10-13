@@ -140,7 +140,14 @@ module RenderSystem =
 
     // Render pathfinding grid (if enabled)
     if showGrid then
-      let grid = Grid.create scenario 32.0f
+      let grid =
+        Grid.createWithEntities
+          scenario
+          32.0f
+          16.0f
+          [||]
+          (Guid.Empty |> UMX.tag<EntityId>)
+
       let cellSize = int grid.CellSize
 
       for x in 0 .. grid.Width - 1 do
