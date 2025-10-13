@@ -12,6 +12,7 @@ open Pomo.Lib.Gameplay
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Services
 open Pomo.Lib.Domain.Abilities
+open Pomo.Lib.Movement
 
 module Resolution =
   let calculateHitChance attackerStat defenderStat =
@@ -762,10 +763,17 @@ module Resolution =
 
       match entity with
       | Some e ->
+        // Use pathfinding to calculate the path
+        let updatedMovement = 
+          Pomo.Lib.Movement.PathfindingCommands.setDestinationWithPathfinding 
+            scenario.scenario 
+            e.Position 
+            action.destination 
+            e.Movement
+
         let updatedEntity = {
           e with
-              EntityComponents.Movement.Destination =
-                ValueSome action.destination
+              Movement = updatedMovement
         }
 
         return {

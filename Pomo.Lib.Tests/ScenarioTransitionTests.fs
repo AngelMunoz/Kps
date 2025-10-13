@@ -6,6 +6,7 @@ open FSharp.UMX
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.Classification
+open Pomo.Lib.Domain
 open Pomo.Lib.Scenario
 open Pomo.Lib.ScenarioTransitions
 open Pomo.Lib.Tests.TestHelpers
