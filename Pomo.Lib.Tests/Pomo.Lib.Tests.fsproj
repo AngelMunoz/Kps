@@ -11,6 +11,7 @@
     <Compile Include="FormulaParserTests.fs" />
     <Compile Include="Phase5Tests.fs" />
     <Compile Include="ScenarioTests.fs" />
+    <Compile Include="PathfindingTests.fs" />
     <Compile Include="Tests.fs" />
   </ItemGroup>
   <ItemGroup>

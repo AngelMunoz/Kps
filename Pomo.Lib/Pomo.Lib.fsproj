@@ -12,10 +12,11 @@
     <Compile Include="Effects.fs" />
     <Compile Include="Content.fs" />
     <Compile Include="Scenario.fs" />
+    <Compile Include="Collision.fs" />
+    <Compile Include="Pathfinding.fs" />
     <Compile Include="Movement.fs" />
     <Compile Include="Gameplay.fs" />
     <Compile Include="Resolution.fs" />
-    <Compile Include="Collision.fs" />
     <Compile Include="GameStateOperations.fs" />
   </ItemGroup>
 
