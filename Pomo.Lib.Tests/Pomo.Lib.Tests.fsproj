@@ -12,6 +12,7 @@
     <Compile Include="Phase5Tests.fs" />
     <Compile Include="ScenarioTests.fs" />
     <Compile Include="PathfindingTests.fs" />
+    <Compile Include="ScenarioTransitionTests.fs" />
     <Compile Include="Tests.fs" />
   </ItemGroup>
   <ItemGroup>

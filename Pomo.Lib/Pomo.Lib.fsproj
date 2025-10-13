@@ -14,6 +14,7 @@
     <Compile Include="Scenario.fs" />
     <Compile Include="Collision.fs" />
     <Compile Include="Pathfinding.fs" />
+    <Compile Include="ScenarioTransitions.fs" />
     <Compile Include="Movement.fs" />
     <Compile Include="Gameplay.fs" />
     <Compile Include="Resolution.fs" />
