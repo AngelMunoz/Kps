@@ -30,7 +30,7 @@ type ``Scenario Transition Tests``() =
     Resources = {
       HP = 100
       MP = 100
-      Status = Pomo.Lib.Domain.Status.Alive
+      Status = Pomo.Lib.Domain.Attributes.Alive
     }
     Position = pos
     Movement = {
@@ -227,8 +227,8 @@ type ``Scenario Transition Tests``() =
     Assert.Equal(800f, town.BoundsWidth)
     Assert.Equal(600f, town.BoundsHeight)
     Assert.Equal(2, town.TerrainObjects.Count) // House + fountain
-    Assert.Single(town.VisualLayers) // Background
-    Assert.Single(town.Transitions) // Exit to wilderness
+    Assert.Single(town.VisualLayers) |> ignore // Background
+    Assert.Single(town.Transitions) |> ignore // Exit to wilderness
 
     // Check that we have a building and fountain
     let terrainArray = town.TerrainObjects |> IndexList.toArray
@@ -239,7 +239,7 @@ type ``Scenario Transition Tests``() =
     let waterObjects =
       terrainArray |> Array.filter(fun obj -> obj.TerrainType = Water)
 
-    Assert.Single(blockedObjects) // House
+    Assert.Single(blockedObjects) |> ignore // House
     Assert.Single(waterObjects) // Fountain
 
   [<Fact>]
@@ -288,7 +288,7 @@ type ``Scenario Transition Tests``() =
     Assert.Equal(600f, dungeon.BoundsWidth)
     Assert.Equal(600f, dungeon.BoundsHeight)
     Assert.Equal(3, dungeon.TerrainObjects.Count) // Wall + lava + water trap
-    Assert.Single(dungeon.Transitions) // Back to wilderness
+    Assert.Single(dungeon.Transitions) |> ignore // Back to wilderness
     Assert.Equal(PvPvE, dungeon.CombatType) // More dangerous combat
 
     // Check terrain types for dungeon features
