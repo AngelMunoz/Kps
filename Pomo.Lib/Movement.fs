@@ -44,6 +44,19 @@ module PathMovement =
     let grid = Grid.createWithRadius scenario cellSize entityRadius
     AStar.findPath grid start goal
 
+  let calculatePathWithEntities
+    (scenario: Scenario)
+    (start: Position) 
+    (goal: Position)
+    (entityRadius: float32)
+    (allEntities: struct (Guid<EntityId> * EntityComponents) array)
+    (excludeEntityId: Guid<EntityId>)
+    : Position[] voption =
+    // Use larger cell size and account for entity radius in collision detection  
+    let cellSize = max 20.0f (entityRadius * 2.0f) // Smaller cells for better entity avoidance
+    let grid = Grid.createWithEntities scenario cellSize entityRadius allEntities excludeEntityId
+    AStar.findPath grid start goal
+
   let getNextWaypoint
     (currentPos: Position)
     (path: Position list)
@@ -67,6 +80,16 @@ module PathMovement =
         struct (ValueSome next, path)
 
 module PathfindingCommands =
+  // Local helper function for path continuity checking
+  let private isPathContinuous (currentPos: Position) (path: Position list) (maxJumpDistance: float32) =
+    match path with
+    | [] -> true
+    | firstWaypoint :: _ ->
+      let dx = firstWaypoint.X - currentPos.X
+      let dy = firstWaypoint.Y - currentPos.Y
+      let dist = sqrt(dx * dx + dy * dy)
+      dist <= maxJumpDistance
+
   let setDestinationWithPathfinding
     (scenario: Scenario)
     (start: Position)
@@ -90,12 +113,91 @@ module PathfindingCommands =
               Path = []
         }
 
+  let setDestinationWithEntities
+    (scenario: Scenario)
+    (start: Position)
+    (destination: Position) 
+    (entityRadius: float32)
+    (allEntities: struct (Guid<EntityId> * EntityComponents) array)
+    (excludeEntityId: Guid<EntityId>)
+    (movement: Movement)
+    : Movement =
+
+    match PathMovement.calculatePathWithEntities scenario start destination entityRadius allEntities excludeEntityId with
+    | ValueSome path when path.Length > 1 -> 
+        let pathList = Array.toList path.[1..] // Skip first position (current position)
+        let maxJumpDistance = entityRadius * 3.0f // Allow reasonable jump distance
+        if isPathContinuous start pathList maxJumpDistance then
+          {
+            movement with
+                Destination = ValueSome destination
+                Path = pathList
+          }
+        else
+          // Path would cause jump - try simpler approach or reject
+          match PathMovement.calculatePath scenario start destination entityRadius with
+          | ValueSome simplePath when simplePath.Length > 1 ->
+            let simplePathList = Array.toList simplePath.[1..]
+            if isPathContinuous start simplePathList maxJumpDistance then
+              {
+                movement with
+                    Destination = ValueSome destination
+                    Path = simplePathList
+              }
+            else
+              // Even simple path would jump - use direct movement
+              {
+                movement with
+                    Destination = ValueSome destination
+                    Path = []
+              }
+          | _ ->
+            {
+              movement with
+                  Destination = ValueSome destination
+                  Path = []
+            }
+    | _ ->
+        // If no path with entities, try without entities as fallback
+        match PathMovement.calculatePath scenario start destination entityRadius with
+        | ValueSome path when path.Length > 1 -> 
+            let pathList = Array.toList path.[1..]
+            let maxJumpDistance = entityRadius * 3.0f
+            if isPathContinuous start pathList maxJumpDistance then
+              {
+                movement with
+                    Destination = ValueSome destination
+                    Path = pathList
+              }
+            else
+              {
+                movement with
+                    Destination = ValueSome destination
+                    Path = []
+              }
+        | _ ->
+            {
+              movement with
+                  Destination = ValueSome destination
+                  Path = []
+            }
+
 module Utils =
   let inline radiusOfStage(s: Stage) =
     match s with
     | Stage.First -> 12f
     | Stage.Second -> 16f
     | Stage.Third -> 20f
+
+  // Check if a path would cause a sudden jump from current position
+  let isPathContinuous (currentPos: Position) (path: Position list) (maxJumpDistance: float32) =
+    match path with
+    | [] -> true
+    | firstWaypoint :: _ ->
+      let dx = firstWaypoint.X - currentPos.X
+      let dy = firstWaypoint.Y - currentPos.Y
+      let dist = sqrt(dx * dx + dy * dy)
+      dist <= maxJumpDistance
 
 module Update =
 

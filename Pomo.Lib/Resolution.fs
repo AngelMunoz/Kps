@@ -763,16 +763,19 @@ module Resolution =
 
       match entity with
       | Some e ->
-        // Use pathfinding to calculate the path
-        let entityRadius =
-          Pomo.Lib.Movement.Utils.radiusOfStage e.Identity.Stage
-
+        // Use entity-aware pathfinding to calculate the path
+        let entityRadius = Pomo.Lib.Movement.Utils.radiusOfStage e.Identity.Stage
+        let allEntities = scenario.entities |> AMap.force
+        let entitiesArray = allEntities |> HashMap.toArrayV
+        
         let updatedMovement =
-          Pomo.Lib.Movement.PathfindingCommands.setDestinationWithPathfinding
+          Pomo.Lib.Movement.PathfindingCommands.setDestinationWithEntities
             scenario.scenario
             e.Position
             action.destination
             entityRadius
+            entitiesArray
+            action.actor
             e.Movement
 
         let updatedEntity = { e with Movement = updatedMovement }
