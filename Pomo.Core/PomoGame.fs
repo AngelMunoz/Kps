@@ -365,10 +365,17 @@ type PomoGame() as this =
               | Stage.Third -> 20f
 
             let cellSize = max 20.0f (entityRadius * 2.0f)
-            let allEntities = scenario.entities |> AMap.force |> HashMap.toArrayV
+
+            let allEntities =
+              scenario.entities |> AMap.force |> HashMap.toArrayV
 
             let grid =
-              Grid.createWithEntities scenario.scenario cellSize entityRadius allEntities playerId
+              Grid.createWithEntities
+                scenario.scenario
+                cellSize
+                entityRadius
+                allEntities
+                playerId
 
             match
               AStar.findPath grid playerComp.Position {
