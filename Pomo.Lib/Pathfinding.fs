@@ -218,28 +218,32 @@ module Grid =
       OriginY = 0f
     }
 
-  let worldToGrid (grid: PathfindingGrid) (worldPos: Position) : int * int =
+  let worldToGrid (grid: PathfindingGrid) (worldPos: Position) =
     let gridX = int((worldPos.X - grid.OriginX) / grid.CellSize)
     let gridY = int((worldPos.Y - grid.OriginY) / grid.CellSize)
-    (max 0 (min (grid.Width - 1) gridX), max 0 (min (grid.Height - 1) gridY))
+
+    struct (max 0 (min (grid.Width - 1) gridX),
+            max 0 (min (grid.Height - 1) gridY))
 
   let gridToWorld (grid: PathfindingGrid) (gridX: int) (gridY: int) : Position = {
-    X = grid.OriginX + (float32 gridX * grid.CellSize) + grid.CellSize * 0.5f
-    Y = grid.OriginY + (float32 gridY * grid.CellSize) + grid.CellSize * 0.5f
+    X = grid.OriginX + float32 gridX * grid.CellSize + grid.CellSize * 0.5f
+    Y = grid.OriginY + float32 gridY * grid.CellSize + grid.CellSize * 0.5f
   }
 
-  let getNeighbors (grid: PathfindingGrid) (x: int) (y: int) : (int * int)[] =
+  let getNeighbors (grid: PathfindingGrid) (x: int) (y: int) =
     [|
-      (x - 1, y) // Left
-      (x + 1, y) // Right
-      (x, y - 1) // Up
-      (x, y + 1) // Down
-      (x - 1, y - 1) // Top-left
-      (x + 1, y - 1) // Top-right
-      (x - 1, y + 1) // Bottom-left
-      (x + 1, y + 1) // Bottom-right
+      struct (x - 1, y) // Left
+      struct (x + 1, y) // Right
+      struct (x, y - 1) // Up
+      struct (x, y + 1) // Down
+      struct (x - 1, y - 1) // Top-left
+      struct (x + 1, y - 1) // Top-right
+      struct (x - 1, y + 1) // Bottom-left
+      struct (x + 1, y + 1) // Bottom-right
     |]
-    |> Array.filter(fun (nx, ny) ->
+    |> Array.filter(fun data ->
+      let struct (nx, ny) = data
+
       nx >= 0
       && ny >= 0
       && nx < grid.Width
@@ -257,7 +261,7 @@ module AStar =
     let mutable current = Some node
 
     while current.IsSome do
-      path.Add(current.Value.Position)
+      path.Add current.Value.Position
       current <- current.Value.Parent
 
     path.Reverse()
@@ -269,20 +273,20 @@ module AStar =
     (goal: Position)
     : Position[] voption =
 
-    let (startX, startY) = Grid.worldToGrid grid start
-    let (goalX, goalY) = Grid.worldToGrid grid goal
+    let struct (startX, startY) = Grid.worldToGrid grid start
+    let struct (goalX, goalY) = Grid.worldToGrid grid goal
 
     if
-      not grid.Cells.[startX, startY].IsWalkable
-      || not grid.Cells.[goalX, goalY].IsWalkable
+      not grid.Cells[startX, startY].IsWalkable
+      || not grid.Cells[goalX, goalY].IsWalkable
     then
       ValueNone
     else
       let openSet =
         System.Collections.Generic.PriorityQueue<PathNode, float32>()
 
-      let closedSet = System.Collections.Generic.HashSet<int * int>()
-      let gScore = System.Collections.Generic.Dictionary<int * int, float32>()
+      let mutable closedSet = HashSet<struct (int * int)>.Empty
+      let mutable gScore = HashMap<struct (int * int), float32>.Empty
 
       let startPos = Grid.gridToWorld grid startX startY
       let goalPos = Grid.gridToWorld grid goalX goalY
@@ -296,23 +300,25 @@ module AStar =
       }
 
       openSet.Enqueue(startNode, startNode.FCost)
-      gScore.[(startX, startY)] <- 0f
+      gScore <- gScore |> HashMap.add struct (startX, startY) 0f
 
       let mutable found = ValueNone
 
       while openSet.Count > 0 && found.IsNone do
         let current = openSet.Dequeue()
-        let (currentX, currentY) = Grid.worldToGrid grid current.Position
+        let struct (currentX, currentY) = Grid.worldToGrid grid current.Position
 
         if currentX = goalX && currentY = goalY then
           found <- ValueSome(reconstructPath current)
         else
-          closedSet.Add((currentX, currentY)) |> ignore
+          closedSet <- closedSet |> HashSet.add struct (currentX, currentY)
 
           let neighbors = Grid.getNeighbors grid currentX currentY
 
-          for (nx, ny) in neighbors do
-            if not(closedSet.Contains((nx, ny))) then
+          for struct (nx, ny) in neighbors do
+            let contains = closedSet |> HashSet.contains struct (nx, ny)
+
+            if not contains then
               let neighborPos = Grid.gridToWorld grid nx ny
 
               let moveCost =
@@ -320,17 +326,16 @@ module AStar =
                 let dy = abs(ny - currentY)
                 if dx = 1 && dy = 1 then 1.414f else 1.0f // Diagonal vs orthogonal
 
-              let cellCost = grid.Cells.[nx, ny].Cost
-              let tentativeGScore = current.GCost + (moveCost * cellCost)
+              let cellCost = grid.Cells[nx, ny].Cost
+              let tentativeGScore = current.GCost + moveCost * cellCost
 
               let currentGScore =
-                gScore.TryGetValue((nx, ny))
-                |> function
-                  | (true, score) -> score
-                  | (false, _) -> Single.MaxValue
+                match gScore |> HashMap.tryFindV(nx, ny) with
+                | ValueSome score -> score
+                | ValueNone -> Single.MaxValue
 
               if tentativeGScore < currentGScore then
-                gScore.[(nx, ny)] <- tentativeGScore
+                gScore <- gScore |> HashMap.add struct (nx, ny) tentativeGScore
                 let hCost = heuristic neighborPos goalPos
                 let fCost = tentativeGScore + hCost
 

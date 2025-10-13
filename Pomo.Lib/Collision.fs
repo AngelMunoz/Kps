@@ -29,8 +29,8 @@ module Geometry =
       let yj = vertices.[j].Y
 
       if
-        ((yi > point.Y) <> (yj > point.Y))
-        && (point.X < (xj - xi) * (point.Y - yi) / ((yj - yi) + 0.00001f) + xi)
+        yi > point.Y <> (yj > point.Y)
+        && point.X < (xj - xi) * (point.Y - yi) / (yj - yi + 0.00001f) + xi
       then
         inside <- not inside
 
@@ -105,7 +105,7 @@ module Query =
 
       let newAcc =
         if keep then
-          acc.Add(obj)
+          acc.Add obj
           acc
         else
           acc

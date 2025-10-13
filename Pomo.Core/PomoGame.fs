@@ -335,17 +335,20 @@ type PomoGame() as this =
         let scenario = GameState.getActiveScenario state |> AVal.force
 
         // Check for scenario transitions
-        let detectedTransitions = 
-          Pomo.Lib.ScenarioTransitions.TransitionDetection.detectTransitions 
-            scenario.entities 
-            scenario.scenario 
-          |> AVal.force
+        let detectedTransitions =
+          Pomo.Lib.ScenarioTransitions.TransitionDetection.detectTransitions
+            scenario.entities
+            scenario.scenario
+          |> AMap.force
 
         // Process any detected transitions
-        detectedTransitions |> HashMap.iter (fun entityId trigger ->
-          Console.WriteLine($"[Transition] Entity {entityId} triggered transition to scenario {trigger.ToScenarioId}")
-          // For now, just log the transition - full transition execution would require 
-          // multiple scenarios to be loaded
+        detectedTransitions
+        |> HashMap.iter(fun entityId trigger ->
+          Console.WriteLine(
+            $"[Transition] Entity {entityId} triggered transition to scenario {trigger.ToScenarioId}"
+          )
+        // For now, just log the transition - full transition execution would require
+        // multiple scenarios to be loaded
         )
 
         match scenario.entities |> AMap.force |> HashMap.tryFindV playerId with

@@ -30,7 +30,7 @@ module TerrainMovement =
 
   let applyDexterityModifier (baseSpeed: float32) (dexterity: int) : float32 =
     let dexModifier = 1.0f + (float32 dexterity - 10f) * 0.05f
-    baseSpeed * (max 0.1f dexModifier)
+    baseSpeed * max 0.1f dexModifier
 
 module PathMovement =
   let calculatePath

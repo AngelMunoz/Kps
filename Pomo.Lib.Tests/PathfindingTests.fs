@@ -68,7 +68,7 @@ type ``Pathfinding Tests``() =
     let scenario = createTestScenario()
     let grid = Grid.create scenario 32f
 
-    let (gridX, gridY) = Grid.worldToGrid grid { X = 100f; Y = 100f }
+    let struct (gridX, gridY) = Grid.worldToGrid grid { X = 100f; Y = 100f }
 
     Assert.Equal(3, gridX) // floor(100/32) = 3
     Assert.Equal(3, gridY)
@@ -89,7 +89,9 @@ type ``Pathfinding Tests``() =
     let grid = Grid.create scenario 32f
 
     // The blocked circle at (200, 150) with radius 30 should affect nearby cells
-    let (blockedX, blockedY) = Grid.worldToGrid grid { X = 200f; Y = 150f }
+    let struct (blockedX, blockedY) =
+      Grid.worldToGrid grid { X = 200f; Y = 150f }
+
     let blockedCell = grid.Cells.[blockedX, blockedY]
 
     Assert.False(blockedCell.IsWalkable)
@@ -100,7 +102,7 @@ type ``Pathfinding Tests``() =
     let grid = Grid.create scenario 32f
 
     // The water area at (100, 250) should have higher cost
-    let (waterX, waterY) = Grid.worldToGrid grid { X = 100f; Y = 250f }
+    let struct (waterX, waterY) = Grid.worldToGrid grid { X = 100f; Y = 250f }
     let waterCell = grid.Cells.[waterX, waterY]
 
     Assert.True(waterCell.IsWalkable)

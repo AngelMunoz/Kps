@@ -135,7 +135,8 @@ type ``Scenario Transition Tests``() =
     let fromScenarioId = %Guid.NewGuid()
     let toScenarioId = %Guid.NewGuid()
 
-    let ((targetId, updatedEntity), (sourceId, entityToRemove)) =
+    let struct (struct (targetId, updatedEntity),
+                struct (sourceId, entityToRemove)) =
       TransitionExecution.migrateEntity
         entityId
         entity

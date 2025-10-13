@@ -65,20 +65,12 @@ module TransitionDetection =
   let detectTransitions
     (entities: amap<Guid<EntityId>, EntityComponents>)
     (scenario: Scenario)
-    : aval<HashMap<Guid<EntityId>, TransitionTrigger>> =
-    adaptive {
-
-      let! allEntities = entities |> AMap.toAVal
-
-      let detected =
-        allEntities
-        |> HashMap.choose(fun entityId components ->
-          match checkProximity components.Position scenario.Transitions with
-          | ValueSome trigger -> Some trigger
-          | ValueNone -> None)
-
-      return detected
-    }
+    =
+    entities
+    |> AMap.choose(fun entityId components ->
+      match checkProximity components.Position scenario.Transitions with
+      | ValueSome trigger -> Some(trigger)
+      | ValueNone -> None)
 
 module TransitionExecution =
   let preserveEntityState(entity: EntityComponents) : EntityComponents = {
@@ -96,8 +88,6 @@ module TransitionExecution =
     (newPosition: Position)
     (fromScenarioId: Guid<ScenarioId>)
     (toScenarioId: Guid<ScenarioId>)
-    : (Guid<ScenarioId> * EntityComponents) *
-      (Guid<ScenarioId> * Guid<EntityId>)
     =
 
     let preservedEntity = preserveEntityState entity
@@ -107,7 +97,8 @@ module TransitionExecution =
           Position = newPosition
     }
 
-    ((toScenarioId, updatedEntity), (fromScenarioId, entityId))
+    struct (struct (toScenarioId, updatedEntity),
+            struct (fromScenarioId, entityId))
 
   let executeTransition
     (scenarios: cmap<Guid<ScenarioId>, ScenarioState>)
@@ -117,15 +108,16 @@ module TransitionExecution =
     : unit =
 
     let currentScenarioId = activeScenarioId |> AVal.force
+    let scenarios = scenarios |> AMap.force
 
-    match scenarios |> AMap.tryFind currentScenarioId |> AVal.force with
-    | Some currentScenario ->
+    match scenarios |> HashMap.tryFindV currentScenarioId with
+    | ValueSome currentScenario ->
       let entities = currentScenario.entities |> AMap.toAVal |> AVal.force
 
-      match entities |> HashMap.tryFind entityId with
-      | Some entity ->
-        let ((targetScenarioId, updatedEntity),
-             (sourceScenarioId, entityToRemove)) =
+      match entities |> HashMap.tryFindV entityId with
+      | ValueSome entity ->
+        let struct (struct (targetScenarioId, updatedEntity),
+                    struct (sourceScenarioId, entityToRemove)) =
           migrateEntity
             entityId
             entity
@@ -135,23 +127,23 @@ module TransitionExecution =
 
         // Create state changes for removing from source and adding to target
         transact(fun () ->
-          match scenarios |> AMap.tryFind sourceScenarioId |> AVal.force with
-          | Some sourceScenario ->
-            sourceScenario.entities.Remove(entityToRemove) |> ignore
-          | None -> ())
+          match scenarios |> HashMap.tryFindV sourceScenarioId with
+          | ValueSome sourceScenario ->
+            sourceScenario.entities.Remove entityToRemove |> ignore
+          | ValueNone -> ())
 
         transact(fun () ->
-          match scenarios |> AMap.tryFind targetScenarioId |> AVal.force with
-          | Some targetScenario ->
+          match scenarios |> HashMap.tryFindV targetScenarioId with
+          | ValueSome targetScenario ->
             targetScenario.entities.[entityId] <- updatedEntity
-          | None -> ())
+          | ValueNone -> ())
 
         // Update active scenario
         transact(fun () -> activeScenarioId.Value <- targetScenarioId)
 
-      | None -> ()
+      | ValueNone -> ()
 
-    | None -> ()
+    | ValueNone -> ()
 
 module VisualTransitionEffects =
   [<Struct>]
