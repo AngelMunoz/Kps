@@ -378,7 +378,7 @@ type ScenarioId
 type ScenarioCombatType =
   | PvE          // Player vs Environment (default) - players cannot target other players
   | PvP          // Player vs Player - players can target enemy players (not in same party)
-  | PvPvE        // Player vs Player vs Environment - players can target both enemy players and NPCs
+  | PvH        // Player vs Player vs Environment - players can target both enemy players and NPCs
 
 // Base scenario configuration (polygon-based collision)
 type Scenario = {
@@ -388,8 +388,8 @@ type Scenario = {
   BoundsHeight: float32
   TerrainObjects: TerrainObject list  // Polygonal collision objects
   VisualLayers: VisualLayer list      // Background/foreground sprites (no collision)
-  BattleEnabled: bool
-  CombatType: ScenarioCombatType  // Defines targeting rules (PvE/PvP/PvPvE)
+   bool
+  CombatType: ScenarioCombatType  // Defines targeting rules (PvE/PvP/PvH)
   Transitions: ScenarioTransition list
 }
 
@@ -500,7 +500,7 @@ type ScenarioTransition = {
 
 2. **Enhanced Scenario System** (Scenario.fs):
 
-   - `ScenarioCombatType`: `PvE | PvP | PvPvE` for targeting rules
+   - `ScenarioCombatType`: `PvE | PvP | PvH` for targeting rules
    - `ScenarioTransition`: Portal/door connections between scenarios
    - Extended `Scenario` type with terrain objects, visual layers, battle settings
    - Consolidated `ScenarioManager` module with core operations
@@ -527,7 +527,7 @@ type ScenarioTransition = {
 - ✅ Per-scenario terrain object management ready
 - ✅ Visual layer system foundation established
 - ✅ Scenario transition framework implemented
-- ✅ Combat type system (PvE/PvP/PvPvE) ready for Phase 6.7
+- ✅ Combat type system (PvE/PvP/PvH) ready for Phase 6.7
 - ✅ ScenarioManager operations for entity management working
 - ✅ All tests passing (80/80) with no build errors
 - ✅ Existing movement/input/rendering functionality preserved
@@ -670,7 +670,7 @@ Progress Update (2025-10-13) - **PR #5 COMPLETE**:
 - [x] **Complete transition execution** — `TransitionExecution.executeTransition` with entity migration and scenario switching
 - [x] **Entity state preservation** — Resources, equipment, effects preserved; movement state reset appropriately
 - [x] **Visual transition effects** — Complete fade in/out system with progress tracking and alpha blending
-- [x] **Connected scenario network** — Town (peaceful, PvE) ↔ Wilderness (battle, PvE) ↔ Dungeon (battle, PvPvE)
+- [x] **Connected scenario network** — Town (peaceful, PvE) ↔ Wilderness (battle, PvE) ↔ Dungeon (battle, PvH)
 - [x] **Advanced scenario definitions** — Varied terrain objects, visual layers, combat types, and portal connections
 - [x] **Runtime transition detection** — Integrated into game loop with automatic proximity checking
 - [x] **Portal visualization** — Purple-framed transition points with interior highlights
@@ -691,9 +691,89 @@ Progress Update (2025-10-13) - **PR #5 COMPLETE**:
 
 ## Phase 6.7 — Battle Engagement System
 
-**Goal**: Control when battle mechanics are active and enforce PvE/PvP/PvPvE targeting rules
+Goal: Control when battle mechanics are active and enforce targeting rules while introducing engagement models that extend (not replace) existing combat type and party logic.
 
-### 6.7.1 Battle Context & Combat Types (Pomo.Lib)
+### 6.7.1 Existing Foundations
+
+- ScenarioCombatType (PvE | PvP | PvH) defines base target eligibility.
+- flag toggles whether combat processing can occur at all.
+- BattleContext (single per scenario) concept for scenario-wide battles.
+- Party system (PartyId, Party) prevents offensive actions against members.
+
+These remain unchanged; new features layer on top without removing prior behavior.
+
+### 6.7.2 Augmented Concepts
+
+- EngagementMode: Peaceful | AlwaysOn | Structured
+
+  - Peaceful: No offensive actions; support allowed.
+  - AlwaysOn (Wild): Offensive actions allowed immediately; no structured engagements (duels/party battles blocked). Combines with PvE or PvH for ambient hostility.
+  - Structured: Offensive actions require an active BattleInstance (applies only if CombatType is PvP or PvH). PvE scenarios and AlwaysOn mode cannot host structured engagements.
+
+- AbilityIntent: Offensive | Support | Neutral used to gate activation early. (may be needed in AbilityDefinition)
+- BattleInstance: Adds instance-local engagements for duels/party battles coexisting with ambient scenario state.
+- scenarioWideContext vs battleInstances: scenarioWideContext retains original single-context model for large events; battleInstances provide isolated structured engagements.
+
+### 6.7.3 Targeting Rules (Preserved + Extended)
+
+Base validation (existing): CombatType + party membership + ability targeting definition.
+
+Extended pipeline order:
+
+1. AbilityIntent classification.
+2. EngagementMode gate (Peaceful reject Offensive; AlwaysOn allow; Structured require membership in active BattleInstance where allowed).
+3. CombatType rules (unchanged logic for PvE/PvP/PvH).
+4. Party friendly-fire rejection (applies in all modes).
+5. Ability-specific targeting (range, count limits, AoE).
+
+### 6.7.4 Lifecycle Scenarios
+
+Wild Zone (AlwaysOn): retains original hostile proximity triggers; new rule: duel requests auto-reject.
+Peaceful Zone: existing false semantics reinforced by EngagementMode Peaceful gating Offensive early.
+Structured In-Place Duel: layered on top of PvP/PvH; original targeting still applies; only participants can execute Offensive against each other.
+Structured Teleport Duel: uses existing ScenarioTransition system; ambient Plaza scenario unchanged for non-participants.
+
+### 6.7.5 Party System
+
+Parties continue to form in any CombatType and EngagementMode; new logic does not alter membership rules—only integrates party check into extended pipeline.
+
+### 6.7.6 Peaceful Enforcement
+
+Original peaceful mechanics (no battle) extended by AbilityIntent gating; supportive abilities continue unaffected; effects/cooldowns process normally.
+
+### 6.7.7 Teleport vs In-Place Duel
+
+Adds structured choice without removing baseline scenario combat. Teleport leverages existing transition; in-place leverages new BattleInstance list.
+
+### 6.7.8 Domain Additions
+
+Add EngagementMode, AbilityIntent, BattleInstance, scenarioWideContext (optional predecessor retained), battleInstances collection. Existing ScenarioCombatType and BattleContext unchanged.
+
+### 6.7.9 Deliverables
+
+- [ ] Preserve ScenarioCombatType, BattleContext functionality.
+- [ ] Implement EngagementMode with restrictions (no Structured in PvE or AlwaysOn).
+- [ ] Implement AbilityIntent classification.
+- [ ] Implement BattleInstance (duel/party) list on ScenarioState.
+- [ ] Validation function canUseAbility applying extended pipeline.
+- [ ] Duel request/accept/cancel API rejecting invalid mode/combat type combos.
+- [ ] Teleport duel using existing transitions; state preservation hooks.
+- [ ] Tests covering legacy behavior (combat type targeting, party friendly-fire) plus new engagement gating.
+
+### 6.7.10 Success Criteria
+
+- [ ] Peaceful zones block Offensive (EngagementMode) while support remains.
+- [ ] AlwaysOn zones allow immediate hostile actions and reject structured duel creation.
+- [ ] Structured PvP/PvH zones allow duel/party BattleInstances without affecting non-participants.
+- [ ] Teleport duel isolates combat; scenarios unaffected.
+- [ ] Party friendly-fire blocked across all modes.
+- [ ] Tests validate both pre-existing and new pathways.
+
+### 6.7.11 Legacy Baseline (Original Design Reference)
+
+The following preserves the original Phase 6.7 design prior to augmentation. It remains authoritative for core combat type targeting and party logic; new engagement features layer on top without invalidating these definitions.
+
+#### Legacy: Battle Context & Combat Types
 
 ```fsharp
 // Scenario combat type determines targeting rules
@@ -701,7 +781,7 @@ Progress Update (2025-10-13) - **PR #5 COMPLETE**:
 type ScenarioCombatType =
   | PvE          // Player vs Environment (default) - players cannot target other players but can target NPCs
   | PvP          // Player vs Player - players can target enemy players only (not in same party or NPCs)
-  | PvH        // Player vs Hostile - players can target both enemy players and NPCs
+  | PvH          // Player vs Hostile - players can target both enemy players and NPCs
 
 
 // Party system for player grouping
@@ -710,7 +790,7 @@ type PartyId
 
 type Party = {
   Id: Guid<PartyId>
-  Members: HashSet<Guid<EntityId>>  // Player entity IDs in this party
+  Members: HashSet<Guid<EntityId>>
   Name: string
 }
 
@@ -720,8 +800,11 @@ type BattleContext = {
   StartTick: int64<Tick>
   CanDisengage: bool
 }
+```
 
-// Updated Scenario type with combat type (polygon-based collision)
+#### Scenario and GameState Fields
+
+```fsharp
 type Scenario = {
   Id: Guid<ScenarioId>
   Name: string
@@ -743,7 +826,7 @@ type GameState = {
 }
 ```
 
-### 6.7.2 Targeting Rules by Combat Type
+#### Targeting Rules by Combat Type
 
 **PvE Scenarios (Default)**:
 
@@ -852,55 +935,13 @@ But first check when implementing if such case is required.
 
 ### 6.7.5 Peaceful Scenario Behavior
 
-- **Battle Disabled Scenarios**:
-  - No hostile detection
-  - Combat abilities disabled/grayed out
-  - Healing/support abilities still usable
-  - Effects still process (buffs, passive abilities)
-  - Full movement freedom
-  - Targeting rules still apply
-- **Context Switching**:
-  - Smooth transition between peaceful and combat
-  - UI adapts to current context
-  - Targeting validation always enforced
+- Battle disabled scenarios: no hostile detection, combat abilities disabled, support abilities allowed, passive effects continue, targeting rules enforced for supportive abilities.
 
-### 6.7.6 Visual Battle Indicators
+#### Visual Indicators
 
-- **Battle State UI**:
-  - Battle engaged indicator
-  - Participant list with party affiliation colors
-  - Turn/time display
-  - Combat type indicator (PvE/PvP/PvPvE)
-- **Entity Behavior**:
-  - Hostile entities show aggro radius
-  - Battle participants highlighted
-  - Party members marked with unique color/icon
-  - Valid/invalid targets indicated during ability selection
+- Battle engaged indicator, participant highlighting, party member markers, valid/invalid target feedback.
 
-**Deliverables (Re-evaluated)**:
-
-- [x] `ScenarioCombatType` domain type (implemented in `Scenario.fs`).
-- [ ] Party domain (`PartyId`, `Party`) — not yet added to code.
-- [ ] `BattleContext` per-scenario — planned, field currently absent from `ScenarioState`.
-- [ ] Targeting validation based on combat type & party affiliation.
-- [ ] Battle engagement/disengagement logic & movement gating.
-- [ ] Party system implementation & membership management.
-- [ ] Peaceful scenario enforcement (use `BattleEnabled` flag in command validation).
-- [ ] Visual battle state indicators (HUD layer, participant highlights).
-- [ ] Context-aware UI (disable offensive abilities when prohibited).
-
-**Testing Requirements (Planned)**:
-
-- [ ] Independent battle contexts once `battleContext` field added.
-- [ ] PvE targeting restriction test.
-- [ ] PvP / PvPvE targeting tests (with mock party membership).
-- [ ] Party targeting & friendly ability exemption tests.
-- [ ] Engagement trigger tests (proximity, first hostile action).
-- [ ] Disengagement rule tests.
-- [ ] Peaceful scenario gating tests (BattleEnabled false).
-- [ ] Split-screen isolation with one scenario in battle.
-- [ ] Movement restriction enforcement during battle.
-- [ ] Combat type validation matrix.
+All of the above remains valid; new EngagementMode and BattleInstance mechanics do not alter these foundations but add gating and structuring on top.
 
 ---
 
@@ -1101,7 +1142,7 @@ Based on the Core Game Plan requirements and **Per-Scenario GameState architectu
 1. **Position Component**: Add to EntityComponents (Phase 6.1)
 2. **Movement Component**: Speed, destination, path (Phase 6.3)
 3. **Scenario Types**: Scenario, ScenarioState, PlayerContext, CollisionGeometry, TerrainObject, ObjectId, VisualLayer, TerrainType, ScenarioTransition (Phase 6.4)
-4. **Combat Type System**: ScenarioCombatType enum (PvE/PvP/PvPvE) in Scenario (Phase 6.7)
+4. **Combat Type System**: ScenarioCombatType enum (PvE/PvP/PvH) in Scenario (Phase 6.7)
 5. **Party System**: Party, PartyId types for player grouping (Phase 6.7)
 6. **Battle Context**: BattleContext type in ScenarioState (per-scenario) (Phase 6.7)
 7. **Move Command**: Add to Rules.Command (Phase 6.3)
