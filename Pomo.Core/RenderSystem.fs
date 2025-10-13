@@ -1,4 +1,4 @@
-﻿namespace Pomo.Core
+namespace Pomo.Core
 
 open System
 open Microsoft.Xna.Framework
@@ -9,6 +9,9 @@ open Pomo.Lib.Gameplay
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Classification
+open Pomo.Lib.Scenario
+open Pomo.Lib.Pathfinding
+open Pomo.Lib.Collision
 
 module RenderSystem =
   let mutable smallCircle: Texture2D = null
@@ -56,6 +59,10 @@ module RenderSystem =
     (view: Matrix)
     (selected: Guid<EntityId> voption)
     (bounds: Pomo.Lib.Domain.ScenarioBounds)
+    (scenario: Pomo.Lib.Scenario.Scenario)
+    (showGrid: bool)
+    (pathPreview: Pomo.Lib.Pathfinding.PathPreview.PathSegment[])
+    (currentPath: Position[])
     =
     sb.Begin(
       SpriteSortMode.Deferred,
@@ -85,6 +92,104 @@ module RenderSystem =
     sb.Draw(pixel, Rectangle(leftI, bottomI, widthI, thickness), lineColor)
     sb.Draw(pixel, Rectangle(leftI, topI, thickness, heightI), lineColor)
     sb.Draw(pixel, Rectangle(rightI, topI, thickness, heightI), lineColor)
+
+    // Render terrain objects
+    let terrainObjects = scenario.TerrainObjects |> IndexList.toArray
+    for terrainObj in terrainObjects do
+      let color = 
+        match terrainObj.TerrainType with
+        | TerrainType.Blocked -> Color(139, 69, 19, 180)    // Brown for walls
+        | TerrainType.Water -> Color(0, 191, 255, 120)      // Light blue for water
+        | TerrainType.Hazard -> Color(255, 69, 0, 150)      // Red-orange for hazards
+        | _ -> Color(128, 128, 128, 100)        // Gray for other
+
+      match terrainObj.CollisionGeometry with
+      | Circle(center, radius) ->
+        let diameter = int(radius * 2f)
+        let x = int(center.X - radius)
+        let y = int(center.Y - radius)
+        sb.Draw(pixel, Rectangle(x, y, diameter, diameter), color)
+        
+      | Polygon(vertices) when vertices.Length > 0 ->
+        let minX = vertices |> Array.map (fun v -> v.X) |> Array.min |> int
+        let maxX = vertices |> Array.map (fun v -> v.X) |> Array.max |> int
+        let minY = vertices |> Array.map (fun v -> v.Y) |> Array.min |> int
+        let maxY = vertices |> Array.map (fun v -> v.Y) |> Array.max |> int
+        let width = maxX - minX
+        let height = maxY - minY
+        sb.Draw(pixel, Rectangle(minX, minY, width, height), color)
+        
+      | _ -> ()
+
+    // Render transition points
+    for transition in scenario.Transitions do
+      let pos = transition.FromPosition
+      let size = 64
+      let x = int(pos.X - float32 size * 0.5f)
+      let y = int(pos.Y - float32 size * 0.5f)
+      
+      // Portal border
+      sb.Draw(pixel, Rectangle(x - 2, y - 2, size + 4, 4), Color.Purple)
+      sb.Draw(pixel, Rectangle(x - 2, y + size - 2, size + 4, 4), Color.Purple)
+      sb.Draw(pixel, Rectangle(x - 2, y, 4, size), Color.Purple)
+      sb.Draw(pixel, Rectangle(x + size - 2, y, 4, size), Color.Purple)
+      
+      // Portal interior
+      sb.Draw(pixel, Rectangle(x, y, size, size), Color(128, 0, 128, 60))
+
+    // Render pathfinding grid (if enabled)
+    if showGrid then
+      let grid = Grid.create scenario 32.0f
+      let cellSize = int grid.CellSize
+      
+      for x in 0 .. grid.Width - 1 do
+        for y in 0 .. grid.Height - 1 do
+          let cell = grid.Cells.[x, y]
+          let worldPos = Grid.gridToWorld grid x y
+          let cellX = int(worldPos.X - grid.CellSize * 0.5f)
+          let cellY = int(worldPos.Y - grid.CellSize * 0.5f)
+          
+          let gridColor = 
+            if not cell.IsWalkable then Color(255, 0, 0, 80)    // Red for blocked
+            elif cell.Cost > 1.0f then Color(255, 255, 0, 40)  // Yellow for higher cost
+            else Color(0, 255, 0, 20)                          // Green for walkable
+          
+          // Draw cell border
+          sb.Draw(pixel, Rectangle(cellX, cellY, cellSize, 1), Color(255, 255, 255, 100))
+          sb.Draw(pixel, Rectangle(cellX, cellY, 1, cellSize), Color(255, 255, 255, 100))
+          
+          // Fill cell
+          sb.Draw(pixel, Rectangle(cellX + 1, cellY + 1, cellSize - 2, cellSize - 2), gridColor)
+
+    // Render path preview
+    if pathPreview.Length > 0 then
+      for segment in pathPreview do
+        let color = if segment.IsValid then Color.LimeGreen else Color.Red
+        let fromX = int segment.From.X
+        let fromY = int segment.From.Y  
+        let toX = int segment.To.X
+        let toY = int segment.To.Y
+        
+        // Draw line between waypoints (simple approximation)
+        let dx = toX - fromX
+        let dy = toY - fromY
+        let distance = sqrt(float(dx * dx + dy * dy)) |> int
+        
+        if distance > 0 then
+          for i in 0 .. distance do
+            let t = float i / float distance
+            let x = int(float fromX + t * float dx)
+            let y = int(float fromY + t * float dy)
+            sb.Draw(pixel, Rectangle(x - 1, y - 1, 3, 3), color)
+
+    // Render current path waypoints
+    if currentPath.Length > 0 then
+      for i in 0 .. currentPath.Length - 1 do
+        let waypoint = currentPath.[i]
+        let x = int(waypoint.X - 4f)
+        let y = int(waypoint.Y - 4f)
+        let color = if i = 0 then Color.White elif i = currentPath.Length - 1 then Color.Red else Color.Yellow
+        sb.Draw(pixel, Rectangle(x, y, 8, 8), color)
 
     for struct (id, comp: Components.EntityComponents) in entities do
       let pos = comp.Position

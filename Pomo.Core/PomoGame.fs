@@ -19,6 +19,9 @@ open Pomo.Lib.Domain.Services
 open Pomo.Lib.Rules
 open Pomo.Lib.Content
 open Pomo.Lib.Operations
+open Pomo.Lib.Scenario
+open Pomo.Lib.Pathfinding
+open Pomo.Lib.ScenarioTransitions
 open FSharp.Data.Adaptive
 
 type PomoGame() as this =
@@ -47,6 +50,10 @@ type PomoGame() as this =
   let mutable prevMouseDown: bool = false
   let mutable prevRightMouseDown: bool = false
   let mutable prevKey1Down: bool = false
+  let mutable showPathfindingGrid: bool = false
+  let mutable prevKey2Down: bool = false
+  let mutable currentPath: Position[] = Array.empty
+  let mutable pathPreview: PathPreview.PathSegment[] = Array.empty
 
   do
     base.Services.AddService(
@@ -151,6 +158,7 @@ type PomoGame() as this =
     enemyId <- enemyIdLocal
 
     // Set initial positions for visibility (Phase 6.1) and give player a basic ability (Phase 6.2)
+    // Add terrain objects and transitions for Phase 6.5 & 6.6 visualization
     transact(fun _ ->
       let scenario = GameState.getActiveScenario state |> AVal.force
 
@@ -175,13 +183,99 @@ type PomoGame() as this =
         {
           e with
               Position = { X = 220f; Y = 140f }
-        })
+        }
+
+      // Add terrain objects for pathfinding visualization
+      let terrainObjects = [
+        // Blocked wall
+        {
+          Id = %Guid.NewGuid()
+          Position = { X = 300f; Y = 200f }
+          CollisionGeometry = Polygon([|
+            { X = 280f; Y = 180f }
+            { X = 320f; Y = 180f }
+            { X = 320f; Y = 220f }
+            { X = 280f; Y = 220f }
+          |])
+          TerrainType = TerrainType.Blocked
+          DepthLayer = 0.6f
+          SpriteId = ValueSome "wall"
+        }
+        // Water area
+        {
+          Id = %Guid.NewGuid()
+          Position = { X = 500f; Y = 300f }
+          CollisionGeometry = Circle({ X = 500f; Y = 300f }, 40f)
+          TerrainType = TerrainType.Water
+          DepthLayer = 0.4f
+          SpriteId = ValueSome "water"
+        }
+        // Hazard area
+        {
+          Id = %Guid.NewGuid()
+          Position = { X = 700f; Y = 150f }
+          CollisionGeometry = Circle({ X = 700f; Y = 150f }, 30f)
+          TerrainType = TerrainType.Hazard
+          DepthLayer = 0.5f
+          SpriteId = ValueSome "hazard"
+        }
+      ]
+
+      // Create updated scenario with terrain objects and transitions
+      let transitions = [|
+        {
+          FromPosition = { X = 50f; Y = 300f }
+          ToScenarioId = %Guid.NewGuid()
+          ToPosition = { X = 750f; Y = 300f }
+          RequiresCondition = ValueNone
+        }
+        {
+          FromPosition = { X = 750f; Y = 100f }
+          ToScenarioId = %Guid.NewGuid()
+          ToPosition = { X = 100f; Y = 100f }
+          RequiresCondition = ValueNone
+        }
+      |]
+
+      let updatedTerrainObjects = 
+        terrainObjects |> List.fold (fun acc obj -> IndexList.add obj acc) scenario.scenario.TerrainObjects
+
+      let updatedScenario = {
+        scenario.scenario with
+            TerrainObjects = updatedTerrainObjects
+            Transitions = transitions
+      }
+
+      // Update the scenario state
+      let updatedScenarioState = { scenario with scenario = updatedScenario }
+      
+      // Update the scenario in the game state
+      let activeScenarioId = state.activeScenarioId |> AVal.force
+      state.scenarios.[activeScenarioId] <- updatedScenarioState)
 
     gameState <- ValueSome state
 
     Console.WriteLine("[Phase 6] Game initialized with player and enemy")
     Console.WriteLine($"[Phase 6] Player ID: {playerId}")
     Console.WriteLine($"[Phase 6] Enemy ID: {enemyId}")
+    Console.WriteLine("")
+    Console.WriteLine("=== PHASE 6.5 & 6.6 VISUAL CONTROLS ===")
+    Console.WriteLine("Right Click: Move with pathfinding (shows path preview)")
+    Console.WriteLine("Key 2: Toggle pathfinding grid visualization")
+    Console.WriteLine("Left Click: Select entity")  
+    Console.WriteLine("Key 1: Use ability on selected target")
+    Console.WriteLine("")
+    Console.WriteLine("Visual Elements:")
+    Console.WriteLine("- Brown rectangles: Blocked terrain (walls)")
+    Console.WriteLine("- Light blue circles: Water terrain (slower movement)")
+    Console.WriteLine("- Red-orange circles: Hazard terrain (damage over time)")
+    Console.WriteLine("- Purple squares: Transition points (portals)")
+    Console.WriteLine("- Green lines: Valid path preview")
+    Console.WriteLine("- Red lines: Invalid path preview")
+    Console.WriteLine("- Yellow borders: Scenario bounds")
+    Console.WriteLine("- Grid overlay: Pathfinding navigation grid (toggle with Key 2)")
+    Console.WriteLine("=======================================")
+    Console.WriteLine("")
 
 
   override this.LoadContent() =
@@ -245,6 +339,21 @@ type PomoGame() as this =
         if rightMouseDown && not prevRightMouseDown then
           let mouseScreen = InputManager.getMousePosition()
           let world = InputManager.screenToWorld mouseScreen view
+
+          // Generate pathfinding preview
+          match scenario.entities |> AMap.force |> HashMap.tryFindV playerId with
+          | ValueSome playerComp ->
+            let grid = Grid.create scenario.scenario 32.0f
+            match AStar.findPath grid playerComp.Position { X = world.X; Y = world.Y } with
+            | ValueSome path ->
+              currentPath <- path
+              pathPreview <- PathPreview.generatePreview scenario.scenario path 12.0f
+              Console.WriteLine($"[Pathfinding] Generated path with {path.Length} waypoints")
+            | ValueNone ->
+              currentPath <- Array.empty
+              pathPreview <- Array.empty
+              Console.WriteLine("[Pathfinding] No valid path found")
+          | ValueNone -> ()
 
           let moveCmd =
             Rules.Move {
@@ -312,6 +421,14 @@ type PomoGame() as this =
 
         prevKey1Down <- key1
 
+        let key2 = Keyboard.GetState().IsKeyDown(Keys.D2)
+
+        if key2 && not prevKey2Down then
+          showPathfindingGrid <- not showPathfindingGrid
+          Console.WriteLine($"[Debug] Pathfinding grid visibility: {showPathfindingGrid}")
+
+        prevKey2Down <- key2
+
         base.Update(gameTime)
       | ValueNone -> base.Update(gameTime)
 
@@ -354,6 +471,10 @@ type PomoGame() as this =
         view
         selected
         bounds
+        scenario.scenario
+        showPathfindingGrid
+        pathPreview
+        currentPath
     | _ -> ()
 
     base.Draw(gameTime)
