@@ -55,7 +55,7 @@ type ``Pathfinding Tests``() =
   [<Fact>]
   member _.``Grid creation works correctly``() =
     let scenario = createTestScenario()
-    let grid = Grid.create scenario 32f
+    let grid = Grid.createWithEntities scenario 32f 16f [||] (Guid.Empty |> UMX.tag<EntityId>)
 
     Assert.Equal(13, grid.Width) // ceil(400/32) = 13
     Assert.Equal(13, grid.Height)
@@ -66,7 +66,7 @@ type ``Pathfinding Tests``() =
   [<Fact>]
   member _.``World to grid conversion works correctly``() =
     let scenario = createTestScenario()
-    let grid = Grid.create scenario 32f
+    let grid = Grid.createWithEntities scenario 32f 16f [||] (Guid.Empty |> UMX.tag<EntityId>)
 
     let struct (gridX, gridY) = Grid.worldToGrid grid { X = 100f; Y = 100f }
 
@@ -76,7 +76,7 @@ type ``Pathfinding Tests``() =
   [<Fact>]
   member _.``Grid to world conversion works correctly``() =
     let scenario = createTestScenario()
-    let grid = Grid.create scenario 32f
+    let grid = Grid.createWithEntities scenario 32f 16f [||] (Guid.Empty |> UMX.tag<EntityId>)
 
     let worldPos = Grid.gridToWorld grid 3 3
 
@@ -86,7 +86,7 @@ type ``Pathfinding Tests``() =
   [<Fact>]
   member _.``Grid cells detect blocked terrain correctly``() =
     let scenario = createTestScenario()
-    let grid = Grid.create scenario 32f
+    let grid = Grid.createWithEntities scenario 32f 16f [||] (Guid.Empty |> UMX.tag<EntityId>)
 
     // The blocked circle at (200, 150) with radius 30 should affect nearby cells
     let struct (blockedX, blockedY) =
@@ -99,7 +99,7 @@ type ``Pathfinding Tests``() =
   [<Fact>]
   member _.``Grid cells detect water terrain with higher cost``() =
     let scenario = createTestScenario()
-    let grid = Grid.create scenario 32f
+    let grid = Grid.createWithEntities scenario 32f 16f [||] (Guid.Empty |> UMX.tag<EntityId>)
 
     // The water area at (100, 250) should have higher cost
     let struct (waterX, waterY) = Grid.worldToGrid grid { X = 100f; Y = 250f }
@@ -111,7 +111,7 @@ type ``Pathfinding Tests``() =
   [<Fact>]
   member _.``AStar finds path around obstacles``() =
     let scenario = createTestScenario()
-    let grid = Grid.create scenario 32f
+    let grid = Grid.createWithEntities scenario 32f 16f [||] (Guid.Empty |> UMX.tag<EntityId>)
 
     let start = { X = 50f; Y = 50f }
     let goal = { X = 350f; Y = 350f }
@@ -157,7 +157,7 @@ type ``Pathfinding Tests``() =
             ]
     }
 
-    let grid = Grid.create scenario 32f
+    let grid = Grid.createWithEntities scenario 32f 16f [||] (Guid.Empty |> UMX.tag<EntityId>)
 
     let start = { X = 50f; Y = 50f }
     let goal = { X = 350f; Y = 350f }
