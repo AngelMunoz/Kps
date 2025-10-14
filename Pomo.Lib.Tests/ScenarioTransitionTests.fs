@@ -218,7 +218,7 @@ type ``Scenario Transition Tests``() =
     // Check different combat types
     Assert.Equal(PvE, town.CombatType)
     Assert.Equal(PvE, wilderness.CombatType)
-    Assert.Equal(PvPvE, dungeon.CombatType)
+    Assert.Equal(PvH, dungeon.CombatType)
 
   [<Fact>]
   member _.``Town scenario has correct layout``() =
@@ -290,7 +290,7 @@ type ``Scenario Transition Tests``() =
     Assert.Equal(600f, dungeon.BoundsHeight)
     Assert.Equal(3, dungeon.TerrainObjects.Count) // Wall + lava + water trap
     Assert.Single(dungeon.Transitions) |> ignore // Back to wilderness
-    Assert.Equal(PvPvE, dungeon.CombatType) // More dangerous combat
+    Assert.Equal(PvH, dungeon.CombatType) // More dangerous combat
 
     // Check terrain types for dungeon features
     let terrainArray = dungeon.TerrainObjects |> IndexList.toArray

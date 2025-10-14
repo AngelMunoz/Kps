@@ -1013,6 +1013,16 @@ type ``Combat Mechanics Properties``() =
       gameTime = (getActiveScenario state).gameTime
       services = state.services
       scenario = (getActiveScenario state).scenario
+      scenarioState = {
+        scenario = (getActiveScenario state).scenario
+        entities = (getActiveScenario state).entities
+        gameTime = (getActiveScenario state).gameTime
+        battleContext = (getActiveScenario state).battleContext
+        battleInstances = Array.empty
+      }
+      players = AMap.empty
+      parties = AMap.empty
+
     }
 
     let formulaId =

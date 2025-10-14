@@ -195,6 +195,7 @@ module ScenarioDefinitions =
     BoundsHeight = 600f
     BattleEnabled = false
     CombatType = PvE
+    EngagementMode = Peaceful
     TerrainObjects =
       IndexList.ofList [
         // Buildings as blocked areas
@@ -253,6 +254,7 @@ module ScenarioDefinitions =
       BoundsHeight = 800f
       BattleEnabled = true
       CombatType = PvE
+      EngagementMode = AlwaysOn
       TerrainObjects =
         IndexList.ofList [
           // Dense forest areas as blocked terrain
@@ -325,7 +327,8 @@ module ScenarioDefinitions =
       BoundsWidth = 600f
       BoundsHeight = 600f
       BattleEnabled = true
-      CombatType = PvPvE
+      CombatType = PvH
+      EngagementMode = Structured
       TerrainObjects =
         IndexList.ofList [
           // Dungeon walls

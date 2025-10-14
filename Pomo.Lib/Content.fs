@@ -288,6 +288,7 @@ module AbilityStore =
       {
         Id = 1<AbilityId>
         Name = "Melee Attack"
+        Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 2000L<Tick> // 2 seconds
         Targeting = TargetType.SingleEnemy
@@ -299,6 +300,7 @@ module AbilityStore =
       {
         Id = 2<AbilityId>
         Name = "Fireball"
+        Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 20 }
         Cooldown = 5000L<Tick> // 5 seconds
         Targeting = TargetType.SingleEnemy
@@ -310,6 +312,7 @@ module AbilityStore =
       {
         Id = 3<AbilityId>
         Name = "No-Stack Spell"
+        Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
         Targeting = TargetType.SingleEnemy
@@ -321,6 +324,7 @@ module AbilityStore =
       {
         Id = 4<AbilityId>
         Name = "Buff Spell"
+        Intent = AbilityIntent.Support
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
         Targeting = TargetType.Self
@@ -332,6 +336,7 @@ module AbilityStore =
       {
         Id = 5<AbilityId>
         Name = "Shield Spell"
+        Intent = AbilityIntent.Support
         Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
         Cooldown = 1000L<Tick>
         Targeting = TargetType.SingleAlly
@@ -343,6 +348,7 @@ module AbilityStore =
       {
         Id = 6<AbilityId>
         Name = "Poison Spell"
+        Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
         Targeting = TargetType.SingleEnemy
@@ -354,6 +360,7 @@ module AbilityStore =
       {
         Id = 7<AbilityId>
         Name = "Regen Spell"
+        Intent = AbilityIntent.Support
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = 1000L<Tick>
         Targeting = TargetType.SingleAlly
@@ -365,6 +372,7 @@ module AbilityStore =
       {
         Id = 8<AbilityId>
         Name = "Basic Melee Attack No Cost"
+        Intent = AbilityIntent.Offensive
         Cost = ValueNone
         Cooldown = 1000L<Tick>
         Targeting = TargetType.SingleEnemy
@@ -376,6 +384,7 @@ module AbilityStore =
       {
         Id = 9<AbilityId>
         Name = "Silence Spell"
+        Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 25 }
         Cooldown = 10000L<Tick> // 10 seconds
         Targeting = TargetType.SingleEnemy
@@ -388,6 +397,7 @@ module AbilityStore =
       {
         Id = 100<AbilityId>
         Name = "Sacrificial Strike"
+        Intent = AbilityIntent.Offensive
         Cost = ValueNone
         Cooldown = 3000L<Tick>
         Targeting = TargetType.SingleEnemy
@@ -399,6 +409,7 @@ module AbilityStore =
       {
         Id = 101<AbilityId>
         Name = "MP Conversion"
+        Intent = AbilityIntent.Support
         Cost = ValueSome { Type = ResourceType.MP; Amount = 20 }
         Cooldown = 5000L<Tick>
         Targeting = TargetType.Self
@@ -414,6 +425,7 @@ module AbilityStore =
       {
         Id = 1001<AbilityId>
         Name = "Total Concentration"
+        Intent = AbilityIntent.Neutral
         Requirements = Array.empty
         Effects = [| 108<EffectId> |]
       }
@@ -421,6 +433,7 @@ module AbilityStore =
       {
         Id = 1002<AbilityId>
         Name = "Mana Flow"
+        Intent = AbilityIntent.Neutral
         Requirements = Array.empty
         Effects = [| 107<EffectId> |]
       }

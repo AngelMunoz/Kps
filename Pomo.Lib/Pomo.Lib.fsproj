@@ -12,6 +12,7 @@
     <Compile Include="Effects.fs" />
     <Compile Include="Content.fs" />
     <Compile Include="Scenario.fs" />
+    <Compile Include="Battle.fs" />
     <Compile Include="Collision.fs" />
     <Compile Include="Pathfinding.fs" />
     <Compile Include="ScenarioTransitions.fs" />

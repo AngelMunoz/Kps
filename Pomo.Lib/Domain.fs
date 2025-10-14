@@ -23,6 +23,9 @@ type FormulaId
 [<Measure>]
 type ObjectId
 
+[<Measure>]
+type ScenarioId
+
 // Core types available at namespace level
 [<Struct>]
 type ResourceType =
@@ -104,6 +107,58 @@ type AbilityRequirement =
   | StatRequirement of Stat * int
   | AbilityRequirement of int<AbilityId>
   | FormulaRequirement of int<FormulaId>
+
+[<Struct>]
+type ScenarioCombatType =
+  | PvE
+  | PvP
+  | PvH
+
+[<Measure>]
+type PartyId
+
+type Party = {
+  Id: Guid<PartyId>
+  Members: HashSet<Guid<EntityId>>
+  Name: string
+}
+
+[<Measure>]
+type PlayerId
+
+[<Struct>]
+type PlayerContext = {
+  playerId: int<PlayerId>
+  currentScenarioId: Guid<ScenarioId>
+  controlledEntityId: Guid<EntityId>
+}
+
+[<Struct>]
+type BattleContext = {
+  IsActive: bool
+  Participants: HashSet<Guid<EntityId>>
+  StartTick: int64<Tick>
+  CanDisengage: bool
+}
+
+[<Struct>]
+type AbilityIntent =
+  | Offensive
+  | Support
+  | Neutral
+
+[<Struct>]
+type EngagementMode =
+  | Peaceful
+  | AlwaysOn
+  | Structured
+
+[<Struct>]
+type BattleInstance = {
+  Id: Guid
+  Participants: HashSet<Guid<EntityId>>
+  StartTick: int64<Tick>
+}
 
 module Classification =
   [<Struct>]
@@ -342,6 +397,7 @@ module Abilities =
   type PassiveAbilityDefinition = {
     Id: int<AbilityId>
     Name: string
+    Intent: AbilityIntent
     Effects: int<EffectId>[]
     Requirements: AbilityRequirement[]
   }
@@ -350,6 +406,7 @@ module Abilities =
   type ActiveAbilityDefinition = {
     Id: int<AbilityId>
     Name: string
+    Intent: AbilityIntent
     Cooldown: int64<Tick>
     Cost: ResourceCost voption
     Targeting: TargetType

@@ -15,6 +15,8 @@ open Pomo.Lib.Scenario
 type GameState = {
   scenarios: cmap<Guid<ScenarioId>, ScenarioState>
   activeScenarioId: Guid<ScenarioId> cval
+  players: cmap<int<PlayerId>, PlayerContext>
+  parties: cmap<Guid<PartyId>, Party>
   services: Services.EngineServices
 }
 
@@ -303,6 +305,8 @@ module GameState =
     {
       scenarios = cmap [ initialScenarioId, initialScenarioState ]
       activeScenarioId = cval initialScenarioId
+      players = cmap()
+      parties = cmap()
       services = services
     }
 
@@ -377,12 +381,14 @@ module GameState =
           CenterY = 0f
         }
 
+        let! _entities = scenario.entities |> AMap.toAVal
+
         let movedComponents =
           Pomo.Lib.Movement.Update.updateEntityWithContext
             time
             bounds
             scenario.scenario
-            (scenario.entities |> AMap.force)
+            _entities
             entityId
             components
 

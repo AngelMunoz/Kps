@@ -22,7 +22,7 @@ type PathNode = {
   GCost: float32
   HCost: float32
   FCost: float32
-  Parent: PathNode option
+  Parent: PathNode voption
 }
 
 [<Struct>]
@@ -170,15 +170,25 @@ module AStar =
     sqrt(dx * dx + dy * dy)
 
   let private reconstructPath(node: PathNode) : Position[] =
-    let path = ResizeArray<Position>()
-    let mutable current = Some node
+    let mutable count = 0
+    let mutable c = ValueSome node
 
-    while current.IsSome do
-      path.Add current.Value.Position
-      current <- current.Value.Parent
+    while c.IsValueSome do
+      count <- count + 1
+      let v = c.Value
+      c <- v.Parent
 
-    path.Reverse()
-    path.ToArray()
+    let arr = Array.zeroCreate<Position> count
+    c <- ValueSome node
+    let mutable i = count - 1
+
+    while c.IsValueSome do
+      let v = c.Value
+      arr[i] <- v.Position
+      i <- i - 1
+      c <- v.Parent
+
+    arr
 
   let findPath
     (grid: PathfindingGrid)
@@ -195,8 +205,7 @@ module AStar =
     then
       ValueNone
     else
-      let openSet =
-        System.Collections.Generic.PriorityQueue<PathNode, float32>()
+      let openSet = Collections.Generic.PriorityQueue<PathNode, float32>()
 
       let mutable closedSet = HashSet<struct (int * int)>.Empty
       let mutable gScore = HashMap<struct (int * int), float32>.Empty
@@ -209,7 +218,7 @@ module AStar =
         GCost = 0f
         HCost = heuristic startPos goalPos
         FCost = heuristic startPos goalPos
-        Parent = None
+        Parent = ValueNone
       }
 
       openSet.Enqueue(startNode, startNode.FCost)
@@ -217,7 +226,7 @@ module AStar =
 
       let mutable found = ValueNone
 
-      while openSet.Count > 0 && found.IsNone do
+      while openSet.Count > 0 && found.IsValueNone do
         let current = openSet.Dequeue()
         let struct (currentX, currentY) = Grid.worldToGrid grid current.Position
 
@@ -257,7 +266,7 @@ module AStar =
                   GCost = tentativeGScore
                   HCost = hCost
                   FCost = fCost
-                  Parent = Some current
+                  Parent = ValueSome current
                 }
 
                 openSet.Enqueue(neighborNode, fCost)

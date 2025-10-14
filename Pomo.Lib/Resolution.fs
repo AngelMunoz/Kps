@@ -12,8 +12,9 @@ open Pomo.Lib.Gameplay
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Services
 open Pomo.Lib.Domain.Abilities
-open Pomo.Lib.Movement
 open Pomo.Lib.Scenario
+
+open Pomo.Lib.Battle
 
 module Resolution =
   let calculateHitChance attackerStat defenderStat =
@@ -166,6 +167,9 @@ module Resolution =
     gameTime: cval<int64<Tick>>
     services: EngineServices
     scenario: Scenario
+    scenarioState: ScenarioState
+    players: amap<int<PlayerId>, PlayerContext>
+    parties: amap<Guid<PartyId>, Party>
   }
 
   type ResolverActors = {
@@ -517,6 +521,7 @@ module Resolution =
     | NotAlive
     | NotFound
     | IsPassive
+    | InvalidTarget
     | ValidAction of ValidatedActionResult
 
   let validateAction
@@ -536,48 +541,60 @@ module Resolution =
 
       match actor, target with
       | Some actor, Some target when actor.Resources.Status = Alive ->
-        let! actorStats = rparams.derivedStats |> AMap.find ractors.actor
+        let! canUse =
+          Engagement.canUseAbility
+            rparams.scenario
+            rparams.parties
+            ractors.actor
+            target
+            ractors.target
+            abilityDef
 
-        let! isStunned = ValidateAction.checkStun actor
-
-        let! isSilenced = ValidateAction.checkSilence actor abilityDef
-
-        let! isOnCooldown =
-          ValidateAction.checkCooldown actor abilityId rparams.gameTime
-
-        let struct (hasEnoughResource, cost) =
-          ValidateAction.checkResourceCost actor abilityDef
-
-        let hasRequirements =
-          ValidateAction.checkAbilityRequirements
-            actor
-            actorStats
-            abilityDef.Requirements
-
-        if isStunned then
-          return Stunned
-        else if isSilenced then
-          return Silenced
-        else if isOnCooldown then
-          return OnCooldown
-        else if not hasEnoughResource then
-          return InsufficientResource
-        else if not hasRequirements then
-          return MissingRequirements
+        if not canUse then
+          return InvalidTarget
         else
+          let! actorStats = rparams.derivedStats |> AMap.find ractors.actor
 
-          let! struct (targetId, targetComponents) =
-            ValidateAction.resolveTaunt rparams ractors target
+          let! isStunned = ValidateAction.checkStun actor
 
-          return
-            ValidAction {
-              actor = actor
-              target = targetId
-              targetComponents = targetComponents
-              cost = cost
-              abilityDefinition = abilityDef
-              actorComponents = actor
-            }
+          let! isSilenced = ValidateAction.checkSilence actor abilityDef
+
+          let! isOnCooldown =
+            ValidateAction.checkCooldown actor abilityId rparams.gameTime
+
+          let struct (hasEnoughResource, cost) =
+            ValidateAction.checkResourceCost actor abilityDef
+
+          let hasRequirements =
+            ValidateAction.checkAbilityRequirements
+              actor
+              actorStats
+              abilityDef.Requirements
+
+          if isStunned then
+            return Stunned
+          else if isSilenced then
+            return Silenced
+          else if isOnCooldown then
+            return OnCooldown
+          else if not hasEnoughResource then
+            return InsufficientResource
+          else if not hasRequirements then
+            return MissingRequirements
+          else
+
+            let! struct (targetId, targetComponents) =
+              ValidateAction.resolveTaunt rparams ractors target
+
+            return
+              ValidAction {
+                actor = actor
+                target = targetId
+                targetComponents = targetComponents
+                cost = cost
+                abilityDefinition = abilityDef
+                actorComponents = actor
+              }
       | _ -> return NotAlive
     }
 
@@ -678,6 +695,7 @@ module Resolution =
       | NotAlive
       | InsufficientResource
       | OnCooldown
+      | InvalidTarget
       | MissingRequirements ->
         return {
           updates = HashMap.empty
@@ -787,19 +805,26 @@ module Resolution =
     }
 
   let evaluate (state: GameState) (cmd: Command) : aval<StateChange> = adaptive {
-    let! scenario = GameState.getActiveScenario state
+    let! activeScenarioId = state.activeScenarioId
+    let! scenarioState = state.scenarios |> AMap.find activeScenarioId
+    let scenario = scenarioState.scenario
     let! derivedStats = GameState.getDerivedStats state
     let! enemies = GameState.getEnemies state
     let! allies = GameState.getAllies state
+    let players = state.players
+    let parties = state.parties
 
     let resolverParams = {
-      entities = scenario.entities
+      entities = scenarioState.entities
       enemies = enemies
       allies = allies
       derivedStats = derivedStats
-      gameTime = scenario.gameTime
+      gameTime = scenarioState.gameTime
       services = state.services
-      scenario = scenario.scenario
+      scenario = scenario
+      scenarioState = scenarioState
+      players = players
+      parties = parties
     }
 
     match cmd with

@@ -6,14 +6,7 @@ open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Components
 
-[<Measure>]
-type ScenarioId
 
-[<Struct>]
-type ScenarioCombatType =
-  | PvE
-  | PvP
-  | PvPvE
 
 [<Struct>]
 type ScenarioTransition = {
@@ -30,6 +23,7 @@ type Scenario = {
   BoundsHeight: float32
   BattleEnabled: bool
   CombatType: ScenarioCombatType
+  EngagementMode: EngagementMode
   TerrainObjects: TerrainObject IndexList
   VisualLayers: VisualLayer[]
   Transitions: ScenarioTransition[]
@@ -40,6 +34,8 @@ type ScenarioState = {
   scenario: Scenario
   entities: cmap<Guid<EntityId>, EntityComponents>
   gameTime: cval<int64<Tick>>
+  battleContext: BattleContext voption
+  battleInstances: BattleInstance[]
 }
 
 type GameStateScenarios = {
@@ -56,12 +52,15 @@ module ScenarioState =
       BoundsHeight = boundsHeight
       BattleEnabled = false
       CombatType = PvE
+      EngagementMode = Peaceful
       TerrainObjects = IndexList.empty
       VisualLayers = Array.empty
       Transitions = Array.empty
     }
     entities = cmap()
     gameTime = cval 0L<Tick>
+    battleContext = ValueNone
+    battleInstances = Array.empty
   }
 
 module ScenarioManager =
@@ -71,16 +70,15 @@ module ScenarioManager =
     scenario = scenario
     entities = cmap()
     gameTime = cval 0L<Tick>
+    battleContext = ValueNone
+    battleInstances = Array.empty
   }
 
   let getScenarioState
     (scenarioId: Guid<ScenarioId>)
     (gameState: GameStateScenarios)
-    : ScenarioState voption =
-    gameState.scenarios
-    |> AMap.tryFind scenarioId
-    |> AVal.force
-    |> ValueOption.ofOption
+    =
+    gameState.scenarios |> AMap.tryFind scenarioId
 
   let addEntityToScenario
     (scenarioId: Guid<ScenarioId>)
@@ -105,11 +103,5 @@ module ScenarioManager =
       gameTime = ValueNone
     }
 
-  let listScenarios
-    (gameState: GameStateScenarios)
-    : (Guid<ScenarioId> * string) list =
-    gameState.scenarios
-    |> AMap.toAVal
-    |> AVal.force
-    |> HashMap.toList
-    |> List.map(fun (id, state) -> (id, state.scenario.Name))
+  let listScenarios(gameState: GameStateScenarios) =
+    gameState.scenarios |> AMap.toAVal |> AVal.map(HashMap.toArrayV)
