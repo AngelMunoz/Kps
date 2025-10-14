@@ -83,9 +83,9 @@ module GameState =
         Destination = ValueNone
         Path = []
       }
-      Effects = AList.empty
+      Effects = HashMap.empty
       Abilities = kit.StarterAbilities
-      AbilityCooldowns = AMap.empty
+      AbilityCooldowns = HashMap.empty
       Equipment = HashMap.empty
     }
 
@@ -250,7 +250,8 @@ module GameState =
   let inline getAliveEntities(state: GameState) =
     adaptive {
       let! scenario = GameState.getActiveScenario state
-      return! Projections.aAlive scenario.entities |> ASet.toAVal
+      let! aliveEntities = Projections.aAlive scenario.entities |> AMap.toAVal
+      return aliveEntities
     }
     |> AVal.force
 
@@ -262,11 +263,11 @@ module GameState =
       let! found = scenario.entities |> AMap.tryFind entityId
 
       match found with
-      | None -> return HashSet.empty
+      | None -> return HashMap.empty
       | Some components ->
         return!
           Projections.aReadyForEntity components scenario.gameTime
-          |> ASet.toAVal
+          |> AMap.toAVal
     }
     |> AVal.force
 

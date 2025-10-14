@@ -95,96 +95,63 @@ module StatusEffects =
 
   let tickEffects
     (effectStore: Services.IEffectStore)
-    activeEffects
+    (activeEffects: HashMap<int<EffectId>, ActiveEffect>)
     ticksElapsed
     =
-    adaptive {
-      let remaining =
-        activeEffects
-        |> AList.filter(fun effect ->
-          let newRemaining = effect.RemainingTicks - ticksElapsed
-          let effectDef = effectStore.find effect.EffectId
+    let mutable updated = HashMap.empty
+    let mutable totalDamage = 0
+    let mutable totalHealing = 0
 
-          match effectDef.Duration with
-          | Loop _ ->
-            // Periodic effects should be processed even when reaching 0 remaining time
-            // to allow the final tick
-            newRemaining >= 0L<Tick>
-          | _ ->
-            // Non-periodic effects expire when remaining time <= 0
-            newRemaining > 0L<Tick>)
-      // 2. Process the remaining effects to handle ticks and update timers.
-      // We'll collect updated effects and aggregated results in one pass.
-      let! struct (updatedRemaining, tickResult) =
-        remaining
-        |> AList.fold
-          (fun acc effect ->
-            let struct (accEffects, accResult) = acc
-            let newRemainingTicks = effect.RemainingTicks - ticksElapsed
-            let newNextTickIn = effect.NextTickIn - ticksElapsed
-            let effectDef = effectStore.find effect.EffectId
+    for effectId, effect in activeEffects do
+      let newRemainingTicks = effect.RemainingTicks - ticksElapsed
+      let newNextTickIn = effect.NextTickIn - ticksElapsed
+      let effectDef = effectStore.find effect.EffectId
 
-            let updatedEffect, result =
-              match effectDef.Duration with
-              | Loop(interval, _) when newNextTickIn <= 0L<Tick> ->
-                // This periodic effect should tick.
+      let isLoop, interval =
+        match effectDef.Duration with
+        | Loop(i, _) -> true, i
+        | _ -> false, 0L<Tick>
 
-                // Process DoT/HoT damage/healing based on effect kind
-                let amountOverTime =
-                  match effectDef.Kind with
-                  | EffectKind.DamageOverTime -> {
-                      Damage =
-                        processAmountOverTime
-                          struct (effect.Stacks, effectDef.Modifiers)
-                      Healing = 0
-                    }
-                  | EffectKind.HealOverTime -> {
-                      Damage = 0
-                      Healing =
-                        processAmountOverTime
-                          struct (effect.Stacks, effectDef.Modifiers)
-                    }
-                  | _ -> { Damage = 0; Healing = 0 }
+      let shouldTick = isLoop && newNextTickIn <= 0L<Tick>
 
-                let updated =
-                  let willExpire = newRemainingTicks <= 0L<Tick>
+      let willExpire =
+        match effectDef.Duration with
+        | Loop _ -> newRemainingTicks <= 0L<Tick>
+        | _ -> newRemainingTicks <= 0L<Tick>
 
-                  {
-                    effect with
-                        RemainingTicks =
-                          if willExpire then 0L<Tick> else newRemainingTicks
-                        NextTickIn =
-                          if willExpire then
-                            0L<Tick>
-                          else
-                            interval + newNextTickIn
-                  }
+      if shouldTick then
+        match effectDef.Kind with
+        | EffectKind.DamageOverTime ->
+          totalDamage <-
+            totalDamage
+            + processAmountOverTime struct (effect.Stacks, effectDef.Modifiers)
+        | EffectKind.HealOverTime ->
+          totalHealing <-
+            totalHealing
+            + processAmountOverTime struct (effect.Stacks, effectDef.Modifiers)
+        | _ -> ()
 
-                updated, amountOverTime
-              | _ ->
-                // Not a periodic effect or not time to tick yet.
-                let updated = {
-                  effect with
-                      RemainingTicks = newRemainingTicks
-                      NextTickIn = newNextTickIn
-                }
+      if not willExpire then
+        let nextTickIn =
+          if shouldTick then
+            interval + newNextTickIn
+          else
+            newNextTickIn
 
-                updated, TickResult.Zero
+        let updatedEffect = {
+          effect with
+              RemainingTicks =
+                if newRemainingTicks < 0L<Tick> then
+                  0L<Tick>
+                else
+                  newRemainingTicks
+              NextTickIn = nextTickIn
+        }
 
-            (IndexList.add updatedEffect accEffects),
+        updated <- HashMap.add effectId updatedEffect updated
+
+    struct (updated,
             {
-              accResult with
-                  Damage = accResult.Damage + result.Damage
-                  Healing = accResult.Healing + result.Healing
+              Damage = totalDamage
+              Healing = totalHealing
             })
-          (IndexList.empty, TickResult.Zero)
-
-
-      // 4. Combine all events and return the final state.
-      // The fold processes in reverse, so we reverse the results back.
-      let finalEffects =
-        updatedRemaining
-        |> IndexList.filter(fun effect -> effect.RemainingTicks > 0L<Tick>)
-
-      return struct (finalEffects, tickResult)
-    }

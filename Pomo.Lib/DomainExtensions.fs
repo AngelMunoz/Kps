@@ -64,9 +64,3 @@ module DamageResult =
     Element = Attributes.Neutral
     ElementalDamage = 0
   }
-
-  let tryAdd (d1: Abilities.DamageResult) (d2: Abilities.DamageResult) =
-    try
-      ValueSome(d1 + d2)
-    with _ ->
-      ValueNone

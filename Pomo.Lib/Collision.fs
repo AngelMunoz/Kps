@@ -51,8 +51,8 @@ module Geometry =
       let mutable i = 0
 
       while not hit && i < n do
-        let a = vertices.[i]
-        let b = vertices.[(i + 1) % n]
+        let a = vertices[i]
+        let b = vertices[(i + 1) % n]
         let ab = sub b a
         let ac = sub center a
         let denom = dot ab ab
@@ -72,22 +72,20 @@ module Geometry =
           Y = a.Y + ab.Y * t
         }
 
-        let d = dist closest center
-
-        if d <= radius then
+        if dist closest center <= radius then
           hit <- true
 
         i <- i + 1
 
       hit
 
-  let isCircleIntersectCircle
+  let inline isCircleIntersectCircle
     (c1: Position)
     (r1: float32)
     (c2: Position)
     (r2: float32)
     : bool =
-    dist c1 c2 <= (r1 + r2)
+    dist c1 c2 <= r1 + r2
 
 module Query =
   open Geometry

@@ -15,7 +15,7 @@ open Pomo.Lib.Scenario
 type GameState = {
   scenarios: cmap<Guid<ScenarioId>, ScenarioState>
   activeScenarioId: Guid<ScenarioId> cval
-  players: cmap<int<PlayerId>, PlayerContext>
+  players: cmap<Guid<PlayerId>, PlayerContext>
   parties: cmap<Guid<PartyId>, Party>
   services: Services.EngineServices
 }
@@ -120,7 +120,7 @@ module GameState =
   let private applyModifiers
     (services: Services.EngineServices)
     (baseStats: BaseAttributes)
-    (effects: alist<ActiveEffect>)
+    (effects: HashMap<int<EffectId>, ActiveEffect>)
     (equipment: HashMap<Inventory.Slot, Inventory.Equipment>)
     : aval<DerivedStats> =
 
@@ -131,14 +131,14 @@ module GameState =
       // Gather all effect modifiers from active effects
       let modifiers =
         effects
-        |> AList.collect(fun effect ->
-          getModifiersForEffect services.effectStore effect.EffectId
-          |> AList.ofArray)
+        |> HashMap.toArrayV
+        |> Array.collect(fun struct (effectId, effect) ->
+          getModifiersForEffect services.effectStore effect.EffectId)
 
       // Aggregate static modifiers by Stat and kind
-      let! addMap, subMap, mulMap, divMap =
+      let addMap, subMap, mulMap, divMap =
         modifiers
-        |> AList.fold
+        |> Array.fold
           (fun (addMap, subMap, mulMap, divMap) modifier ->
             match modifier with
             | EffectModifier.StaticMod statMod ->
@@ -227,9 +227,9 @@ module GameState =
       }
 
       // 2.5) Process DynamicMod modifiers: evaluate formulas and add to addMap
-      let! dynamicAddMap =
+      let dynamicAddMap =
         modifiers
-        |> AList.fold
+        |> Array.fold
           (fun dynAddMap modifier ->
             match modifier with
             | EffectModifier.DynamicMod(formulaId, stat) ->
@@ -300,7 +300,13 @@ module GameState =
     let initialScenarioId = %Guid.NewGuid()
 
     let initialScenarioState =
-      ScenarioState.create initialScenarioId "Test Scenario" 2000f 2000f
+      {
+        Id = initialScenarioId
+        Name = "Test Scenario"
+        BoundsWidth = 2000f
+        BoundsHeight = 2000f
+      }
+      |> ScenarioState.create id
 
     {
       scenarios = cmap [ initialScenarioId, initialScenarioState ]
@@ -368,7 +374,7 @@ module GameState =
     let! allEntityChanges =
       scenario.entities
       |> AMap.mapA(fun entityId components -> adaptive {
-        let! updatedEffects, tickResult =
+        let struct (updatedEffects, tickResult) =
           StatusEffects.tickEffects
             state.services.effectStore
             components.Effects
@@ -413,7 +419,7 @@ module GameState =
 
         let updatedComponents = {
           movedComponents with
-              Effects = updatedEffects |> AList.ofIndexList
+              Effects = updatedEffects
               Resources = updatedResources
         }
 
@@ -455,35 +461,34 @@ module Projections =
 
 
   let aAlive entities =
-    entities
-    |> AMap.toASet
-    |> ASet.filter(fun (_, c) -> c.Resources.Status = Status.Alive)
-    |> ASet.map fst
+    entities |> AMap.filter(fun _ c -> c.Resources.Status.IsAlive)
 
-  let aReadyAbilities entities gameTime =
-    let allCoolDowns =
+  let aReadyAbilities entities gameTime = adaptive {
+    let! gameTime = gameTime
+    let! entities = entities |> AMap.toAVal
+    let entities = entities |> HashMap.toArrayV
+
+    return
       entities
-      |> AMap.toASet
-      |> ASet.collect(fun (id, c) ->
+      |> Array.collect(fun struct (_, c) ->
         c.AbilityCooldowns
-        |> AMap.toASet
-        |> ASet.map(fun (abilityId, readyTick) -> id, abilityId, readyTick))
+        |> HashMap.toArrayV
+        |> Array.filter(fun struct (_, readyTick) -> readyTick <= gameTime))
+      |> HashMap.OfArray
 
-    allCoolDowns
-    |> ASet.filterA(fun (_, _, readyTick) -> adaptive {
-      let! gameTime = gameTime
-      return readyTick <= gameTime
-    })
-    |> ASet.map(fun (id, abilityId, _) -> id, abilityId)
+  }
 
   let aReadyForEntity entity gameTime =
-    entity.AbilityCooldowns
-    |> AMap.toASet
-    |> ASet.chooseA(fun (abilityId, readyTick) -> adaptive {
+    adaptive {
       let! gameTime = gameTime
 
-      if readyTick <= gameTime then
-        return Some abilityId
-      else
-        return None
-    })
+      return
+        entity.AbilityCooldowns
+        |> HashMap.chooseV(fun abilityId readyTick ->
+          if readyTick <= gameTime then
+            ValueSome abilityId
+          else
+            ValueNone)
+
+    }
+    |> AMap.ofAVal

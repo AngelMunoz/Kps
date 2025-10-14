@@ -15,7 +15,6 @@ type TransitionTrigger = {
   Range: float32
   ToScenarioId: Guid<ScenarioId>
   ToPosition: Position
-  RequiresCondition: (unit -> bool) voption
 }
 
 [<Struct>]
@@ -43,20 +42,13 @@ module TransitionDetection =
       let distance = sqrt(dx * dx + dy * dy)
 
       if distance <= 32.0f then // Default trigger range
-        let canTransition =
-          match transition.RequiresCondition with
-          | ValueSome condition -> condition()
-          | ValueNone -> true
-
-        if canTransition then
-          found <-
-            ValueSome {
-              Position = transition.FromPosition
-              Range = 32.0f
-              ToScenarioId = transition.ToScenarioId
-              ToPosition = transition.ToPosition
-              RequiresCondition = transition.RequiresCondition
-            }
+        found <-
+          ValueSome {
+            Position = transition.FromPosition
+            Range = 32.0f
+            ToScenarioId = transition.ToScenarioId
+            ToPosition = transition.ToPosition
+          }
 
       i <- i + 1
 
@@ -238,7 +230,6 @@ module ScenarioDefinitions =
         FromPosition = { X = 750f; Y = 300f } // East exit
         ToScenarioId = %Guid.NewGuid() // Will be set when wilderness is created
         ToPosition = { X = 50f; Y = 300f } // West entrance of wilderness
-        RequiresCondition = ValueNone
       }
     |]
   }
@@ -306,13 +297,11 @@ module ScenarioDefinitions =
           FromPosition = { X = 50f; Y = 300f } // West entrance
           ToScenarioId = townId
           ToPosition = { X = 750f; Y = 300f } // East exit of town
-          RequiresCondition = ValueNone
         }
         {
           FromPosition = { X = 950f; Y = 400f } // East exit to dungeon
           ToScenarioId = %Guid.NewGuid() // Will be set when dungeon is created
           ToPosition = { X = 100f; Y = 400f } // West entrance of dungeon
-          RequiresCondition = ValueNone
         }
       |]
     }
@@ -388,7 +377,6 @@ module ScenarioDefinitions =
           FromPosition = { X = 100f; Y = 400f } // West entrance
           ToScenarioId = wildernessId
           ToPosition = { X = 950f; Y = 400f } // East exit of wilderness
-          RequiresCondition = ValueNone
         }
       |]
     }

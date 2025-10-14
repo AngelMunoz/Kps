@@ -174,7 +174,7 @@ type PomoGame() as this =
           p with
               Position = { X = 100f; Y = 140f }
               Abilities = abilities
-              AbilityCooldowns = (cooldowns :> amap<_, _>)
+              AbilityCooldowns = HashMap.empty
         }
 
       let e = scenario.entities[enemyId]
@@ -230,13 +230,11 @@ type PomoGame() as this =
           FromPosition = { X = 50f; Y = 300f }
           ToScenarioId = %Guid.NewGuid()
           ToPosition = { X = 750f; Y = 300f }
-          RequiresCondition = ValueNone
         }
         {
           FromPosition = { X = 750f; Y = 100f }
           ToScenarioId = %Guid.NewGuid()
           ToPosition = { X = 100f; Y = 100f }
-          RequiresCondition = ValueNone
         }
       |]
 

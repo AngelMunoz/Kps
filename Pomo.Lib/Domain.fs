@@ -354,19 +354,7 @@ module Abilities =
     ElementalDamage: int
     Element: Attributes.Element
     DamageType: DamageType
-  } with
-
-    static member inline (+)(a: DamageResult, b: DamageResult) : DamageResult =
-      if a.DamageType <> b.DamageType then
-        failwith "Cannot add DamageResults of different DamageTypes"
-      elif a.Element <> b.Element then
-        failwith "Cannot add DamageResults of different Elements"
-      else
-        {
-          a with
-              BaseDamage = a.BaseDamage + b.BaseDamage
-              ElementalDamage = a.ElementalDamage + b.ElementalDamage
-        }
+  }
 
   [<Struct>]
   type CalculationContext = {
@@ -438,13 +426,13 @@ module Components =
   open Inventory
 
   type EntityComponents = {
-    AbilityCooldowns: amap<int<AbilityId>, int64<Tick>>
-    Effects: ActiveEffect alist
     Identity: Classification.Profession
     BaseStats: Attributes.BaseAttributes
     Resources: Attributes.Resources
     Position: Position
     Movement: Movement
+    AbilityCooldowns: HashMap<int<AbilityId>, int64<Tick>>
+    Effects: HashMap<int<EffectId>, ActiveEffect>
     Factions: Classification.Faction HashSet
     Abilities: int<AbilityId> HashSet
     Equipment: HashMap<Slot, Equipment>

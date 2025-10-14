@@ -13,7 +13,6 @@ type ScenarioTransition = {
   FromPosition: Position
   ToScenarioId: Guid<ScenarioId>
   ToPosition: Position
-  RequiresCondition: (unit -> bool) voption
 }
 
 type Scenario = {
@@ -29,7 +28,6 @@ type Scenario = {
   Transitions: ScenarioTransition[]
 }
 
-[<Struct>]
 type ScenarioState = {
   scenario: Scenario
   entities: cmap<Guid<EntityId>, EntityComponents>
@@ -43,36 +41,55 @@ type GameStateScenarios = {
   activeScenarioId: Guid<ScenarioId> cval
 }
 
+[<Struct>]
+type CreateScenarioParams = {
+  Id: Guid<ScenarioId>
+  Name: string
+  BoundsWidth: float32
+  BoundsHeight: float32
+}
+
 module ScenarioState =
-  let create id name boundsWidth boundsHeight : ScenarioState = {
-    scenario = {
-      Id = id
-      Name = name
-      BoundsWidth = boundsWidth
-      BoundsHeight = boundsHeight
-      BattleEnabled = false
-      CombatType = PvE
-      EngagementMode = Peaceful
-      TerrainObjects = IndexList.empty
-      VisualLayers = Array.empty
-      Transitions = Array.empty
+
+  let create
+    (configure: ScenarioState -> ScenarioState)
+    (scenarioParams: CreateScenarioParams)
+    : ScenarioState =
+    let baseScenario = {
+      scenario = {
+        Id = scenarioParams.Id
+        Name = scenarioParams.Name
+        BoundsWidth = scenarioParams.BoundsWidth
+        BoundsHeight = scenarioParams.BoundsHeight
+        BattleEnabled = false
+        CombatType = PvE
+        EngagementMode = Peaceful
+        TerrainObjects = IndexList.empty
+        VisualLayers = Array.empty
+        Transitions = Array.empty
+      }
+      entities = cmap()
+      gameTime = cval 0L<Tick>
+      battleContext = ValueNone
+      battleInstances = Array.empty
     }
-    entities = cmap()
-    gameTime = cval 0L<Tick>
-    battleContext = ValueNone
-    battleInstances = Array.empty
-  }
+
+    configure baseScenario
 
 module ScenarioManager =
   open Pomo.Lib.Domain.State
 
-  let createScenarioState(scenario: Scenario) : ScenarioState = {
-    scenario = scenario
-    entities = cmap()
-    gameTime = cval 0L<Tick>
-    battleContext = ValueNone
-    battleInstances = Array.empty
-  }
+  let createScenarioState
+    (configure: ScenarioState -> ScenarioState)
+    (scenario: Scenario)
+    : ScenarioState =
+    configure {
+      scenario = scenario
+      entities = cmap()
+      gameTime = cval 0L<Tick>
+      battleContext = ValueNone
+      battleInstances = Array.empty
+    }
 
   let getScenarioState
     (scenarioId: Guid<ScenarioId>)
@@ -81,7 +98,6 @@ module ScenarioManager =
     gameState.scenarios |> AMap.tryFind scenarioId
 
   let addEntityToScenario
-    (scenarioId: Guid<ScenarioId>)
     (entityId: Guid<EntityId>)
     (entityComponents: EntityComponents)
     : StateChange =
