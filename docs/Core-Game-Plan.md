@@ -3,7 +3,7 @@
 **Status**: ✅ **PHASES 6.5 & 6.6 COMPLETE** - Full terrain-aware movement, entity-aware pathfinding, and scenario transitions implemented with comprehensive test suites. Ready for Phase 6.7 (Battle Engagement System).
 
 **Created**: 2025-10-11
-**Updated**: 2025-10-13
+**Updated**: 2025-10-14
 
 **Prerequisites**: Phases 0-5.5 of RPG-Core-Plan.md completed
 
@@ -377,7 +377,7 @@ type ScenarioId
 [<Struct>]
 type ScenarioCombatType =
   | PvE          // Player vs Environment (default) - players cannot target other players
-  | PvP          // Player vs Player - players can target enemy players (not in same party)
+  | PvP          // Player vs Player - players can target enemy players (not in the same party)
   | PvH        // Player vs Player vs Environment - players can target both enemy players and NPCs
 
 // Base scenario configuration (polygon-based collision)
@@ -691,7 +691,21 @@ Progress Update (2025-10-13) - **PR #5 COMPLETE**:
 
 ## Phase 6.7 — Battle Engagement System
 
-Goal: Control when battle mechanics are active and enforce targeting rules while introducing engagement models that extend (not replace) existing combat type and party logic.
+**Goal**: Control when battle mechanics are active and enforce targeting rules while introducing engagement models that extend (not replace) existing combat type and party logic.
+
+**Progress Update (2025-10-14):**
+
+- The domain types for `EngagementMode`, `AbilityIntent`, and `BattleInstance` are fully defined and integrated into the `Scenario` and `ScenarioState` records.
+- The `Engagement.canUseAbility` function correctly reads the `EngagementMode` and `AbilityIntent` to gate actions.
+- Logic for `EngagementMode.Peaceful` (blocking offensive actions) and `EngagementMode.AlwaysOn` (enforcing `ScenarioCombatType` rules) is implemented and functional.
+- Core targeting rules for PvE, PvP, and PvH, including party-based friendly-fire prevention, are correctly enforced.
+
+**Next Steps:**
+
+- Implement the logic for `EngagementMode.Structured` to validate that combatants are part of an active `BattleInstance`.
+- Create the system for managing `BattleInstance` lifecycles (creation, joining, leaving).
+- Implement the duel request/accept/cancel API, ensuring it respects `EngagementMode` and `ScenarioCombatType` restrictions.
+- Expand tests to cover `Structured` engagement scenarios, including duel and party battle instances.
 
 ### 6.7.1 Existing Foundations
 
@@ -780,7 +794,7 @@ The following preserves the original Phase 6.7 design prior to augmentation. It 
 [<Struct>]
 type ScenarioCombatType =
   | PvE          // Player vs Environment (default) - players cannot target other players but can target NPCs
-  | PvP          // Player vs Player - players can target enemy players only (not in same party or NPCs)
+  | PvP          // Player vs Player - players can target enemy players only (not in the same party or NPCs)
   | PvH          // Player vs Hostile - players can target both enemy players and NPCs
 
 
