@@ -97,7 +97,7 @@ module Resolution =
             damageParams.attackerStats.LK
             damageParams.defenderStats.LK
 
-      let isHit = hitRoll < hitChance
+      let isHit = hitRoll <= hitChance
 
       if not isHit then
         return {
@@ -530,7 +530,7 @@ module Resolution =
       | Some actor, Some target when actor.Resources.Status = Alive ->
         let! canUse =
           Engagement.canUseAbility
-            rparams.scenarioState.scenario
+            rparams.scenarioState
             rparams.parties
             ractors.actor
             target
@@ -657,16 +657,30 @@ module Resolution =
             gameTime
             action.abilityDefinition
 
-        return {
-          updates =
-            HashMap.ofList [
-              actorId, actorWithCooldown
-              targetId, targetAfterEffects
-            ]
-          additions = HashMap.empty
-          removals = Array.empty
-          gameTime = ValueNone
-        }
+        if actorId = targetId then
+          let merged = {
+            targetAfterEffects with
+                Resources = actorWithCooldown.Resources
+                AbilityCooldowns = actorWithCooldown.AbilityCooldowns
+          }
+
+          return {
+            updates = HashMap.single actorId merged
+            additions = HashMap.empty
+            removals = Array.empty
+            gameTime = ValueNone
+          }
+        else
+          return {
+            updates =
+              HashMap.ofList [
+                actorId, actorWithCooldown
+                targetId, targetAfterEffects
+              ]
+            additions = HashMap.empty
+            removals = Array.empty
+            gameTime = ValueNone
+          }
       }
 
   /// Resolves an ability command

@@ -15,8 +15,8 @@ open System
 type ``Scenario Transition Tests``() =
 
   let createTestEntity(pos: Position) = {
-    AbilityCooldowns = cmap()
-    Effects = clist []
+    AbilityCooldowns = HashMap.empty
+    Effects = HashMap.empty
     Identity = {
       Family = Family.Power
       Stage = Stage.First
@@ -50,7 +50,6 @@ type ``Scenario Transition Tests``() =
         FromPosition = { X = 100f; Y = 100f }
         ToScenarioId = %Guid.NewGuid()
         ToPosition = { X = 50f; Y = 50f }
-        RequiresCondition = ValueNone
       }
     |]
 
@@ -71,7 +70,6 @@ type ``Scenario Transition Tests``() =
         FromPosition = { X = 100f; Y = 100f }
         ToScenarioId = %Guid.NewGuid()
         ToPosition = { X = 50f; Y = 50f }
-        RequiresCondition = ValueNone
       }
     |]
 
@@ -81,28 +79,37 @@ type ``Scenario Transition Tests``() =
     Assert.Equal(ValueNone, result)
 
   [<Fact>]
-  member _.``Transition detection respects conditions``() =
-    let mutable conditionMet = false
-
+  member _.``Multiple transitions can be checked``() =
     let transitions = [|
       {
         FromPosition = { X = 100f; Y = 100f }
         ToScenarioId = %Guid.NewGuid()
         ToPosition = { X = 50f; Y = 50f }
-        RequiresCondition = ValueSome(fun () -> conditionMet)
+      }
+      {
+        FromPosition = { X = 200f; Y = 200f }
+        ToScenarioId = %Guid.NewGuid()
+        ToPosition = { X = 150f; Y = 150f }
       }
     |]
 
-    let entityPos = { X = 105f; Y = 105f }
+    let entityPos1 = { X = 105f; Y = 105f } // Near first transition
+    let result1 = TransitionDetection.checkProximity entityPos1 transitions
 
-    // First check: condition not met
-    let result1 = TransitionDetection.checkProximity entityPos transitions
-    Assert.Equal(ValueNone, result1)
+    match result1 with
+    | ValueSome trigger ->
+      Assert.Equal({ X = 100f; Y = 100f }, trigger.Position)
+      Assert.Equal({ X = 50f; Y = 50f }, trigger.ToPosition)
+    | ValueNone -> Assert.True(false, "Should have found first transition")
 
-    // Second check: condition met
-    conditionMet <- true
-    let result2 = TransitionDetection.checkProximity entityPos transitions
-    Assert.True(result2.IsSome)
+    let entityPos2 = { X = 205f; Y = 205f } // Near second transition
+    let result2 = TransitionDetection.checkProximity entityPos2 transitions
+
+    match result2 with
+    | ValueSome trigger ->
+      Assert.Equal({ X = 200f; Y = 200f }, trigger.Position)
+      Assert.Equal({ X = 150f; Y = 150f }, trigger.ToPosition)
+    | ValueNone -> Assert.True(false, "Should have found second transition")
 
   [<Fact>]
   member _.``Entity state preservation works correctly``() =

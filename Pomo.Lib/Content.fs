@@ -52,6 +52,18 @@ module EffectStore =
         Modifiers = Array.empty
         FormulaId = ValueNone
       }
+      102<EffectId>,
+      {
+        Id = 102<EffectId>
+        Name = "Stacking Shield"
+        Kind = EffectKind.Buff
+        Duration = Timed(30000L<Tick>)
+        Stacking = StackingRule.AddStack 5
+        Modifiers = [|
+          EffectModifier.StaticMod(StatModifier.Additive(DP, 2))
+        |]
+        FormulaId = ValueNone
+      }
       103<EffectId>,
       {
         Id = 103<EffectId>

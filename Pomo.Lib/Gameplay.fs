@@ -132,47 +132,58 @@ module GameState =
       let modifiers =
         effects
         |> HashMap.toArrayV
-        |> Array.collect(fun struct (effectId, effect) ->
-          getModifiersForEffect services.effectStore effect.EffectId)
+        |> Array.collect(fun struct (_, effect) ->
+          let mods = getModifiersForEffect services.effectStore effect.EffectId
+          mods |> Array.map(fun m -> struct (m, effect.Stacks)))
 
       // Aggregate static modifiers by Stat and kind
       let addMap, subMap, mulMap, divMap =
         modifiers
         |> Array.fold
-          (fun (addMap, subMap, mulMap, divMap) modifier ->
+          (fun (addMap, subMap, mulMap, divMap) (struct (modifier, stacks)) ->
             match modifier with
             | EffectModifier.StaticMod statMod ->
               match statMod with
               | StatModifier.Additive(stat, value) ->
+                let total = value * stacks
+
                 let addMap =
                   match HashMap.tryFindV stat addMap with
                   | ValueSome existing ->
-                    HashMap.add stat (existing + value) addMap
-                  | ValueNone -> HashMap.add stat value addMap
+                    HashMap.add stat (existing + total) addMap
+                  | ValueNone -> HashMap.add stat total addMap
 
                 addMap, subMap, mulMap, divMap
               | StatModifier.Subtractive(stat, value) ->
+                let total = value * stacks
+
                 let subMap =
                   match HashMap.tryFindV stat subMap with
                   | ValueSome existing ->
-                    HashMap.add stat (existing + value) subMap
-                  | ValueNone -> HashMap.add stat value subMap
+                    HashMap.add stat (existing + total) subMap
+                  | ValueNone -> HashMap.add stat total subMap
 
                 addMap, subMap, mulMap, divMap
               | StatModifier.Multiplicative(stat, value) ->
+                let stackedValue =
+                  if stacks > 1 then Math.Pow(value, float stacks) else value
+
                 let mulMap =
                   match HashMap.tryFindV stat mulMap with
                   | ValueSome existing ->
-                    HashMap.add stat (existing * value) mulMap
-                  | ValueNone -> HashMap.add stat value mulMap
+                    HashMap.add stat (existing * stackedValue) mulMap
+                  | ValueNone -> HashMap.add stat stackedValue mulMap
 
                 addMap, subMap, mulMap, divMap
               | StatModifier.Divisive(stat, value) ->
+                let stackedValue =
+                  if stacks > 1 then Math.Pow(value, float stacks) else value
+
                 let divMap =
                   match HashMap.tryFindV stat divMap with
                   | ValueSome existing ->
-                    HashMap.add stat (existing * value) divMap
-                  | ValueNone -> HashMap.add stat value divMap
+                    HashMap.add stat (existing * stackedValue) divMap
+                  | ValueNone -> HashMap.add stat stackedValue divMap
 
                 addMap, subMap, mulMap, divMap
             | _ -> addMap, subMap, mulMap, divMap)
@@ -230,7 +241,7 @@ module GameState =
       let dynamicAddMap =
         modifiers
         |> Array.fold
-          (fun dynAddMap modifier ->
+          (fun dynAddMap (struct (modifier, _stacks)) ->
             match modifier with
             | EffectModifier.DynamicMod(formulaId, stat) ->
               match services.formulaStore.tryFind formulaId with
@@ -296,7 +307,21 @@ module GameState =
       return finalDerived
     }
 
-  let create'(services: Services.EngineServices) =
+  let create'
+    (services: Services.EngineServices)
+    (
+      activeScenarioId: Guid<ScenarioId>,
+      scenarios: cmap<Guid<ScenarioId>, ScenarioState>
+    ) =
+    {
+      scenarios = scenarios
+      activeScenarioId = cval activeScenarioId
+      players = cmap()
+      parties = cmap()
+      services = services
+    }
+
+  let create() =
     let initialScenarioId = %Guid.NewGuid()
 
     let initialScenarioState =
@@ -308,48 +333,41 @@ module GameState =
       }
       |> ScenarioState.create id
 
-    {
-      scenarios = cmap [ initialScenarioId, initialScenarioState ]
-      activeScenarioId = cval initialScenarioId
-      players = cmap()
-      parties = cmap()
-      services = services
-    }
+    create'
+      {
+        effectStore =
+          { new Services.IEffectStore with
+              member _.tryFind effectId =
+                Pomo.Lib.Content.EffectStore.definitions
+                |> Map.tryFind effectId
+                |> ValueOption.ofOption
 
-  let create() =
-    create' {
-      effectStore =
-        { new Services.IEffectStore with
-            member _.tryFind effectId =
-              Pomo.Lib.Content.EffectStore.definitions
-              |> Map.tryFind effectId
-              |> ValueOption.ofOption
+              member _.find effectId =
+                Pomo.Lib.Content.EffectStore.definitions |> Map.find effectId
+          }
+        abilityStore =
+          { new Services.IAbilityStore with
+              member _.tryFind abilityId =
+                Pomo.Lib.Content.AbilityStore.definitions
+                |> Map.tryFind abilityId
+                |> ValueOption.ofOption
 
-            member _.find effectId =
-              Pomo.Lib.Content.EffectStore.definitions |> Map.find effectId
-        }
-      abilityStore =
-        { new Services.IAbilityStore with
-            member _.tryFind abilityId =
-              Pomo.Lib.Content.AbilityStore.definitions
-              |> Map.tryFind abilityId
-              |> ValueOption.ofOption
+              member _.find abilityId =
+                Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
+          }
+        formulaStore =
+          { new Services.IFormulaStore with
+              member _.tryFind formulaId =
+                Pomo.Lib.Content.FormulaStore.definitions
+                |> Map.tryFind formulaId
+                |> ValueOption.ofOption
 
-            member _.find abilityId =
-              Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
-        }
-      formulaStore =
-        { new Services.IFormulaStore with
-            member _.tryFind formulaId =
-              Pomo.Lib.Content.FormulaStore.definitions
-              |> Map.tryFind formulaId
-              |> ValueOption.ofOption
-
-            member _.find formulaId =
-              Pomo.Lib.Content.FormulaStore.definitions |> Map.find formulaId
-        }
-      rng = fun () -> System.Random().NextDouble()
-    }
+              member _.find formulaId =
+                Pomo.Lib.Content.FormulaStore.definitions |> Map.find formulaId
+          }
+        rng = fun () -> System.Random().NextDouble()
+      }
+      (initialScenarioId, cmap [ initialScenarioId, initialScenarioState ])
 
 
   let getDerivedStats(state: GameState) = adaptive {

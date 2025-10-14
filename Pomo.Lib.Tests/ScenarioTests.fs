@@ -19,7 +19,12 @@ type ``Scenario Management Tests``() =
     let scenarioId = %Guid.NewGuid()
 
     let scenarioState =
-      ScenarioState.create scenarioId "Test Scenario" 1000f 1500f
+      ScenarioState.create id {
+        Id = scenarioId
+        Name = "Test Scenario"
+        BoundsWidth = 1000f
+        BoundsHeight = 1500f
+      }
 
     Assert.Equal(scenarioId, scenarioState.scenario.Id)
     Assert.Equal("Test Scenario", scenarioState.scenario.Name)
@@ -37,8 +42,8 @@ type ``Scenario Management Tests``() =
     let entityId = Guid.NewGuid() |> UMX.tag<EntityId>
 
     let entity = {
-      AbilityCooldowns = cmap()
-      Effects = clist []
+      AbilityCooldowns = HashMap.empty
+      Effects = HashMap.empty
       Identity = {
         Family = Family.Power
         Stage = Stage.First
@@ -65,8 +70,7 @@ type ``Scenario Management Tests``() =
       Equipment = HashMap.empty
     }
 
-    let stateChange =
-      ScenarioManager.addEntityToScenario scenarioId entityId entity
+    let stateChange = ScenarioManager.addEntityToScenario entityId entity
 
     Assert.True(stateChange.additions.ContainsKey entityId)
     Assert.Equal(entity, stateChange.additions[entityId])
@@ -99,8 +103,9 @@ type ``Scenario Management Tests``() =
     let retrievedScenario =
       ScenarioManager.getScenarioState activeScenarioId scenarios
 
-    Assert.True(retrievedScenario.IsSome)
-    let scenario = retrievedScenario.Value
+    let scenarioOption = AVal.force retrievedScenario
+    Assert.True(scenarioOption.IsSome)
+    let scenario = scenarioOption.Value
     Assert.Equal("Test Scenario", scenario.scenario.Name)
     Assert.Equal(2000f, scenario.scenario.BoundsWidth)
     Assert.Equal(2000f, scenario.scenario.BoundsHeight)
@@ -114,10 +119,11 @@ type ``Scenario Management Tests``() =
       activeScenarioId = state.activeScenarioId
     }
 
-    let scenarioList = ScenarioManager.listScenarios scenarios
+    let scenarioList = ScenarioManager.listScenarios scenarios |> AVal.force
 
     Assert.NotEmpty(scenarioList)
-    let (id, name) = scenarioList.Head
+    let struct (id, scenario) = scenarioList.[0]
+    let name = scenario.scenario.Name
     Assert.Equal("Test Scenario", name)
 
   [<Fact>]

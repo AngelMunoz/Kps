@@ -14,8 +14,8 @@ open System
 module MovementPhase3Tests =
 
   let makeEntity stage x y speed dest = {
-    AbilityCooldowns = cmap()
-    Effects = clist []
+    AbilityCooldowns = HashMap.empty
+    Effects = HashMap.empty
     Identity = { Family = Family.Power; Stage = stage }
     BaseStats = {
       Power = 10
