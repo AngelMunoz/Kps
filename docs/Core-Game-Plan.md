@@ -707,6 +707,9 @@ Progress Update (2025-10-13) - **PR #5 COMPLETE**:
 - The `Resolution` module now handles `DuelCommand` and produces `ScenarioChange` objects.
 - The `Gameplay` module's `apply` function now processes `ScenarioChange` objects, applying them to the active scenario.
 - Added comprehensive tests for the duel API, covering different scenarios and engagement modes.
+- Added `PartyId` to `EntityComponents` to associate entities with parties.
+- Added a `parties` collection to `ScenarioState` to manage parties within a scenario.
+- Implemented `accept` and `cancel` functions for party duels in `BattleManager.fs`.
 
 **Next Steps:**
 
@@ -772,14 +775,14 @@ Add EngagementMode, AbilityIntent, BattleInstance, scenarioWideContext (optional
 
 ### 6.7.9 Deliverables
 
-- [ ] Preserve ScenarioCombatType, BattleContext functionality.
-- [ ] Implement EngagementMode with restrictions (no Structured in PvE or AlwaysOn).
-- [ ] Implement AbilityIntent classification.
-- [ ] Implement BattleInstance (duel/party) list on ScenarioState.
-- [ ] Validation function canUseAbility applying extended pipeline.
-- [ ] Duel request/accept/cancel API rejecting invalid mode/combat type combos.
+- [x] Preserve ScenarioCombatType, BattleContext functionality.
+- [x] Implement EngagementMode with restrictions (no Structured in PvE or AlwaysOn).
+- [x] Implement AbilityIntent classification.
+- [x] Implement BattleInstance (duel/party) list on ScenarioState.
+- [x] Validation function canUseAbility applying extended pipeline.
+- [x] Duel request/accept/cancel API rejecting invalid mode/combat type combos.
 - [ ] Teleport duel using existing transitions; state preservation hooks.
-- [ ] Tests covering legacy behavior (combat type targeting, party friendly-fire) plus new engagement gating.
+- [x] Tests covering legacy behavior (combat type targeting, party friendly-fire) plus new engagement gating.
 
 ### 6.7.10 Success Criteria
 

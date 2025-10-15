@@ -439,6 +439,7 @@ module Components =
     Factions: Classification.Faction HashSet
     Abilities: int<AbilityId> HashSet
     Equipment: HashMap<Slot, Equipment>
+    PartyId: Guid<PartyId> voption
   }
 
 module Rules =

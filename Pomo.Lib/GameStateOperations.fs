@@ -87,6 +87,7 @@ module GameState =
       Abilities = kit.StarterAbilities
       AbilityCooldowns = HashMap.empty
       Equipment = HashMap.empty
+      PartyId = ValueNone
     }
 
     {

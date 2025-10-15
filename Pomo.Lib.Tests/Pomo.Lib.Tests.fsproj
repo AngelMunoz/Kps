@@ -15,6 +15,7 @@
     <Compile Include="ScenarioTransitionTests.fs" />
     <Compile Include="EngagementTests.fs" />
     <Compile Include="BattleManagerTests.fs" />
+    <Compile Include="PartyDuelTests.fs" />
     <Compile Include="Tests.fs" />
   </ItemGroup>
   <ItemGroup>

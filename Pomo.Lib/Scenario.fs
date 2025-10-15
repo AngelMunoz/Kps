@@ -36,6 +36,7 @@ type ScenarioState = {
   battleInstances: cmap<Guid<BattleInstanceId>, BattleInstance>
   pendingDuels: cmap<Guid<EntityId>, Guid<EntityId>>
   pendingPartyDuels: cmap<Guid<PartyId>, Guid<PartyId>>
+  parties: cmap<Guid<PartyId>, Party>
 }
 
 type GameStateScenarios = {
@@ -76,6 +77,7 @@ module ScenarioState =
       battleInstances = cmap()
       pendingDuels = cmap()
       pendingPartyDuels = cmap()
+      parties = cmap()
     }
 
     configure baseScenario
@@ -95,6 +97,7 @@ module ScenarioManager =
       battleInstances = cmap()
       pendingDuels = cmap()
       pendingPartyDuels = cmap()
+      parties = cmap()
     }
 
   let getScenarioState

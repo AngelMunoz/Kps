@@ -37,6 +37,7 @@ module MovementPhase3Tests =
     Factions = HashSet.ofList [ Player ]
     Abilities = HashSet.empty
     Equipment = HashMap.empty
+    PartyId = ValueNone
   }
 
   [<Fact>]

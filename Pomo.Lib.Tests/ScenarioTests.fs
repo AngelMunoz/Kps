@@ -68,6 +68,7 @@ type ``Scenario Management Tests``() =
       Factions = HashSet.ofList [ Player ]
       Abilities = HashSet.empty
       Equipment = HashMap.empty
+      PartyId = ValueNone
     }
 
     let stateChange = ScenarioManager.addEntityToScenario entityId entity

@@ -49,12 +49,16 @@ type ``Battle Instance Lifecycle``() =
     let actorId = %Guid.NewGuid()
     let targetId = %Guid.NewGuid()
 
-    let changes = BattleInstanceLifecycle.create actorId targetId scenarioState |> AVal.force
+    let changes =
+      BattleInstanceLifecycle.create actorId targetId scenarioState
+      |> AVal.force
+
     Assert.Equal(1, changes.Length)
+
     match changes.[0] with
     | ScenarioChange.AddBattleInstance inst ->
-        Assert.True(inst.Participants.Contains actorId)
-        Assert.True(inst.Participants.Contains targetId)
+      Assert.True(inst.Participants.Contains actorId)
+      Assert.True(inst.Participants.Contains targetId)
     | _ -> Assert.Fail("Expected AddBattleInstance")
 
   [<Fact>]
@@ -70,19 +74,26 @@ type ``Battle Instance Lifecycle``() =
     let battleInstanceId = %Guid.NewGuid()
 
     transact(fun _ ->
-        scenarioState.battleInstances.Add(battleInstanceId, {
-            Id = battleInstanceId
-            Participants = HashSet.ofList [ actorId; targetId ]
-            StartTick = 0L<Tick>
-        }) |> ignore
-    )
+      scenarioState.battleInstances.Add(
+        battleInstanceId,
+        {
+          Id = battleInstanceId
+          Participants = HashSet.ofList [ actorId; targetId ]
+          StartTick = 0L<Tick>
+        }
+      )
+      |> ignore)
 
-    let changes = BattleInstanceLifecycle.join thirdPersonId battleInstanceId scenarioState |> AVal.force
+    let changes =
+      BattleInstanceLifecycle.join thirdPersonId battleInstanceId scenarioState
+      |> AVal.force
+
     Assert.Equal(1, changes.Length)
+
     match changes.[0] with
     | ScenarioChange.UpdateBattleInstance inst ->
-        Assert.Equal(3, inst.Participants.Count)
-        Assert.True(inst.Participants.Contains thirdPersonId)
+      Assert.Equal(3, inst.Participants.Count)
+      Assert.True(inst.Participants.Contains thirdPersonId)
     | _ -> Assert.Fail("Expected UpdateBattleInstance")
 
   [<Fact>]
@@ -95,12 +106,16 @@ type ``Battle Instance Lifecycle``() =
     let actorId = %Guid.NewGuid()
     let battleInstanceId = %Guid.NewGuid()
 
-    let changes = BattleInstanceLifecycle.join actorId battleInstanceId scenarioState |> AVal.force
+    let changes =
+      BattleInstanceLifecycle.join actorId battleInstanceId scenarioState
+      |> AVal.force
+
     Assert.Equal(1, changes.Length)
+
     match changes.[0] with
     | ScenarioChange.AddBattleInstance inst ->
-        Assert.Equal(1, inst.Participants.Count)
-        Assert.True(inst.Participants.Contains actorId)
+      Assert.Equal(1, inst.Participants.Count)
+      Assert.True(inst.Participants.Contains actorId)
     | _ -> Assert.Fail("Expected AddBattleInstance")
 
   [<Fact>]
@@ -116,19 +131,25 @@ type ``Battle Instance Lifecycle``() =
     let battleInstanceId = %Guid.NewGuid()
 
     transact(fun _ ->
-        scenarioState.battleInstances.Add(battleInstanceId, {
-            Id = battleInstanceId
-            Participants = HashSet.ofList [ actorId; targetId; thirdPersonId ]
-            StartTick = 0L<Tick>
-        }) |> ignore
-    )
+      scenarioState.battleInstances.Add(
+        battleInstanceId,
+        {
+          Id = battleInstanceId
+          Participants = HashSet.ofList [ actorId; targetId; thirdPersonId ]
+          StartTick = 0L<Tick>
+        }
+      )
+      |> ignore)
 
-    let changes = BattleInstanceLifecycle.leave actorId scenarioState |> AVal.force
+    let changes =
+      BattleInstanceLifecycle.leave actorId scenarioState |> AVal.force
+
     Assert.Equal(1, changes.Length)
+
     match changes.[0] with
     | ScenarioChange.UpdateBattleInstance inst ->
-        Assert.Equal(2, inst.Participants.Count)
-        Assert.False(inst.Participants.Contains actorId)
+      Assert.Equal(2, inst.Participants.Count)
+      Assert.False(inst.Participants.Contains actorId)
     | _ -> Assert.Fail("Expected UpdateBattleInstance")
 
   [<Fact>]
@@ -144,16 +165,25 @@ type ``Battle Instance Lifecycle``() =
     let battleInstanceId = %Guid.NewGuid()
 
     transact(fun _ ->
-        scenarioState.battleInstances.Add(battleInstanceId, {
-            Id = battleInstanceId
-            Participants = HashSet.ofList [ actorId; targetId ]
-            StartTick = 0L<Tick>
-        }) |> ignore
-    )
+      scenarioState.battleInstances.Add(
+        battleInstanceId,
+        {
+          Id = battleInstanceId
+          Participants = HashSet.ofList [ actorId; targetId ]
+          StartTick = 0L<Tick>
+        }
+      )
+      |> ignore)
 
-    let changes = BattleInstanceLifecycle.leave actorId scenarioState |> AVal.force
+    let changes =
+      BattleInstanceLifecycle.leave actorId scenarioState |> AVal.force
+
     Assert.Equal(1, changes.Length)
-    Assert.Equal(ScenarioChange.RemoveBattleInstance battleInstanceId, changes.[0])
+
+    Assert.Equal(
+      ScenarioChange.RemoveBattleInstance battleInstanceId,
+      changes.[0]
+    )
 
 type ``Duel Tests``() =
   let requesterId = %Guid.NewGuid()
@@ -271,24 +301,3 @@ type ``Duel Tests``() =
     let changes = Duel.cancel accepterId requesterId scenarioState |> AVal.force
     Assert.Equal(1, changes.Length)
     Assert.Equal(ScenarioChange.RemovePendingDuel(requesterId), changes[0])
-
-type ``Party Duel Tests``() =
-  let requesterId = %Guid.NewGuid()
-  let accepterId = %Guid.NewGuid()
-
-  [<Fact>]
-  member _.``Request party duel in structured PvP scenario``() =
-    let scenarioState =
-      BattleManagerTestHelpers.createScenarioState
-        EngagementMode.Structured
-        ScenarioCombatType.PvP
-
-    let changes =
-      PartyDuel.request requesterId accepterId scenarioState |> AVal.force
-
-    Assert.Equal(1, changes.Length)
-
-    Assert.Equal(
-      ScenarioChange.AddPendingPartyDuel(requesterId, accepterId),
-      changes[0]
-    )

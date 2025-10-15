@@ -103,6 +103,7 @@ module private EngagementTestHelpers =
     Abilities = HashSet.empty
     AbilityCooldowns = HashMap.empty
     Equipment = HashMap.empty
+    PartyId = ValueNone
   }
 
 type ``Engagement Targeting Rules``() =

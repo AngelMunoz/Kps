@@ -127,6 +127,7 @@ module private Phase3Helpers =
       Abilities = HashSet.ofList abilities
       AbilityCooldowns = cooldowns
       Equipment = HashMap.empty
+      PartyId = ValueNone
     }
 
   let addEntity

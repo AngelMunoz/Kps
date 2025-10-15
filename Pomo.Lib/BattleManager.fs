@@ -109,6 +109,71 @@ module PartyDuel =
         return Array.empty
     }
 
+  let accept
+    (accepter: Guid<PartyId>)
+    (requester: Guid<PartyId>)
+    (scenarioState: ScenarioState)
+    : aval<ScenarioChange[]> =
+    adaptive {
+      if canDuel scenarioState.scenario then
+        let! pendingDuels =
+          scenarioState.pendingPartyDuels |> AMap.tryFind requester
+
+        match pendingDuels with
+        | Some target when target = accepter ->
+          let! requesterParty = scenarioState.parties |> AMap.tryFind requester
+          let! accepterParty = scenarioState.parties |> AMap.tryFind accepter
+
+          match requesterParty, accepterParty with
+          | Some r, Some a ->
+            let allParticipants = HashSet.union r.Members a.Members
+            let newGuid = %Guid.NewGuid()
+            let! gameTime = scenarioState.gameTime
+
+            let battleInstance = {
+              Id = newGuid
+              Participants = allParticipants
+              StartTick = gameTime
+            }
+
+            return [|
+              ScenarioChange.RemovePendingPartyDuel requester
+              ScenarioChange.AddBattleInstance battleInstance
+            |]
+          | _ -> return Array.empty
+        | _ -> return Array.empty
+      else
+        return Array.empty
+    }
+
+  let cancel
+    (canceller: Guid<PartyId>)
+    (otherParty: Guid<PartyId>)
+    (scenarioState: ScenarioState)
+    : aval<ScenarioChange[]> =
+    adaptive {
+      if canDuel scenarioState.scenario then
+        let! found = scenarioState.pendingPartyDuels |> AMap.tryFind canceller
+        let isRequester = found.IsSome
+
+        let! isTarget =
+          scenarioState.pendingPartyDuels |> AMap.tryFind otherParty
+
+        let isTarget =
+          isTarget
+          |> Option.map(fun t -> t = canceller)
+          |> Option.defaultValue false
+
+        if isRequester then
+          return [| ScenarioChange.RemovePendingPartyDuel canceller |]
+        else if isTarget then
+          return [| ScenarioChange.RemovePendingPartyDuel otherParty |]
+        else
+          return Array.empty
+      else
+        return Array.empty
+    }
+
 
 module Duel =
   let private canDuel(scenario: Scenario) =

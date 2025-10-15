@@ -132,6 +132,7 @@ module private InternalHelpers =
       Abilities = HashSet.ofList abilities
       AbilityCooldowns = cooldowns
       Equipment = HashMap.empty
+      PartyId = ValueNone
     }
 
   let addEntity
@@ -577,12 +578,6 @@ type ``Action Resolution``() =
       | Some cd -> $"Cooldown: {cd}"
       | None -> "No cooldown entry"
 
-    printfn $"Debug - Game Time: {currentGameTime}, {cooldownState}"
-    printfn $"Debug - Actor MP: {actorBefore.Resources.MP}, Required: 10"
-
-    printfn
-      $"Debug - Actor has ability: {HashSet.contains buffSpell actorBefore.Abilities}"
-
     let delta = Resolution.evaluate state action
     let change = delta |> AVal.force
 
@@ -603,18 +598,8 @@ type ``Action Resolution``() =
 
     let expectedCooldown =
       match AbilityStore.definitions[buffSpell] with
-      | Abilities.Active def ->
-        printfn
-          $"Debug - Ability Definition Found - ID: {def.Id}, Cooldown: {def.Cooldown}"
-
-        def.Cooldown
+      | Abilities.Active def -> def.Cooldown
       | _ -> failwith "Expected active ability"
-
-    printfn
-      $"Debug After - Game Time: {currentGameTimeAfter}, Cooldown Value: {cooldown}, Expected: {expectedCooldown}"
-
-    printfn
-      $"Debug After - Cooldown > 0: {cooldown > 0L<Tick>}, Calculation: {currentGameTimeAfter} + {expectedCooldown} = {currentGameTimeAfter + expectedCooldown}"
 
     // Let's check if the action actually executed by looking at updates
     if HashMap.isEmpty change.updates then
