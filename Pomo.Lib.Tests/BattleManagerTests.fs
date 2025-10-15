@@ -86,6 +86,52 @@ type ``Battle Instance Lifecycle``() =
     | _ -> Assert.Fail("Expected UpdateBattleInstance")
 
   [<Fact>]
+  member _.``Join non-existent battle instance creates new one``() =
+    let scenarioState =
+      BattleManagerTestHelpers.createScenarioState
+        EngagementMode.Structured
+        ScenarioCombatType.PvP
+
+    let actorId = %Guid.NewGuid()
+    let battleInstanceId = %Guid.NewGuid()
+
+    let changes = BattleInstanceLifecycle.join actorId battleInstanceId scenarioState |> AVal.force
+    Assert.Equal(1, changes.Length)
+    match changes.[0] with
+    | ScenarioChange.AddBattleInstance inst ->
+        Assert.Equal(1, inst.Participants.Count)
+        Assert.True(inst.Participants.Contains actorId)
+    | _ -> Assert.Fail("Expected AddBattleInstance")
+
+  [<Fact>]
+  member _.``Leave battle instance and update``() =
+    let scenarioState =
+      BattleManagerTestHelpers.createScenarioState
+        EngagementMode.Structured
+        ScenarioCombatType.PvP
+
+    let actorId = %Guid.NewGuid()
+    let targetId = %Guid.NewGuid()
+    let thirdPersonId = %Guid.NewGuid()
+    let battleInstanceId = %Guid.NewGuid()
+
+    transact(fun _ ->
+        scenarioState.battleInstances.Add(battleInstanceId, {
+            Id = battleInstanceId
+            Participants = HashSet.ofList [ actorId; targetId; thirdPersonId ]
+            StartTick = 0L<Tick>
+        }) |> ignore
+    )
+
+    let changes = BattleInstanceLifecycle.leave actorId scenarioState |> AVal.force
+    Assert.Equal(1, changes.Length)
+    match changes.[0] with
+    | ScenarioChange.UpdateBattleInstance inst ->
+        Assert.Equal(2, inst.Participants.Count)
+        Assert.False(inst.Participants.Contains actorId)
+    | _ -> Assert.Fail("Expected UpdateBattleInstance")
+
+  [<Fact>]
 
   member _.``Leave battle instance and dissolve``() =
     let scenarioState =
@@ -225,3 +271,24 @@ type ``Duel Tests``() =
     let changes = Duel.cancel accepterId requesterId scenarioState |> AVal.force
     Assert.Equal(1, changes.Length)
     Assert.Equal(ScenarioChange.RemovePendingDuel(requesterId), changes[0])
+
+type ``Party Duel Tests``() =
+  let requesterId = %Guid.NewGuid()
+  let accepterId = %Guid.NewGuid()
+
+  [<Fact>]
+  member _.``Request party duel in structured PvP scenario``() =
+    let scenarioState =
+      BattleManagerTestHelpers.createScenarioState
+        EngagementMode.Structured
+        ScenarioCombatType.PvP
+
+    let changes =
+      PartyDuel.request requesterId accepterId scenarioState |> AVal.force
+
+    Assert.Equal(1, changes.Length)
+
+    Assert.Equal(
+      ScenarioChange.AddPendingPartyDuel(requesterId, accepterId),
+      changes[0]
+    )

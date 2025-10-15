@@ -478,6 +478,10 @@ module GameState =
             scenario.pendingDuels.Add(requester, target) |> ignore
         | ScenarioChange.RemovePendingDuel requester ->
             scenario.pendingDuels.Remove requester |> ignore
+        | ScenarioChange.AddPendingPartyDuel (requester, target) ->
+            scenario.pendingPartyDuels.Add(requester, target) |> ignore
+        | ScenarioChange.RemovePendingPartyDuel requester ->
+            scenario.pendingPartyDuels.Remove requester |> ignore
 
       for entityId, updatedComponents in change.updates do
         scenario.entities[entityId] <- updatedComponents

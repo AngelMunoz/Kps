@@ -465,6 +465,7 @@ module Rules =
   [<Struct>]
   type DuelCommand =
     | Request of requester: Guid<EntityId> * target: Guid<EntityId>
+    | PartyRequest of requester: Guid<PartyId> * target: Guid<PartyId>
     | Accept of accepter: Guid<EntityId> * requester: Guid<EntityId>
     | Cancel of canceller: Guid<EntityId> * otherPlayer: Guid<EntityId>
 
@@ -510,6 +511,8 @@ module State =
     | RemoveBattleInstance of battleInstanceId: Guid<BattleInstanceId>
     | AddPendingDuel of requester: Guid<EntityId> * target: Guid<EntityId>
     | RemovePendingDuel of requester: Guid<EntityId>
+    | AddPendingPartyDuel of requester: Guid<PartyId> * target: Guid<PartyId>
+    | RemovePendingPartyDuel of requester: Guid<PartyId>
 
   [<Struct>]
   type StateChange = {

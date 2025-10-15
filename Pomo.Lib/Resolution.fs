@@ -838,6 +838,8 @@ module Resolution =
         match duelAction with
         | DuelCommand.Request(requester, target) ->
           Duel.request requester target scenarioState
+        | DuelCommand.PartyRequest(requester, target) ->
+          PartyDuel.request requester target scenarioState
         | DuelCommand.Accept(accepter, requester) ->
           Duel.accept accepter requester scenarioState
         | DuelCommand.Cancel(canceller, otherPlayer) ->

@@ -87,6 +87,29 @@ module BattleInstanceLifecycle =
       | None -> return [||]
     }
 
+module PartyDuel =
+  let private canDuel(scenario: Scenario) =
+    match scenario.EngagementMode with
+    | Structured ->
+      match scenario.CombatType with
+      | PvP
+      | PvH -> true
+      | _ -> false
+    | _ -> false
+
+  let request
+    (requester: Guid<PartyId>)
+    (target: Guid<PartyId>)
+    (scenarioState: ScenarioState)
+    : aval<ScenarioChange[]> =
+    adaptive {
+      if canDuel scenarioState.scenario then
+        return [| ScenarioChange.AddPendingPartyDuel(requester, target) |]
+      else
+        return Array.empty
+    }
+
+
 module Duel =
   let private canDuel(scenario: Scenario) =
     match scenario.EngagementMode with
