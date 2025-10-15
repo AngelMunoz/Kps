@@ -13,6 +13,7 @@
     <Compile Include="ScenarioTests.fs" />
     <Compile Include="PathfindingTests.fs" />
     <Compile Include="ScenarioTransitionTests.fs" />
+    <Compile Include="EngagementTests.fs" />
     <Compile Include="Tests.fs" />
   </ItemGroup>
   <ItemGroup>

@@ -108,7 +108,24 @@ type PomoGame() as this =
       rng = fun () -> Random.Shared.NextDouble()
     }
 
-    let state = GameState.create' services
+    let initialScenarioId = %Guid.NewGuid()
+
+    let initialScenarioState =
+      {
+        Id = initialScenarioId
+        Name = "Test Scenario"
+        BoundsWidth = 2000f
+        BoundsHeight = 2000f
+      }
+      |> ScenarioState.create(fun sc -> {
+        sc with
+            scenario.EngagementMode = EngagementMode.AlwaysOn
+      })
+
+    let state =
+      GameState.create'
+        services
+        (initialScenarioId, cmap [ initialScenarioId, initialScenarioState ])
 
     let playerProfession = { Family = Power; Stage = First }
 
@@ -130,7 +147,6 @@ type PomoGame() as this =
       })
 
     let _playerId = playerChange.additions |> HashMap.toKeySeq |> Seq.head
-
     GameState.apply state playerChange
     playerId <- _playerId
 

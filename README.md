@@ -34,6 +34,8 @@ The architecture is based on a layered approach with clear separation of concern
 
 - Do not add extra comments to the code.
 - Follow the coding style and conventions used in the existing codebase.
+- Avoid aggresive refactors, always do small methodical, incremental, and verifiable changes.
+- If working on an implementation that is part of the current plan (either outlined in docs/\*.md or by the user prompt) always update the corresponding document to reflect the current progress.
 
 **MANDATORY PARADIGM ORDER - STRICTLY ENFORCE:**
 

@@ -86,5 +86,14 @@ module Engagement =
                 return true
               else
                 return false
-        | EngagementMode.Structured -> return true
+        | EngagementMode.Structured ->
+          // In structured combat, offensive actions are only allowed if both actor and target
+          // are participants in the same active battle instance.
+          let! inSameBattleInstance =
+            scenarioState.battleInstances
+            |> AList.exists(fun instance ->
+              instance.Participants.Contains(actorId)
+              && instance.Participants.Contains(targetId))
+
+          return inSameBattleInstance
     }

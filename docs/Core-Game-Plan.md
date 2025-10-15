@@ -1,4 +1,4 @@
-﻿# Core Game Plan - MonoGame Integration & Gameplay Systems
+# Core Game Plan - MonoGame Integration & Gameplay Systems
 
 **Status**: ✅ **PHASES 6.5 & 6.6 COMPLETE** - Full terrain-aware movement, entity-aware pathfinding, and scenario transitions implemented with comprehensive test suites. Ready for Phase 6.7 (Battle Engagement System).
 
@@ -699,10 +699,10 @@ Progress Update (2025-10-13) - **PR #5 COMPLETE**:
 - The `Engagement.canUseAbility` function correctly reads the `EngagementMode` and `AbilityIntent` to gate actions.
 - Logic for `EngagementMode.Peaceful` (blocking offensive actions) and `EngagementMode.AlwaysOn` (enforcing `ScenarioCombatType` rules) is implemented and functional.
 - Core targeting rules for PvE, PvP, and PvH, including party-based friendly-fire prevention, are correctly enforced.
+- Implemented the logic for `EngagementMode.Structured` to validate that combatants are part of an active `BattleInstance`.
 
 **Next Steps:**
 
-- Implement the logic for `EngagementMode.Structured` to validate that combatants are part of an active `BattleInstance`.
 - Create the system for managing `BattleInstance` lifecycles (creation, joining, leaving).
 - Implement the duel request/accept/cancel API, ensuring it respects `EngagementMode` and `ScenarioCombatType` restrictions.
 - Expand tests to cover `Structured` engagement scenarios, including duel and party battle instances.
