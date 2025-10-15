@@ -453,6 +453,7 @@ module GameState =
       additions = HashMap.empty
       removals = Array.empty
       gameTime = ValueSome newTime
+      scenarioChanges = Array.empty
     }
   }
 
@@ -464,6 +465,19 @@ module GameState =
       match change.gameTime with
       | ValueSome newTime -> scenario.gameTime.Value <- newTime
       | ValueNone -> ()
+
+      for sc in change.scenarioChanges do
+        match sc with
+        | ScenarioChange.AddBattleInstance bi ->
+            scenario.battleInstances.Add(bi.Id, bi) |> ignore
+        | ScenarioChange.UpdateBattleInstance bi ->
+            scenario.battleInstances[bi.Id] <- bi
+        | ScenarioChange.RemoveBattleInstance biId ->
+            scenario.battleInstances.Remove biId |> ignore
+        | ScenarioChange.AddPendingDuel (requester, target) ->
+            scenario.pendingDuels.Add(requester, target) |> ignore
+        | ScenarioChange.RemovePendingDuel requester ->
+            scenario.pendingDuels.Remove requester |> ignore
 
       for entityId, updatedComponents in change.updates do
         scenario.entities[entityId] <- updatedComponents

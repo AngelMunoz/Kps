@@ -13,6 +13,7 @@ open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Services
 open Pomo.Lib.Domain.Abilities
 open Pomo.Lib.Scenario
+open Pomo.Lib.BattleManager
 
 open Pomo.Lib.Battle
 
@@ -669,6 +670,7 @@ module Resolution =
             additions = HashMap.empty
             removals = Array.empty
             gameTime = ValueNone
+            scenarioChanges = Array.empty
           }
         else
           return {
@@ -680,6 +682,7 @@ module Resolution =
             additions = HashMap.empty
             removals = Array.empty
             gameTime = ValueNone
+            scenarioChanges = Array.empty
           }
       }
 
@@ -703,6 +706,7 @@ module Resolution =
           additions = HashMap.empty
           removals = Array.empty
           gameTime = ValueNone
+          scenarioChanges = Array.empty
         }
       | ValidAction action ->
         return! AbilityResolution.resolve abilityId rparams ractors action
@@ -742,6 +746,7 @@ module Resolution =
           additions = HashMap.empty
           removals = Array.empty
           gameTime = ValueNone
+          scenarioChanges = Array.empty
         }
       | None ->
         return {
@@ -749,6 +754,7 @@ module Resolution =
           additions = HashMap.empty
           removals = Array.empty
           gameTime = ValueNone
+          scenarioChanges = Array.empty
         }
     }
 
@@ -768,6 +774,7 @@ module Resolution =
           additions = HashMap.empty
           removals = Array.empty
           gameTime = ValueNone
+          scenarioChanges = Array.empty
         }
       | ValueSome(Active abilityDef) ->
       // Determine actual targets based on ability targeting constraints
@@ -803,6 +810,7 @@ module Resolution =
         additions = HashMap.empty
         removals = Array.empty
         gameTime = ValueNone
+        scenarioChanges = Array.empty
       }
     }
 
@@ -825,12 +833,30 @@ module Resolution =
     match cmd with
     | UseAbility action -> return! resolveUseAbility action resolverParams
     | Move action -> return! resolveMove action resolverParams
+    | Duel duelAction ->
+      let! scenarioChanges =
+        match duelAction with
+        | DuelCommand.Request(requester, target) ->
+          Duel.request requester target scenarioState
+        | DuelCommand.Accept(accepter, requester) ->
+          Duel.accept accepter requester scenarioState
+        | DuelCommand.Cancel(canceller, otherPlayer) ->
+          Duel.cancel canceller otherPlayer scenarioState
+
+      return {
+        updates = HashMap.empty
+        additions = HashMap.empty
+        removals = Array.empty
+        gameTime = ValueNone
+        scenarioChanges = scenarioChanges
+      }
     | RemoveEntities entityIds ->
       return {
         updates = HashMap.empty
         additions = HashMap.empty
         removals = entityIds |> Seq.toArray
         gameTime = ValueNone
+        scenarioChanges = Array.empty
       }
     | AddEntities entitiesToAdd ->
       return {
@@ -838,5 +864,6 @@ module Resolution =
         additions = entitiesToAdd
         removals = Array.empty
         gameTime = ValueNone
+        scenarioChanges = Array.empty
       }
   }

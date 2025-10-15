@@ -693,7 +693,7 @@ Progress Update (2025-10-13) - **PR #5 COMPLETE**:
 
 **Goal**: Control when battle mechanics are active and enforce targeting rules while introducing engagement models that extend (not replace) existing combat type and party logic.
 
-**Progress Update (2025-10-14):**
+**Progress Update (2025-10-15):**
 
 - The domain types for `EngagementMode`, `AbilityIntent`, and `BattleInstance` are fully defined and integrated into the `Scenario` and `ScenarioState` records.
 - The `Engagement.canUseAbility` function correctly reads the `EngagementMode` and `AbilityIntent` to gate actions.
@@ -702,12 +702,17 @@ Progress Update (2025-10-13) - **PR #5 COMPLETE**:
 - Implemented the logic for `EngagementMode.Structured` to validate that combatants are part of an active `BattleInstance`.
 - Created the system for managing `BattleInstance` lifecycles (creation, joining, leaving) in `BattleManager.fs`.
 - Added tests for the `BattleInstance` lifecycle management.
+- Implemented the duel request/accept/cancel API in a pure, functional way.
+- Introduced `ScenarioChange` to represent scenario-level state changes, and integrated it into the `StateChange` record.
+- The `Resolution` module now handles `DuelCommand` and produces `ScenarioChange` objects.
+- The `Gameplay` module's `apply` function now processes `ScenarioChange` objects, applying them to the active scenario.
+- Added comprehensive tests for the duel API, covering different scenarios and engagement modes.
 
 **Next Steps:**
 
-- Implement the duel request/accept/cancel API, ensuring it respects `EngagementMode` and `ScenarioCombatType` restrictions.
 - Expand tests to cover `Structured` engagement scenarios, including duel and party battle instances.
 - Implement party vs party battle creation.
+- Implement visual feedback for duel requests and battle instances.
 
 ### 6.7.1 Existing Foundations
 

@@ -34,6 +34,7 @@ type ScenarioState = {
   gameTime: cval<int64<Tick>>
   battleContext: BattleContext voption
   battleInstances: cmap<Guid<BattleInstanceId>, BattleInstance>
+  pendingDuels: cmap<Guid<EntityId>, Guid<EntityId>>
 }
 
 type GameStateScenarios = {
@@ -72,6 +73,7 @@ module ScenarioState =
       gameTime = cval 0L<Tick>
       battleContext = ValueNone
       battleInstances = cmap()
+      pendingDuels = cmap()
     }
 
     configure baseScenario
@@ -89,6 +91,7 @@ module ScenarioManager =
       gameTime = cval 0L<Tick>
       battleContext = ValueNone
       battleInstances = cmap()
+      pendingDuels = cmap()
     }
 
   let getScenarioState
@@ -106,6 +109,7 @@ module ScenarioManager =
       additions = HashMap.single entityId entityComponents
       removals = [||]
       gameTime = ValueNone
+      scenarioChanges = Array.empty
     }
 
   let removeEntityFromScenario
@@ -117,6 +121,7 @@ module ScenarioManager =
       additions = HashMap.empty
       removals = [| entityId |]
       gameTime = ValueNone
+      scenarioChanges = Array.empty
     }
 
   let listScenarios(gameState: GameStateScenarios) =

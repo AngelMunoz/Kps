@@ -18,8 +18,8 @@
     <Compile Include="ScenarioTransitions.fs" />
     <Compile Include="Movement.fs" />
     <Compile Include="Gameplay.fs" />
-    <Compile Include="Resolution.fs" />
-    <Compile Include="BattleManager.fs" />
+    <Compile Include="BattleManager.fs" /><Compile Include="Resolution.fs" />
+    
     <Compile Include="GameStateOperations.fs" />
   </ItemGroup>
 

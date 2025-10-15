@@ -463,9 +463,16 @@ module Rules =
   }
 
   [<Struct>]
+  type DuelCommand =
+    | Request of requester: Guid<EntityId> * target: Guid<EntityId>
+    | Accept of accepter: Guid<EntityId> * requester: Guid<EntityId>
+    | Cancel of canceller: Guid<EntityId> * otherPlayer: Guid<EntityId>
+
+  [<Struct>]
   type Command =
     | UseAbility of abilityAction: UseAbilityAction
     | Move of moveAction: MoveAction
+    | Duel of duelAction: DuelCommand
     | RemoveEntities of entityIds: Guid<EntityId> seq
     | AddEntities of HashMap<Guid<EntityId>, Components.EntityComponents>
 
@@ -497,9 +504,18 @@ module State =
   open Components
 
   [<Struct>]
+  type ScenarioChange =
+    | AddBattleInstance of battleInstance: BattleInstance
+    | UpdateBattleInstance of battleInstance: BattleInstance
+    | RemoveBattleInstance of battleInstanceId: Guid<BattleInstanceId>
+    | AddPendingDuel of requester: Guid<EntityId> * target: Guid<EntityId>
+    | RemovePendingDuel of requester: Guid<EntityId>
+
+  [<Struct>]
   type StateChange = {
     updates: HashMap<Guid<EntityId>, EntityComponents>
     additions: HashMap<Guid<EntityId>, EntityComponents>
     removals: Guid<EntityId>[]
     gameTime: int64<Tick> voption
+    scenarioChanges: ScenarioChange[]
   }

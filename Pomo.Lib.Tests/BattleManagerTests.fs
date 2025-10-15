@@ -5,6 +5,7 @@ open System
 open FSharp.UMX
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
+open Pomo.Lib.Domain.State
 open Pomo.Lib.Scenario
 open Pomo.Lib.BattleManager
 open Pomo.Lib.Tests.TestHelpers
@@ -15,7 +16,7 @@ module Tuple =
 
 
 module private BattleManagerTestHelpers =
-  let createScenarioState engagementMode =
+  let createScenarioState engagementMode combatType =
     let scenarioId = %Guid.NewGuid()
 
     let scenarioState =
@@ -30,6 +31,7 @@ module private BattleManagerTestHelpers =
             scenario = {
               sc.scenario with
                   EngagementMode = engagementMode
+                  CombatType = combatType
             }
       })
 
@@ -40,53 +42,186 @@ type ``Battle Instance Lifecycle``() =
   [<Fact>]
   member _.``Create battle instance``() =
     let scenarioState =
-      BattleManagerTestHelpers.createScenarioState EngagementMode.Structured
+      BattleManagerTestHelpers.createScenarioState
+        EngagementMode.Structured
+        ScenarioCombatType.PvP
 
     let actorId = %Guid.NewGuid()
     let targetId = %Guid.NewGuid()
 
-    BattleInstanceLifecycle.create actorId targetId scenarioState
-
-    let instances = scenarioState.battleInstances.Value
-    Assert.Equal(1, instances.Count)
-    let instance = instances |> HashMap.toArrayV |> Array.head |> Tuple.sndV
-    Assert.True(instance.Participants.Contains actorId)
-    Assert.True(instance.Participants.Contains targetId)
+    let changes = BattleInstanceLifecycle.create actorId targetId scenarioState |> AVal.force
+    Assert.Equal(1, changes.Length)
+    match changes.[0] with
+    | ScenarioChange.AddBattleInstance inst ->
+        Assert.True(inst.Participants.Contains actorId)
+        Assert.True(inst.Participants.Contains targetId)
+    | _ -> Assert.Fail("Expected AddBattleInstance")
 
   [<Fact>]
   member _.``Join battle instance``() =
     let scenarioState =
-      BattleManagerTestHelpers.createScenarioState EngagementMode.Structured
+      BattleManagerTestHelpers.createScenarioState
+        EngagementMode.Structured
+        ScenarioCombatType.PvP
 
     let actorId = %Guid.NewGuid()
     let targetId = %Guid.NewGuid()
     let thirdPersonId = %Guid.NewGuid()
+    let battleInstanceId = %Guid.NewGuid()
 
-    BattleInstanceLifecycle.create actorId targetId scenarioState
+    transact(fun _ ->
+        scenarioState.battleInstances.Add(battleInstanceId, {
+            Id = battleInstanceId
+            Participants = HashSet.ofList [ actorId; targetId ]
+            StartTick = 0L<Tick>
+        }) |> ignore
+    )
 
-    let instanceId =
-      scenarioState.battleInstances.Value
-      |> HashMap.toArrayV
-      |> Array.head
-      |> Tuple.fstV
-
-    BattleInstanceLifecycle.join thirdPersonId instanceId scenarioState
-
-    let instance = scenarioState.battleInstances.Value.[instanceId]
-    Assert.Equal(3, instance.Participants.Count)
-    Assert.True(instance.Participants.Contains thirdPersonId)
+    let changes = BattleInstanceLifecycle.join thirdPersonId battleInstanceId scenarioState |> AVal.force
+    Assert.Equal(1, changes.Length)
+    match changes.[0] with
+    | ScenarioChange.UpdateBattleInstance inst ->
+        Assert.Equal(3, inst.Participants.Count)
+        Assert.True(inst.Participants.Contains thirdPersonId)
+    | _ -> Assert.Fail("Expected UpdateBattleInstance")
 
   [<Fact>]
 
   member _.``Leave battle instance and dissolve``() =
     let scenarioState =
-      BattleManagerTestHelpers.createScenarioState EngagementMode.Structured
+      BattleManagerTestHelpers.createScenarioState
+        EngagementMode.Structured
+        ScenarioCombatType.PvP
 
     let actorId = %Guid.NewGuid()
     let targetId = %Guid.NewGuid()
+    let battleInstanceId = %Guid.NewGuid()
 
-    BattleInstanceLifecycle.create actorId targetId scenarioState
+    transact(fun _ ->
+        scenarioState.battleInstances.Add(battleInstanceId, {
+            Id = battleInstanceId
+            Participants = HashSet.ofList [ actorId; targetId ]
+            StartTick = 0L<Tick>
+        }) |> ignore
+    )
 
-    BattleInstanceLifecycle.leave actorId scenarioState
-    let instances = scenarioState.battleInstances.Value
-    Assert.True(instances.IsEmpty)
+    let changes = BattleInstanceLifecycle.leave actorId scenarioState |> AVal.force
+    Assert.Equal(1, changes.Length)
+    Assert.Equal(ScenarioChange.RemoveBattleInstance battleInstanceId, changes.[0])
+
+type ``Duel Tests``() =
+  let requesterId = %Guid.NewGuid()
+  let accepterId = %Guid.NewGuid()
+
+  [<Fact>]
+  member _.``Request duel in structured PvP scenario``() =
+    let scenarioState =
+      BattleManagerTestHelpers.createScenarioState
+        EngagementMode.Structured
+        ScenarioCombatType.PvP
+
+    let changes =
+      Duel.request requesterId accepterId scenarioState |> AVal.force
+
+    Assert.Equal(1, changes.Length)
+
+    Assert.Equal(
+      ScenarioChange.AddPendingDuel(requesterId, accepterId),
+      changes[0]
+    )
+
+  [<Fact>]
+  member _.``Request duel in peaceful scenario fails``() =
+    let scenarioState =
+      BattleManagerTestHelpers.createScenarioState
+        EngagementMode.Peaceful
+        ScenarioCombatType.PvP
+
+    let changes =
+      Duel.request requesterId accepterId scenarioState |> AVal.force
+
+    Assert.Empty(changes)
+
+  [<Fact>]
+  member _.``Request duel in always-on scenario fails``() =
+    let scenarioState =
+      BattleManagerTestHelpers.createScenarioState
+        EngagementMode.AlwaysOn
+        ScenarioCombatType.PvP
+
+    let changes =
+      Duel.request requesterId accepterId scenarioState |> AVal.force
+
+    Assert.Empty(changes)
+
+  [<Fact>]
+  member _.``Request duel in structured PvE scenario fails``() =
+    let scenarioState =
+      BattleManagerTestHelpers.createScenarioState
+        EngagementMode.Structured
+        ScenarioCombatType.PvE
+
+    let changes =
+      Duel.request requesterId accepterId scenarioState |> AVal.force
+
+    Assert.Empty(changes)
+
+  [<Fact>]
+  member _.``Accept duel in structured PvP scenario creates battle instance``
+    ()
+    =
+    let scenarioState =
+      BattleManagerTestHelpers.createScenarioState
+        EngagementMode.Structured
+        ScenarioCombatType.PvP
+
+    transact(fun _ ->
+      scenarioState.pendingDuels.Add(requesterId, accepterId) |> ignore)
+
+    let changes = Duel.accept accepterId requesterId scenarioState |> AVal.force
+    Assert.Equal(2, changes.Length)
+    Assert.Equal(ScenarioChange.RemovePendingDuel(requesterId), changes[0])
+
+    match changes[1] with
+    | ScenarioChange.AddBattleInstance _ -> Assert.True(true)
+    | _ -> Assert.Fail("Expected AddBattleInstance")
+
+  [<Fact>]
+  member _.``Accept duel in peaceful scenario does not create battle instance``
+    ()
+    =
+    let scenarioState =
+      BattleManagerTestHelpers.createScenarioState
+        EngagementMode.Peaceful
+        ScenarioCombatType.PvP
+
+    let changes = Duel.accept accepterId requesterId scenarioState |> AVal.force
+    Assert.Empty(changes)
+
+  [<Fact>]
+  member _.``Cancel duel by requester``() =
+    let scenarioState =
+      BattleManagerTestHelpers.createScenarioState
+        EngagementMode.Structured
+        ScenarioCombatType.PvP
+
+    transact(fun _ ->
+      scenarioState.pendingDuels.Add(requesterId, accepterId) |> ignore)
+
+    let changes = Duel.cancel requesterId accepterId scenarioState |> AVal.force
+    Assert.Equal(1, changes.Length)
+    Assert.Equal(ScenarioChange.RemovePendingDuel(requesterId), changes[0])
+
+  [<Fact>]
+  member _.``Cancel duel by accepter``() =
+    let scenarioState =
+      BattleManagerTestHelpers.createScenarioState
+        EngagementMode.Structured
+        ScenarioCombatType.PvP
+
+    transact(fun _ ->
+      scenarioState.pendingDuels.Add(requesterId, accepterId) |> ignore)
+
+    let changes = Duel.cancel accepterId requesterId scenarioState |> AVal.force
+    Assert.Equal(1, changes.Length)
+    Assert.Equal(ScenarioChange.RemovePendingDuel(requesterId), changes[0])

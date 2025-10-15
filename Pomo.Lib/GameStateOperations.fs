@@ -1,4 +1,4 @@
-﻿namespace Pomo.Lib.Operations
+namespace Pomo.Lib.Operations
 
 open System
 open FSharp.Data.Adaptive
@@ -94,6 +94,7 @@ module GameState =
       additions = HashMap.ofList [ newId, configure newEntity ]
       removals = Array.empty
       gameTime = ValueNone
+      scenarioChanges = Array.empty
     }
 
   /// Removes an entity from the game state.
@@ -102,6 +103,7 @@ module GameState =
     additions = HashMap.empty
     removals = [| entityId |]
     gameTime = ValueNone
+    scenarioChanges = Array.empty
   }
 
   let getEntity entityId (state: GameState) =
@@ -159,6 +161,7 @@ module GameState =
           additions = HashMap.empty
           removals = Array.empty
           gameTime = ValueNone
+          scenarioChanges = Array.empty
         }
 
   /// Removes equipment from the specified slot.
@@ -186,6 +189,7 @@ module GameState =
         additions = HashMap.empty
         removals = Array.empty
         gameTime = ValueNone
+        scenarioChanges = Array.empty
       }
 
 
@@ -227,6 +231,7 @@ module GameState =
         additions = HashMap.empty
         removals = Array.empty
         gameTime = ValueNone
+        scenarioChanges = Array.empty
       }
 
   let activateAbility
