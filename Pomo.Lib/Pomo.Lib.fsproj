@@ -10,7 +10,6 @@
     <Compile Include="DomainExtensions.fs" />
     <Compile Include="FormulaParser.fs" />
     <Compile Include="Effects.fs" />
-    <Compile Include="Content.fs" />
     <Compile Include="Scenario.fs" />
     <Compile Include="Battle.fs" />
     <Compile Include="Collision.fs" />
@@ -18,9 +17,10 @@
     <Compile Include="ScenarioTransitions.fs" />
     <Compile Include="Movement.fs" />
     <Compile Include="Gameplay.fs" />
-    <Compile Include="BattleManager.fs" /><Compile Include="Resolution.fs" />
-    
+    <Compile Include="BattleManager.fs" />
+    <Compile Include="Resolution.fs" />
     <Compile Include="GameStateOperations.fs" />
+    <Compile Include="Content.fs" />
   </ItemGroup>
 
   <ItemGroup>

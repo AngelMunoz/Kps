@@ -307,69 +307,6 @@ module GameState =
       return finalDerived
     }
 
-  let create'
-    (services: Services.EngineServices)
-    (
-      activeScenarioId: Guid<ScenarioId>,
-      scenarios: cmap<Guid<ScenarioId>, ScenarioState>
-    ) =
-    {
-      scenarios = scenarios
-      activeScenarioId = cval activeScenarioId
-      players = cmap()
-      parties = cmap()
-      services = services
-    }
-
-  let create() =
-    let initialScenarioId = %Guid.NewGuid()
-
-    let initialScenarioState =
-      {
-        Id = initialScenarioId
-        Name = "Test Scenario"
-        BoundsWidth = 2000f
-        BoundsHeight = 2000f
-      }
-      |> ScenarioState.create id
-
-    create'
-      {
-        effectStore =
-          { new Services.IEffectStore with
-              member _.tryFind effectId =
-                Pomo.Lib.Content.EffectStore.definitions
-                |> Map.tryFind effectId
-                |> ValueOption.ofOption
-
-              member _.find effectId =
-                Pomo.Lib.Content.EffectStore.definitions |> Map.find effectId
-          }
-        abilityStore =
-          { new Services.IAbilityStore with
-              member _.tryFind abilityId =
-                Pomo.Lib.Content.AbilityStore.definitions
-                |> Map.tryFind abilityId
-                |> ValueOption.ofOption
-
-              member _.find abilityId =
-                Pomo.Lib.Content.AbilityStore.definitions |> Map.find abilityId
-          }
-        formulaStore =
-          { new Services.IFormulaStore with
-              member _.tryFind formulaId =
-                Pomo.Lib.Content.FormulaStore.definitions
-                |> Map.tryFind formulaId
-                |> ValueOption.ofOption
-
-              member _.find formulaId =
-                Pomo.Lib.Content.FormulaStore.definitions |> Map.find formulaId
-          }
-        rng = fun () -> System.Random().NextDouble()
-      }
-      (initialScenarioId, cmap [ initialScenarioId, initialScenarioState ])
-
-
   let getDerivedStats(state: GameState) = adaptive {
     let! scenario = getActiveScenario state
 

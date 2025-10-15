@@ -10,7 +10,6 @@ open FSharp.Data.Adaptive
 
 module Engagement =
 
-
   let inline private isPlayer(entity: EntityComponents) =
     entity.Factions.Contains(Classification.Faction.Player)
 
