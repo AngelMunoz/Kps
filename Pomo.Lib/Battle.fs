@@ -91,7 +91,7 @@ module Engagement =
           // are participants in the same active battle instance.
           let! inSameBattleInstance =
             scenarioState.battleInstances
-            |> AList.exists(fun instance ->
+            |> AMap.exists(fun _ instance ->
               instance.Participants.Contains(actorId)
               && instance.Participants.Contains(targetId))
 

@@ -26,6 +26,9 @@ type ObjectId
 [<Measure>]
 type ScenarioId
 
+[<Measure>]
+type BattleInstanceId
+
 // Core types available at namespace level
 [<Struct>]
 type ResourceType =
@@ -155,7 +158,7 @@ type EngagementMode =
 
 [<Struct>]
 type BattleInstance = {
-  Id: Guid
+  Id: Guid<BattleInstanceId>
   Participants: HashSet<Guid<EntityId>>
   StartTick: int64<Tick>
 }

@@ -700,12 +700,14 @@ Progress Update (2025-10-13) - **PR #5 COMPLETE**:
 - Logic for `EngagementMode.Peaceful` (blocking offensive actions) and `EngagementMode.AlwaysOn` (enforcing `ScenarioCombatType` rules) is implemented and functional.
 - Core targeting rules for PvE, PvP, and PvH, including party-based friendly-fire prevention, are correctly enforced.
 - Implemented the logic for `EngagementMode.Structured` to validate that combatants are part of an active `BattleInstance`.
+- Created the system for managing `BattleInstance` lifecycles (creation, joining, leaving) in `BattleManager.fs`.
+- Added tests for the `BattleInstance` lifecycle management.
 
 **Next Steps:**
 
-- Create the system for managing `BattleInstance` lifecycles (creation, joining, leaving).
 - Implement the duel request/accept/cancel API, ensuring it respects `EngagementMode` and `ScenarioCombatType` restrictions.
 - Expand tests to cover `Structured` engagement scenarios, including duel and party battle instances.
+- Implement party vs party battle creation.
 
 ### 6.7.1 Existing Foundations
 

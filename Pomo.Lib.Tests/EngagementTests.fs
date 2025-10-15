@@ -152,15 +152,18 @@ type ``Engagement Targeting Rules``() =
 
     addEntity state actorId actor
     addEntity state targetId target
+    let newId = %Guid.NewGuid()
 
     let battleInstance: BattleInstance = {
-      Id = Guid.NewGuid()
+      Id = %Guid.NewGuid()
       Participants = HashSet.ofList [ actorId; targetId ]
       StartTick = 0L<Tick>
     }
 
     let scenario = getActiveScenario state
-    transact(fun _ -> scenario.battleInstances.Add(battleInstance) |> ignore)
+
+    transact(fun _ ->
+      scenario.battleInstances.Add(newId, battleInstance) |> ignore)
 
     let offensiveAbility =
       match state.services.abilityStore.find 1<AbilityId> with

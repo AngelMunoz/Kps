@@ -33,7 +33,7 @@ type ScenarioState = {
   entities: cmap<Guid<EntityId>, EntityComponents>
   gameTime: cval<int64<Tick>>
   battleContext: BattleContext voption
-  battleInstances: clist<BattleInstance>
+  battleInstances: cmap<Guid<BattleInstanceId>, BattleInstance>
 }
 
 type GameStateScenarios = {
@@ -71,7 +71,7 @@ module ScenarioState =
       entities = cmap()
       gameTime = cval 0L<Tick>
       battleContext = ValueNone
-      battleInstances = clist()
+      battleInstances = cmap()
     }
 
     configure baseScenario
@@ -88,7 +88,7 @@ module ScenarioManager =
       entities = cmap()
       gameTime = cval 0L<Tick>
       battleContext = ValueNone
-      battleInstances = clist()
+      battleInstances = cmap()
     }
 
   let getScenarioState
