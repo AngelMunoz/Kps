@@ -469,19 +469,19 @@ module GameState =
       for sc in change.scenarioChanges do
         match sc with
         | ScenarioChange.AddBattleInstance bi ->
-            scenario.battleInstances.Add(bi.Id, bi) |> ignore
+          scenario.battleInstances.Add(bi.Id, bi) |> ignore
         | ScenarioChange.UpdateBattleInstance bi ->
-            scenario.battleInstances[bi.Id] <- bi
+          scenario.battleInstances[bi.Id] <- bi
         | ScenarioChange.RemoveBattleInstance biId ->
-            scenario.battleInstances.Remove biId |> ignore
-        | ScenarioChange.AddPendingDuel (requester, target) ->
-            scenario.pendingDuels.Add(requester, target) |> ignore
+          scenario.battleInstances.Remove biId |> ignore
+        | ScenarioChange.AddPendingDuel(requester, target) ->
+          scenario.pendingDuels.Add(requester, target) |> ignore
         | ScenarioChange.RemovePendingDuel requester ->
-            scenario.pendingDuels.Remove requester |> ignore
-        | ScenarioChange.AddPendingPartyDuel (requester, target) ->
-            scenario.pendingPartyDuels.Add(requester, target) |> ignore
+          scenario.pendingDuels.Remove requester |> ignore
+        | ScenarioChange.AddPendingPartyDuel(requester, target) ->
+          scenario.pendingPartyDuels.Add(requester, target) |> ignore
         | ScenarioChange.RemovePendingPartyDuel requester ->
-            scenario.pendingPartyDuels.Remove requester |> ignore
+          scenario.pendingPartyDuels.Remove requester |> ignore
 
       for entityId, updatedComponents in change.updates do
         scenario.entities[entityId] <- updatedComponents

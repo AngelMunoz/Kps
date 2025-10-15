@@ -8,25 +8,6 @@ open Pomo.Lib.Domain.Components
 open Pomo.Lib.Scenario
 open Pomo.Lib.Collision
 
-
-[<Struct>]
-type TransitionTrigger = {
-  Position: Position
-  Range: float32
-  ToScenarioId: Guid<ScenarioId>
-  ToPosition: Position
-}
-
-[<Struct>]
-type TransitionState =
-  | Inactive
-  | Detected of targetScenario: Guid<ScenarioId> * targetPosition: Position
-  | InProgress of
-    targetScenario: Guid<ScenarioId> *
-    targetPosition: Position *
-    progress: float32
-  | Completed of targetScenario: Guid<ScenarioId> * targetPosition: Position
-
 module TransitionDetection =
   let checkProximity
     (entityPos: Position)

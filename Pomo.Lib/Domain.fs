@@ -85,6 +85,32 @@ type VisualLayer = {
 }
 
 [<Struct>]
+type TransitionTrigger = {
+  Position: Position
+  Range: float32
+  ToScenarioId: Guid<ScenarioId>
+  ToPosition: Position
+}
+
+[<Struct>]
+type TransitionState =
+  | Inactive
+  | Detected of targetScenario: Guid<ScenarioId> * targetPosition: Position
+  | InProgress of
+    targetScenario: Guid<ScenarioId> *
+    targetPosition: Position *
+    progress: float32
+  | Completed of targetScenario: Guid<ScenarioId> * targetPosition: Position
+
+[<Struct>]
+type TeleportChange = {
+  EntityId: Guid<EntityId>
+  ToScenarioId: Guid<ScenarioId>
+  ToPosition: Position
+}
+
+
+[<Struct>]
 type Stat =
   // Base attributes
   | Power
