@@ -115,6 +115,22 @@ This allows for 2.5D graphics with natural boundaries for objects like corals, t
 
 Transitions allow entity migration between scenarios while preserving stats, equipment, and effects.
 
+### Teleport Command & StateChange Teleports
+
+Teleporting entities between scenarios uses a dedicated Command and StateChange field:
+
+- `TeleportChange` contains `EntityId`, `ToScenarioId`, and `ToPosition`.
+- `Rules.Command.Teleport of TeleportChange` issues a teleport request.
+- `State.StateChange.teleports: TeleportChange[]` batches teleport operations alongside other updates.
+
+Processing Teleports:
+
+1. Remove entity from any scenario it currently exists in.
+2. If the target scenario exists, re-add/update the entity in that scenario with the new position.
+3. If the target scenario does not exist the teleport is ignored.
+
+Teleport preserves all entity components (stats, effects, equipment) except position which is updated to `ToPosition`.
+
 ## Combat System
 
 ### Scenario Combat Types

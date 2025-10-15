@@ -19,7 +19,7 @@ This document outlines the implementation plan for integrating the Pomo.Lib RPG 
 2. **Player Input**: Mouse/touch-based navigation and targeting
 3. **Combat Interaction**: Activate abilities against enemies and see results
 4. **Scenario System**: Navigate terrain with walkable/non-walkable areas
-5. **Scenario Transitions**: Move between different scenarios
+5. **Scenario Transitions & Teleports**: Move between different scenarios (supports explicit teleport command for dedicated engagement maps)
 6. **Battle Management**: Engage/disengage battle mechanics for peaceful vs combat scenarios
 
 **Input Design Philosophy**:

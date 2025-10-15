@@ -16,6 +16,7 @@
     <Compile Include="EngagementTests.fs" />
     <Compile Include="BattleManagerTests.fs" />
     <Compile Include="PartyDuelTests.fs" />
+    <Compile Include="TeleportTests.fs" />
     <Compile Include="Tests.fs" />
   </ItemGroup>
   <ItemGroup>

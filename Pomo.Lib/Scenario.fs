@@ -116,6 +116,7 @@ module ScenarioManager =
       removals = [||]
       gameTime = ValueNone
       scenarioChanges = Array.empty
+      teleports = Array.empty
     }
 
   let removeEntityFromScenario
@@ -128,6 +129,7 @@ module ScenarioManager =
       removals = [| entityId |]
       gameTime = ValueNone
       scenarioChanges = Array.empty
+      teleports = Array.empty
     }
 
   let listScenarios(gameState: GameStateScenarios) =

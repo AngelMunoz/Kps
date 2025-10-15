@@ -454,6 +454,7 @@ module GameState =
       removals = Array.empty
       gameTime = ValueSome newTime
       scenarioChanges = Array.empty
+      teleports = Array.empty
     }
   }
 
@@ -490,8 +491,25 @@ module GameState =
         scenario.entities.Add(entityId, newComponents) |> ignore
 
       for entityId in change.removals do
-        scenario.entities.Remove entityId |> ignore)
+        scenario.entities.Remove entityId |> ignore
 
+      for tp in change.teleports do
+        if state.scenarios.ContainsKey tp.ToScenarioId then
+          let mutable moved = ValueNone
+
+          for (_, scState) in state.scenarios do
+            if scState.entities.ContainsKey tp.EntityId then
+              let comps = scState.entities[tp.EntityId]
+              moved <- ValueSome comps
+              scState.entities.Remove tp.EntityId |> ignore
+
+          (match moved with
+           | ValueSome comps ->
+             let targetScenarioState = state.scenarios[tp.ToScenarioId]
+
+             targetScenarioState.entities[tp.EntityId] <-
+               { comps with Position = tp.ToPosition }
+           | ValueNone -> ()))
 
 module Projections =
 

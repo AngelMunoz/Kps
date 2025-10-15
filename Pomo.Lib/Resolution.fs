@@ -671,6 +671,7 @@ module Resolution =
             removals = Array.empty
             gameTime = ValueNone
             scenarioChanges = Array.empty
+            teleports = Array.empty
           }
         else
           return {
@@ -683,6 +684,7 @@ module Resolution =
             removals = Array.empty
             gameTime = ValueNone
             scenarioChanges = Array.empty
+            teleports = Array.empty
           }
       }
 
@@ -707,6 +709,7 @@ module Resolution =
           removals = Array.empty
           gameTime = ValueNone
           scenarioChanges = Array.empty
+          teleports = Array.empty
         }
       | ValidAction action ->
         return! AbilityResolution.resolve abilityId rparams ractors action
@@ -747,6 +750,7 @@ module Resolution =
           removals = Array.empty
           gameTime = ValueNone
           scenarioChanges = Array.empty
+          teleports = Array.empty
         }
       | None ->
         return {
@@ -755,6 +759,7 @@ module Resolution =
           removals = Array.empty
           gameTime = ValueNone
           scenarioChanges = Array.empty
+          teleports = Array.empty
         }
     }
 
@@ -775,6 +780,7 @@ module Resolution =
           removals = Array.empty
           gameTime = ValueNone
           scenarioChanges = Array.empty
+          teleports = Array.empty
         }
       | ValueSome(Active abilityDef) ->
       // Determine actual targets based on ability targeting constraints
@@ -811,6 +817,7 @@ module Resolution =
         removals = Array.empty
         gameTime = ValueNone
         scenarioChanges = Array.empty
+        teleports = Array.empty
       }
     }
 
@@ -851,6 +858,7 @@ module Resolution =
         removals = Array.empty
         gameTime = ValueNone
         scenarioChanges = scenarioChanges
+        teleports = Array.empty
       }
     | RemoveEntities entityIds ->
       return {
@@ -859,6 +867,7 @@ module Resolution =
         removals = entityIds |> Seq.toArray
         gameTime = ValueNone
         scenarioChanges = Array.empty
+        teleports = Array.empty
       }
     | AddEntities entitiesToAdd ->
       return {
@@ -867,5 +876,15 @@ module Resolution =
         removals = Array.empty
         gameTime = ValueNone
         scenarioChanges = Array.empty
+        teleports = Array.empty
+      }
+    | Teleport tp ->
+      return {
+        updates = HashMap.empty
+        additions = HashMap.empty
+        removals = Array.empty
+        gameTime = ValueNone
+        scenarioChanges = Array.empty
+        teleports = [| tp |]
       }
   }

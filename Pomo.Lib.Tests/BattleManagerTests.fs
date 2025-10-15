@@ -8,11 +8,6 @@ open Pomo.Lib.Domain
 open Pomo.Lib.Domain.State
 open Pomo.Lib.Scenario
 open Pomo.Lib.BattleManager
-open Pomo.Lib.Tests.TestHelpers
-
-module Tuple =
-  let inline fstV struct (a, _) = a
-  let inline sndV struct (_, b) = b
 
 
 module private BattleManagerTestHelpers =

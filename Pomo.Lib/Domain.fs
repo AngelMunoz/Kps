@@ -503,6 +503,7 @@ module Rules =
     | Duel of duelAction: DuelCommand
     | RemoveEntities of entityIds: Guid<EntityId> seq
     | AddEntities of HashMap<Guid<EntityId>, Components.EntityComponents>
+    | Teleport of teleportChange: TeleportChange
 
 
 module Services =
@@ -548,4 +549,5 @@ module State =
     removals: Guid<EntityId>[]
     gameTime: int64<Tick> voption
     scenarioChanges: ScenarioChange[]
+    teleports: TeleportChange[]
   }

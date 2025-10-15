@@ -43,3 +43,8 @@ module TestHelpers =
   let getDerivedStat (state: GameState) (id: Guid<EntityId>) =
     let derivedStats = getDerivedStats state
     derivedStats[id]
+
+[<AutoOpen>]
+module Tuple =
+  let inline fstV struct (a, _) = a
+  let inline sndV struct (_, b) = b
