@@ -209,7 +209,7 @@ type ``Scenario Transition Tests``() =
 
   [<Fact>]
   member _.``Connected scenarios are properly linked``() =
-    let (town, wilderness, dungeon) =
+    let struct (town, wilderness, dungeon) =
       ScenarioDefinitions.createConnectedScenarios()
 
     Assert.Equal("Peaceful Town", town.Name)

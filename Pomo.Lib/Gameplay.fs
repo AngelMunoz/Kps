@@ -469,19 +469,18 @@ module GameState =
 
       for sc in change.scenarioChanges do
         match sc with
-        | ScenarioChange.AddBattleInstance bi ->
+        | AddBattleInstance bi ->
           scenario.battleInstances.Add(bi.Id, bi) |> ignore
-        | ScenarioChange.UpdateBattleInstance bi ->
-          scenario.battleInstances[bi.Id] <- bi
-        | ScenarioChange.RemoveBattleInstance biId ->
+        | UpdateBattleInstance bi -> scenario.battleInstances[bi.Id] <- bi
+        | RemoveBattleInstance biId ->
           scenario.battleInstances.Remove biId |> ignore
-        | ScenarioChange.AddPendingDuel(requester, target) ->
+        | AddPendingDuel(requester, target) ->
           scenario.pendingDuels.Add(requester, target) |> ignore
-        | ScenarioChange.RemovePendingDuel requester ->
+        | RemovePendingDuel requester ->
           scenario.pendingDuels.Remove requester |> ignore
-        | ScenarioChange.AddPendingPartyDuel(requester, target) ->
+        | AddPendingPartyDuel(requester, target) ->
           scenario.pendingPartyDuels.Add(requester, target) |> ignore
-        | ScenarioChange.RemovePendingPartyDuel requester ->
+        | RemovePendingPartyDuel requester ->
           scenario.pendingPartyDuels.Remove requester |> ignore
 
       for entityId, updatedComponents in change.updates do
@@ -497,19 +496,21 @@ module GameState =
         if state.scenarios.ContainsKey tp.ToScenarioId then
           let mutable moved = ValueNone
 
-          for (_, scState) in state.scenarios do
+          for _, scState in state.scenarios do
             if scState.entities.ContainsKey tp.EntityId then
               let comps = scState.entities[tp.EntityId]
               moved <- ValueSome comps
               scState.entities.Remove tp.EntityId |> ignore
 
-          (match moved with
-           | ValueSome comps ->
-             let targetScenarioState = state.scenarios[tp.ToScenarioId]
+          match moved with
+          | ValueSome comps ->
+            let targetScenarioState = state.scenarios[tp.ToScenarioId]
 
-             targetScenarioState.entities[tp.EntityId] <-
-               { comps with Position = tp.ToPosition }
-           | ValueNone -> ()))
+            targetScenarioState.entities[tp.EntityId] <-
+              { comps with Position = tp.ToPosition }
+          | ValueNone -> ()
+
+      ())
 
 module Projections =
 

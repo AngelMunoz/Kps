@@ -843,13 +843,13 @@ module Resolution =
     | Duel duelAction ->
       let! scenarioChanges =
         match duelAction with
-        | DuelCommand.Request(requester, target) ->
+        | Request(requester, target) ->
           Duel.request requester target scenarioState
-        | DuelCommand.PartyRequest(requester, target) ->
+        | PartyRequest(requester, target) ->
           PartyDuel.request requester target scenarioState
-        | DuelCommand.Accept(accepter, requester) ->
+        | Accept(accepter, requester) ->
           Duel.accept accepter requester scenarioState
-        | DuelCommand.Cancel(canceller, otherPlayer) ->
+        | Cancel(canceller, otherPlayer) ->
           Duel.cancel canceller otherPlayer scenarioState
 
       return {

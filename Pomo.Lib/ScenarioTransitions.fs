@@ -73,51 +73,6 @@ module TransitionExecution =
     struct (struct (toScenarioId, updatedEntity),
             struct (fromScenarioId, entityId))
 
-  let executeTransition
-    (scenarios: cmap<Guid<ScenarioId>, ScenarioState>)
-    (activeScenarioId: cval<Guid<ScenarioId>>)
-    (entityId: Guid<EntityId>)
-    (trigger: TransitionTrigger)
-    : unit =
-
-    let currentScenarioId = activeScenarioId |> AVal.force
-    let scenarios = scenarios |> AMap.force
-
-    match scenarios |> HashMap.tryFindV currentScenarioId with
-    | ValueSome currentScenario ->
-      let entities = currentScenario.entities |> AMap.toAVal |> AVal.force
-
-      match entities |> HashMap.tryFindV entityId with
-      | ValueSome entity ->
-        let struct (struct (targetScenarioId, updatedEntity),
-                    struct (sourceScenarioId, entityToRemove)) =
-          migrateEntity
-            entityId
-            entity
-            trigger.ToPosition
-            currentScenarioId
-            trigger.ToScenarioId
-
-        // Create state changes for removing from source and adding to target
-        transact(fun () ->
-          match scenarios |> HashMap.tryFindV sourceScenarioId with
-          | ValueSome sourceScenario ->
-            sourceScenario.entities.Remove entityToRemove |> ignore
-          | ValueNone -> ())
-
-        transact(fun () ->
-          match scenarios |> HashMap.tryFindV targetScenarioId with
-          | ValueSome targetScenario ->
-            targetScenario.entities.[entityId] <- updatedEntity
-          | ValueNone -> ())
-
-        // Update active scenario
-        transact(fun () -> activeScenarioId.Value <- targetScenarioId)
-
-      | ValueNone -> ()
-
-    | ValueNone -> ()
-
 module VisualTransitionEffects =
   [<Struct>]
   type TransitionEffect = {
@@ -362,7 +317,7 @@ module ScenarioDefinitions =
       |]
     }
 
-  let createConnectedScenarios() : (Scenario * Scenario * Scenario) =
+  let createConnectedScenarios() =
     let townId = %Guid.NewGuid()
     let wildernessId = %Guid.NewGuid()
     let dungeonId = %Guid.NewGuid()
@@ -394,4 +349,4 @@ module ScenarioDefinitions =
           |]
     }
 
-    (updatedTown, updatedWilderness, dungeon)
+    struct (updatedTown, updatedWilderness, dungeon)
