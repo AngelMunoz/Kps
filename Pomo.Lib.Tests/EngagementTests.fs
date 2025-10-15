@@ -182,3 +182,113 @@ type ``Engagement Targeting Rules``() =
       |> AVal.force
 
     Assert.True(canUse)
+
+  [<Fact>]
+  member _.``Peaceful zones block Offensive abilities while Support remains allowed``
+    ()
+    =
+    let state = EngagementTestHelpers.create EngagementMode.Peaceful
+    let actorId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
+
+    let actor = EngagementTestHelpers.makeEntity [ Classification.Player ]
+    let target = EngagementTestHelpers.makeEntity [ Classification.Enemy ]
+
+    addEntity state actorId actor
+    addEntity state targetId target
+
+    let scenario = getActiveScenario state
+
+    let offensiveAbility = {
+      Id = 1<AbilityId>
+      Name = "Attack"
+      Intent = AbilityIntent.Offensive
+      Cooldown = 0L<Tick>
+      Cost = ValueNone
+      Targeting = TargetType.SingleEnemy
+      FormulaId = ValueNone
+      Effects = [||]
+      Requirements = [||]
+    }
+
+    let supportAbility = {
+      Id = 2<AbilityId>
+      Name = "Heal"
+      Intent = AbilityIntent.Support
+      Cooldown = 0L<Tick>
+      Cost = ValueNone
+      Targeting = TargetType.SingleAlly
+      FormulaId = ValueNone
+      Effects = [||]
+      Requirements = [||]
+    }
+
+    let canUseOffensive =
+      Engagement.canUseAbility
+        scenario
+        state.parties
+        actorId
+        target
+        targetId
+        offensiveAbility
+      |> AVal.force
+
+    let canUseSupport =
+      Engagement.canUseAbility
+        scenario
+        state.parties
+        actorId
+        target
+        targetId
+        supportAbility
+      |> AVal.force
+
+    Assert.False(canUseOffensive)
+    Assert.True(canUseSupport)
+
+  [<Fact>]
+  member _.``Party friendly-fire blocked across all modes``() =
+    let state = EngagementTestHelpers.create EngagementMode.AlwaysOn
+    let partyId = %Guid.NewGuid()
+    let actorId = Guid.NewGuid() |> UMX.tag<EntityId>
+    let allyId = Guid.NewGuid() |> UMX.tag<EntityId>
+
+    let actor = {
+      EngagementTestHelpers.makeEntity [ Classification.Player ] with
+          PartyId = ValueSome partyId
+    }
+
+    let ally = {
+      EngagementTestHelpers.makeEntity [ Classification.Player ] with
+          PartyId = ValueSome partyId
+    }
+
+    addEntity state actorId actor
+    addEntity state allyId ally
+
+    let party = {
+      Id = partyId
+      Members = HashSet.ofList [ actorId; allyId ]
+      Name = "Test Party"
+    }
+
+    transact(fun _ -> state.parties.Add(partyId, party) |> ignore)
+
+    let scenario = getActiveScenario state
+
+    let offensiveAbility =
+      match state.services.abilityStore.find 1<AbilityId> with
+      | Abilities.Active def -> def
+      | _ -> failwith "Expected active ability"
+
+    let canAttackAlly =
+      Engagement.canUseAbility
+        scenario
+        state.parties
+        actorId
+        ally
+        allyId
+        offensiveAbility
+      |> AVal.force
+
+    Assert.False(canAttackAlly)

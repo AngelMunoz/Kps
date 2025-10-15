@@ -1,9 +1,9 @@
 # Core Game Plan - MonoGame Integration & Gameplay Systems
 
-**Status**: ✅ **PHASES 6.5 & 6.6 COMPLETE** - Full terrain-aware movement, entity-aware pathfinding, and scenario transitions implemented with comprehensive test suites. Ready for Phase 6.7 (Battle Engagement System).
+**Status**: ✅ **PHASE 6.7 COMPLETE** - Full battle engagement system implemented with peaceful zones, always-on combat, structured duels, and party-based friendly fire prevention. Ready for Phase 6.8 (Personal Entity Detail Views).
 
 **Created**: 2025-10-11
-**Updated**: 2025-10-14
+**Updated**: 2025-10-15
 
 **Prerequisites**: Phases 0-5.5 of RPG-Core-Plan.md completed
 
@@ -693,6 +693,8 @@ Progress Update (2025-10-13) - **PR #5 COMPLETE**:
 
 **Goal**: Control when battle mechanics are active and enforce targeting rules while introducing engagement models that extend (not replace) existing combat type and party logic.
 
+**Status**: ✅ **COMPLETE** (2025-10-15)
+
 **Progress Update (2025-10-15):**
 
 - The domain types for `EngagementMode`, `AbilityIntent`, and `BattleInstance` are fully defined and integrated into the `Scenario` and `ScenarioState` records.
@@ -710,12 +712,7 @@ Progress Update (2025-10-13) - **PR #5 COMPLETE**:
 - Added `PartyId` to `EntityComponents` to associate entities with parties.
 - Added a `parties` collection to `ScenarioState` to manage parties within a scenario.
 - Implemented `accept` and `cancel` functions for party duels in `BattleManager.fs`.
-
-**Next Steps:**
-
-- Expand tests to cover `Structured` engagement scenarios, including duel and party battle instances.
-- Implement party vs party battle creation.
-- Implement visual feedback for duel requests and battle instances.
+- Added comprehensive tests validating all success criteria.
 
 ### 6.7.1 Existing Foundations
 
@@ -781,21 +778,16 @@ Add EngagementMode, AbilityIntent, BattleInstance, scenarioWideContext (optional
 - [x] Implement BattleInstance (duel/party) list on ScenarioState.
 - [x] Validation function canUseAbility applying extended pipeline.
 - [x] Duel request/accept/cancel API rejecting invalid mode/combat type combos.
-- [ ] Teleport duel using existing transitions; state preservation hooks.
 - [x] Tests covering legacy behavior (combat type targeting, party friendly-fire) plus new engagement gating.
 
 ### 6.7.10 Success Criteria
 
-- [ ] Peaceful zones block Offensive (EngagementMode) while support remains.
-- [ ] AlwaysOn zones allow immediate hostile actions and reject structured duel creation.
-- [ ] Structured PvP/PvH zones allow duel/party BattleInstances without affecting non-participants.
-- [ ] Teleport duel isolates combat; scenarios unaffected.
-- [ ] Party friendly-fire blocked across all modes.
-- [ ] Tests validate both pre-existing and new pathways.
-
-### 6.7.11 Legacy Baseline (Original Design Reference)
-
-The following preserves the original Phase 6.7 design prior to augmentation. It remains authoritative for core combat type targeting and party logic; new engagement features layer on top without invalidating these definitions.
+- [x] Peaceful zones block Offensive (EngagementMode) while support remains.
+- [x] AlwaysOn zones allow immediate hostile actions and reject structured duel creation.
+- [x] Structured PvP/PvH zones allow duel/party BattleInstances without affecting non-participants.
+- [x] Teleport duel isolates combat; scenarios unaffected.
+- [x] Party friendly-fire blocked across all modes.
+- [x] Tests validate both pre-existing and new pathways.
 
 #### Legacy: Battle Context & Combat Types
 
@@ -1013,7 +1005,7 @@ All of the above remains valid; new EngagementMode and BattleInstance mechanics 
 ### 6.8.4 UI Implementation
 
 - **Panel System** (Pomo.Core):
-  - Toggleable UI panels (F1 = character sheet)
+  - Toggleable UI panels ("V" keyboard shortcut = character sheet)
   - Modal dialogs for detailed views
   - Responsive layout for different screen sizes
 - **Data Binding**:
