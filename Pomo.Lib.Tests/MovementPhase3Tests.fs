@@ -10,6 +10,7 @@ open Pomo.Lib.Domain.Classification
 open Pomo.Lib.Gameplay
 open Pomo.Lib.Tests.TestHelpers
 open System
+open Pomo.Lib.Content
 
 module MovementPhase3Tests =
 

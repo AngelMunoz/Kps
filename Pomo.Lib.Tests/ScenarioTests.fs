@@ -11,6 +11,7 @@ open Pomo.Lib.Gameplay
 open Pomo.Lib.Scenario
 open Pomo.Lib.Tests.TestHelpers
 open System
+open Pomo.Lib.Content
 
 type ``Scenario Management Tests``() =
 

@@ -14,6 +14,7 @@ open Pomo.Lib.Rules
 open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Tests.TestHelpers
 open Pomo.Lib.Scenario
+open Pomo.Lib.Content
 
 module private Phase3Helpers =
 
@@ -33,7 +34,7 @@ module private Phase3Helpers =
       })
 
 
-    Gameplay.GameState.create'
+    GameState.create'
       {
         effectStore =
           { new Services.IEffectStore with

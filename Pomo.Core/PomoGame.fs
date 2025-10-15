@@ -52,8 +52,12 @@ type PomoGame() as this =
   let mutable prevKey1Down: bool = false
   let mutable showPathfindingGrid: bool = false
   let mutable prevKey2Down: bool = false
+  let mutable prevKeyVDown: bool = false
+  let mutable prevKeyEDown: bool = false
+  let mutable prevKeyADown: bool = false
   let mutable currentPath: Position[] = Array.empty
   let mutable pathPreview: PathPreview.PathSegment[] = Array.empty
+  let mutable uiState: UISystem.UIState = UISystem.createUIState()
 
   do
     base.Services.AddService(
@@ -62,6 +66,7 @@ type PomoGame() as this =
     )
 
     this.IsMouseVisible <- true
+    this.Window.AllowUserResizing <- true
 
     base.Content.RootDirectory <- "Content"
 
@@ -282,11 +287,14 @@ type PomoGame() as this =
     Console.WriteLine($"[Phase 6] Player ID: {playerId}")
     Console.WriteLine($"[Phase 6] Enemy ID: {enemyId}")
     Console.WriteLine("")
-    Console.WriteLine("=== PHASE 6.5 & 6.6 VISUAL CONTROLS ===")
+    Console.WriteLine("=== PHASE 6.8 VISUAL CONTROLS ===")
     Console.WriteLine("Right Click: Move with pathfinding (shows path preview)")
     Console.WriteLine("Key 2: Toggle pathfinding grid visualization")
     Console.WriteLine("Left Click: Select entity")
     Console.WriteLine("Key 1: Use ability on selected target")
+    Console.WriteLine("Key V: Toggle Character Sheet")
+    Console.WriteLine("Key E: Toggle Equipment View")
+    Console.WriteLine("Key A: Toggle Ability List")
     Console.WriteLine("")
     Console.WriteLine("Visual Elements:")
     Console.WriteLine("- Brown rectangles: Blocked terrain (walls)")
@@ -300,6 +308,7 @@ type PomoGame() as this =
     Console.WriteLine(
       "- Grid overlay: Pathfinding navigation grid (toggle with Key 2)"
     )
+    Console.WriteLine("- UI Panels: Character sheet (V), Equipment (E), Abilities (A)")
 
     Console.WriteLine("=======================================")
     Console.WriteLine("")
@@ -506,6 +515,28 @@ type PomoGame() as this =
 
         prevKey2Down <- key2
 
+        let keyV = Keyboard.GetState().IsKeyDown(Keys.V)
+        if keyV && not prevKeyVDown then
+          uiState <- UISystem.togglePanel UISystem.CharacterSheet uiState
+          Console.WriteLine($"[UI] Character sheet toggled: {uiState.ActivePanels |> HashSet.contains UISystem.CharacterSheet}")
+        prevKeyVDown <- keyV
+
+        let keyE = Keyboard.GetState().IsKeyDown(Keys.E)
+        if keyE && not prevKeyEDown then
+          uiState <- UISystem.togglePanel UISystem.EquipmentView uiState
+          Console.WriteLine($"[UI] Equipment view toggled: {uiState.ActivePanels |> HashSet.contains UISystem.EquipmentView}")
+        prevKeyEDown <- keyE
+
+        let keyA = Keyboard.GetState().IsKeyDown(Keys.A)
+        if keyA && not prevKeyADown then
+          uiState <- UISystem.togglePanel UISystem.AbilityList uiState
+          Console.WriteLine($"[UI] Ability list toggled: {uiState.ActivePanels |> HashSet.contains UISystem.AbilityList}")
+        prevKeyADown <- keyA
+
+        match selected with
+        | ValueSome entityId -> uiState <- UISystem.setSelectedEntity entityId uiState
+        | ValueNone -> uiState <- UISystem.clearSelectedEntity uiState
+
         base.Update(gameTime)
       | ValueNone -> base.Update(gameTime)
 
@@ -552,6 +583,11 @@ type PomoGame() as this =
         showPathfindingGrid
         pathPreview
         currentPath
+
+      match hudOpt with
+      | ValueSome font ->
+        UISystem.draw spriteBatch pixel font uiState state this.GraphicsDevice.Viewport
+      | ValueNone -> ()
     | _ -> ()
 
     base.Draw(gameTime)

@@ -1,0 +1,370 @@
+namespace Pomo.Core
+
+open System
+open Microsoft.Xna.Framework
+open Microsoft.Xna.Framework.Graphics
+open FSharp.UMX
+open FSharp.Data.Adaptive
+open Pomo.Lib.Domain
+open Pomo.Lib.Domain.Attributes
+open Pomo.Lib.Domain.Classification
+open Pomo.Lib.Domain.Components
+open Pomo.Lib.Domain.Inventory
+open Pomo.Lib.Domain.Abilities
+open Pomo.Lib.Gameplay
+open Pomo.Lib.Operations
+
+module UISystem =
+  [<Struct>]
+  type UIPanel =
+    | CharacterSheet
+    | EquipmentView
+    | AbilityList
+
+  [<Struct>]
+  type UIState = {
+    ActivePanels: UIPanel HashSet
+    SelectedEntity: Guid<EntityId> voption
+  }
+
+  let createUIState() = {
+    ActivePanels = HashSet.empty
+    SelectedEntity = ValueNone
+  }
+
+  let togglePanel panel uiState =
+    let panels =
+      if uiState.ActivePanels |> HashSet.contains panel then
+        uiState.ActivePanels |> HashSet.remove panel
+      else
+        uiState.ActivePanels |> HashSet.add panel
+
+    { uiState with ActivePanels = panels }
+
+  let setSelectedEntity entityId uiState = {
+    uiState with
+        SelectedEntity = ValueSome entityId
+  }
+
+  let clearSelectedEntity uiState = {
+    uiState with
+        SelectedEntity = ValueNone
+  }
+
+  let private drawPanel
+    (sb: SpriteBatch)
+    (pixel: Texture2D)
+    (font: SpriteFont)
+    (x: int)
+    (y: int)
+    (width: int)
+    (height: int)
+    (title: string)
+    =
+
+    let panelColor = Color(40, 40, 40, 220)
+    let borderColor = Color(100, 100, 100, 255)
+    let titleColor = Color.White
+
+    sb.Draw(pixel, Rectangle(x, y, width, height), panelColor)
+    sb.Draw(pixel, Rectangle(x, y, width, 2), borderColor)
+    sb.Draw(pixel, Rectangle(x, y + height - 2, width, 2), borderColor)
+    sb.Draw(pixel, Rectangle(x, y, 2, height), borderColor)
+    sb.Draw(pixel, Rectangle(x + width - 2, y, 2, height), borderColor)
+
+    let titleSize = font.MeasureString(title)
+    let titleX = float32 x + (float32 width - titleSize.X) * 0.5f
+    let titleY = float32 y + 8f
+    sb.DrawString(font, title, Vector2(titleX, titleY), titleColor)
+
+  let private drawStatLine
+    (sb: SpriteBatch)
+    (font: SpriteFont)
+    (x: float32)
+    (y: float32)
+    (label: string)
+    (value: string)
+    =
+
+    let labelColor = Color(200, 200, 200)
+    let valueColor = Color.White
+
+    sb.DrawString(font, label, Vector2(x, y), labelColor)
+    let labelSize = font.MeasureString(label)
+    sb.DrawString(font, value, Vector2(x + labelSize.X + 10f, y), valueColor)
+
+  let private drawCharacterSheet
+    (sb: SpriteBatch)
+    (pixel: Texture2D)
+    (font: SpriteFont)
+    (entityId: Guid<EntityId>)
+    (state: GameState)
+    (x: int)
+    (y: int)
+    =
+
+    let width = 300
+    let height = 400
+
+    drawPanel sb pixel font x y width height "Character Sheet"
+
+    match GameState.getEntity entityId state with
+    | Some entity ->
+      let stats = GameState.getDerivedStatsSnapshot entityId state
+      let startY = float32 y + 40f
+      let lineHeight = 20f
+      let leftX = float32 x + 10f
+
+      drawStatLine
+        sb
+        font
+        leftX
+        (startY + 0f * lineHeight)
+        "Profession:"
+        $"{entity.Identity.Family}/{entity.Identity.Stage}"
+
+      drawStatLine
+        sb
+        font
+        leftX
+        (startY + 1f * lineHeight)
+        "HP:"
+        $"{entity.Resources.HP}"
+
+      drawStatLine
+        sb
+        font
+        leftX
+        (startY + 2f * lineHeight)
+        "MP:"
+        $"{entity.Resources.MP}"
+
+      drawStatLine
+        sb
+        font
+        leftX
+        (startY + 3f * lineHeight)
+        "Status:"
+        $"{entity.Resources.Status}"
+
+      drawStatLine sb font leftX (startY + 5f * lineHeight) "Base Stats:" ""
+
+      drawStatLine
+        sb
+        font
+        leftX
+        (startY + 6f * lineHeight)
+        "  Power:"
+        $"{entity.BaseStats.Power}"
+
+      drawStatLine
+        sb
+        font
+        leftX
+        (startY + 7f * lineHeight)
+        "  Magic:"
+        $"{entity.BaseStats.Magic}"
+
+      drawStatLine
+        sb
+        font
+        leftX
+        (startY + 8f * lineHeight)
+        "  Sense:"
+        $"{entity.BaseStats.Sense}"
+
+      drawStatLine
+        sb
+        font
+        leftX
+        (startY + 9f * lineHeight)
+        "  Charm:"
+        $"{entity.BaseStats.Charm}"
+
+      match stats with
+      | Some derivedStats ->
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 11f * lineHeight)
+          "Derived Stats:"
+          ""
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 12f * lineHeight)
+          "  AP:"
+          $"{derivedStats.AP}"
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 13f * lineHeight)
+          "  AC:"
+          $"{derivedStats.AC}"
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 14f * lineHeight)
+          "  DX:"
+          $"{derivedStats.DX}"
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 15f * lineHeight)
+          "  MA:"
+          $"{derivedStats.MA}"
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 16f * lineHeight)
+          "  MD:"
+          $"{derivedStats.MD}"
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 17f * lineHeight)
+          "  WT:"
+          $"{derivedStats.WT}"
+      | None -> ()
+
+    | None ->
+      drawStatLine
+        sb
+        font
+        (float32 x + 10f)
+        (float32 y + 40f)
+        "Entity not found"
+        ""
+
+  let private drawEquipmentView
+    (sb: SpriteBatch)
+    (pixel: Texture2D)
+    (font: SpriteFont)
+    (entityId: Guid<EntityId>)
+    (state: GameState)
+    (x: int)
+    (y: int)
+    =
+
+    let width = 280
+    let height = 350
+
+    drawPanel sb pixel font x y width height "Equipment"
+
+    match GameState.getEntity entityId state with
+    | Some entity ->
+      let startY = float32 y + 40f
+      let lineHeight = 20f
+      let leftX = float32 x + 10f
+
+      let slots = [| Head; Chest; Legs; Hands; Weapon1; Weapon2; Accessory |]
+
+      for i in 0 .. slots.Length - 1 do
+        let slot = slots.[i]
+        let slotY = startY + float32 i * lineHeight
+
+        match entity.Equipment |> HashMap.tryFindV slot with
+        | ValueSome equipment ->
+          drawStatLine sb font leftX slotY $"{slot}:" equipment.Name
+        | ValueNone -> drawStatLine sb font leftX slotY $"{slot}:" "(Empty)"
+
+    | None ->
+      drawStatLine
+        sb
+        font
+        (float32 x + 10f)
+        (float32 y + 40f)
+        "Entity not found"
+        ""
+
+  let private drawAbilityList
+    (sb: SpriteBatch)
+    (pixel: Texture2D)
+    (font: SpriteFont)
+    (entityId: Guid<EntityId>)
+    (state: GameState)
+    (x: int)
+    (y: int)
+    =
+
+    let width = 320
+    let height = 300
+
+    drawPanel sb pixel font x y width height "Abilities"
+
+    match GameState.getEntity entityId state with
+    | Some entity ->
+      let startY = float32 y + 40f
+      let lineHeight = 18f
+      let leftX = float32 x + 10f
+
+      let abilities = entity.Abilities |> HashSet.toArray
+      let readyAbilities = GameState.getReadyAbilities entityId state
+
+      for i in 0 .. min (abilities.Length - 1) 12 do
+        let abilityId = abilities.[i]
+        let abilityY = startY + float32 i * lineHeight
+
+        let isReady = readyAbilities |> HashMap.containsKey abilityId
+        let statusText = if isReady then "(Ready)" else "(Cooldown)"
+        let color = if isReady then Color.LimeGreen else Color.Gray
+
+        sb.DrawString(
+          font,
+          $"Ability {%abilityId} {statusText}",
+          Vector2(leftX, abilityY),
+          color
+        )
+
+    | None ->
+      drawStatLine
+        sb
+        font
+        (float32 x + 10f)
+        (float32 y + 40f)
+        "Entity not found"
+        ""
+
+  let draw
+    (sb: SpriteBatch)
+    (pixel: Texture2D)
+    (font: SpriteFont)
+    (uiState: UIState)
+    (state: GameState)
+    (viewport: Viewport)
+    =
+
+    match uiState.SelectedEntity with
+    | ValueSome entityId when not(uiState.ActivePanels |> HashSet.isEmpty) ->
+      sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend)
+
+      let panels = uiState.ActivePanels |> HashSet.toArray
+      let panelWidth = 320
+      let spacing = 20
+
+      for i in 0 .. panels.Length - 1 do
+        let panel = panels.[i]
+        let x = 50 + i * (panelWidth + spacing)
+        let y = 50
+
+        match panel with
+        | CharacterSheet -> drawCharacterSheet sb pixel font entityId state x y
+        | EquipmentView -> drawEquipmentView sb pixel font entityId state x y
+        | AbilityList -> drawAbilityList sb pixel font entityId state x y
+
+      sb.End()
+
+    | _ -> ()

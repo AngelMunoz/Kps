@@ -8,7 +8,7 @@ open Pomo.Lib.Gameplay
 open Pomo.Lib.Scenario
 open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Domain.State
-
+open Pomo.Lib.Content
 
 module TeleportTests =
   open Pomo.Lib.Domain.CharacterKits

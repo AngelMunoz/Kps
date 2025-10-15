@@ -10,7 +10,9 @@ open Pomo.Lib.Domain
 open Pomo.Lib.Scenario
 open Pomo.Lib.ScenarioTransitions
 open Pomo.Lib.Tests.TestHelpers
+open Pomo.Lib.Content
 open System
+
 
 type ``Scenario Transition Tests``() =
 
