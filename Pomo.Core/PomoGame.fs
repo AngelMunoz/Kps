@@ -55,6 +55,7 @@ type PomoGame() as this =
   let mutable prevKeyVDown: bool = false
   let mutable prevKeyEDown: bool = false
   let mutable prevKeyADown: bool = false
+  let mutable prevKeyRDown: bool = false
   let mutable currentPath: Position[] = Array.empty
   let mutable pathPreview: PathPreview.PathSegment[] = Array.empty
   let mutable uiState: UISystem.UIState = UISystem.createUIState()
@@ -321,6 +322,7 @@ type PomoGame() as this =
     Console.WriteLine("Key V: Toggle Character Sheet")
     Console.WriteLine("Key E: Toggle Equipment View")
     Console.WriteLine("Key A: Toggle Ability List")
+    Console.WriteLine("Key R: Replenish MP")
     Console.WriteLine("")
     Console.WriteLine("Visual Elements:")
     Console.WriteLine("- Brown rectangles: Blocked terrain (walls)")
@@ -586,6 +588,26 @@ type PomoGame() as this =
           )
 
         prevKeyADown <- keyA
+
+        let keyR = Keyboard.GetState().IsKeyDown(Keys.R)
+
+        if keyR && not prevKeyRDown then
+
+          let replenishCmd =
+            Rules.ReplenishResources [|
+              {
+                Actor = playerId
+                ResourceType = ResourceType.MP
+                Amount = 1000
+              }
+            |]
+
+          Resolution.evaluate state replenishCmd
+          |> GameState.forceAndApply state
+
+          Console.WriteLine("[Debug] Player MP replenished.")
+
+        prevKeyRDown <- keyR
 
         match selected with
         | ValueSome entityId ->

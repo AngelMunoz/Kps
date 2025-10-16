@@ -551,13 +551,22 @@ module Rules =
     | Cancel of canceller: Guid<EntityId> * otherPlayer: Guid<EntityId>
 
   [<Struct>]
+  type ResourceReplenishment = {
+    Actor: Guid<EntityId>
+    ResourceType: ResourceType
+    Amount: int
+  }
+
+  [<Struct>]
   type Command =
     | UseAbility of abilityAction: UseAbilityAction
     | Move of moveAction: MoveAction
     | Duel of duelAction: DuelCommand
     | RemoveEntities of entityIds: Guid<EntityId> seq
-    | AddEntities of HashMap<Guid<EntityId>, Components.EntityComponents>
+    | AddEntities of
+      addEntities: HashMap<Guid<EntityId>, Components.EntityComponents>
     | Teleport of teleportChange: TeleportChange
+    | ReplenishResources of replenishEntries: ResourceReplenishment[]
 
 
 module Services =
@@ -578,8 +587,7 @@ module Services =
     abstract member find: int<FormulaId> -> FormulaDefinition
 
   type IProjectileStore =
-    abstract member tryFind:
-      int<ProjectileId> -> ProjectileDefinition voption
+    abstract member tryFind: int<ProjectileId> -> ProjectileDefinition voption
     abstract member find: int<ProjectileId> -> ProjectileDefinition
 
   type IAoeStore =
@@ -688,4 +696,3 @@ module State =
     teleports: TeleportChange[]
     visualEffects: VisualEffectChange[]
   }
-

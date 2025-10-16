@@ -268,15 +268,32 @@ module RenderSystem =
       let currentHp = comp.Resources.HP
       let hpRatio = if maxHp > 0 then float32 currentHp / float32 maxHp else 0f
       let barW, barH = 28f, 4f
-      let barX = pos.X - barW * 0.5f
-      let barY = pos.Y - 20f
-      let backRect = Rectangle(int barX, int barY, int barW, int barH)
+      let hpBarX = pos.X - barW * 0.5f
+      let hpBarY = pos.Y - 20f
+      let hpBackRect = Rectangle(int hpBarX, int hpBarY, int barW, int barH)
 
-      let fillRect =
-        Rectangle(int barX, int barY, int(barW * hpRatio), int barH)
+      let hpFillRect =
+        Rectangle(int hpBarX, int hpBarY, int(barW * hpRatio), int barH)
 
-      sb.Draw(pixel, backRect, Color(60, 60, 60))
-      sb.Draw(pixel, fillRect, Color.LimeGreen)
+      sb.Draw(pixel, hpBackRect, Color(60, 60, 60))
+      sb.Draw(pixel, hpFillRect, Color.LimeGreen)
+
+      // Draw MP bar
+      let maxMp =
+        match HashMap.tryFindV id derived with
+        | ValueSome(stats: DerivedStats) -> stats.MP
+        | ValueNone -> comp.Resources.MP
+
+      let currentMp = comp.Resources.MP
+      let mpRatio = if maxMp > 0 then float32 currentMp / float32 maxMp else 0f
+      let mpBarY = hpBarY + barH + 1f // Position it below the HP bar
+      let mpBackRect = Rectangle(int hpBarX, int mpBarY, int barW, int barH)
+
+      let mpFillRect =
+        Rectangle(int hpBarX, int mpBarY, int(barW * mpRatio), int barH)
+
+      sb.Draw(pixel, mpBackRect, Color(80, 80, 20))
+      sb.Draw(pixel, mpFillRect, Color.Yellow)
 
       match hud with
       | ValueSome font ->
@@ -285,7 +302,7 @@ module RenderSystem =
 
         let textSize = font.MeasureString(label)
         let tx = pos.X - textSize.X * 0.5f
-        let ty = float32 backRect.Y - textSize.Y - 2f
+        let ty = float32 hpBackRect.Y - textSize.Y - 2f
         let textPos = Vector2(tx, ty)
         let shadowPos = textPos + Vector2(1f, 1f)
         sb.DrawString(font, label, shadowPos, Color(0, 0, 0, 180))

@@ -907,6 +907,49 @@ module Resolution =
       }
     }
 
+  let private resolveReplenishResources
+    (replenishments: ResourceReplenishment[])
+    (rparams: ResolverParams)
+    : aval<StateChange> =
+    adaptive {
+      let! entities = rparams.scenarioState.entities |> AMap.toAVal
+      let! derivedStats = rparams.derivedStats |> AMap.toAVal
+
+      let updates =
+        replenishments
+        |> Array.fold
+          (fun acc (rep: ResourceReplenishment) ->
+            match HashMap.tryFindV rep.Actor entities with
+            | ValueSome actor ->
+              let stats = derivedStats.[rep.Actor]
+
+              let updatedResources =
+                match rep.ResourceType with
+                | ResourceType.HP ->
+                  let maxHp = stats.HP
+                  let newHp = min maxHp (actor.Resources.HP + rep.Amount)
+                  { actor.Resources with HP = newHp }
+                | ResourceType.MP ->
+                  let maxMp = stats.MP
+                  let newMp = min maxMp (actor.Resources.MP + rep.Amount)
+                  { actor.Resources with MP = newMp }
+
+              let updatedActor = { actor with Resources = updatedResources }
+              HashMap.add rep.Actor updatedActor acc
+            | ValueNone -> acc)
+          HashMap.empty
+
+      return {
+        updates = updates
+        additions = HashMap.empty
+        removals = Array.empty
+        gameTime = ValueNone
+        scenarioChanges = Array.empty
+        teleports = Array.empty
+        visualEffects = Array.empty
+      }
+    }
+
   let evaluate (state: GameState) (cmd: Command) : aval<StateChange> = adaptive {
     let! activeScenarioId = state.activeScenarioId
     let! scenarioState = state.scenarios |> AMap.find activeScenarioId
@@ -926,6 +969,8 @@ module Resolution =
     match cmd with
     | UseAbility action -> return! resolveUseAbility action resolverParams
     | Move action -> return! resolveMove action resolverParams
+    | ReplenishResources replenishments ->
+      return! resolveReplenishResources replenishments resolverParams
     | Duel duelAction ->
       let! scenarioChanges =
         match duelAction with

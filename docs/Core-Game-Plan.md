@@ -1045,22 +1045,26 @@ All of the above remains valid; new EngagementMode and BattleInstance mechanics 
 **✅ COMPLETED DELIVERABLES**:
 
 1. **Complete UI System** (UISystem.fs):
+
    - UIState management with active panels and selected entity tracking
    - Panel toggle functions with keyboard integration
    - SpriteBatch rendering with proper Begin/End calls
 
 2. **Character Sheet Panel**:
+
    - Profession display (Power/First)
    - Resource display (HP: 120, MP: 25, Status: Alive)
    - Base stats (Power: 15, Magic: 5, Sense: 8, Charm: 12)
    - Derived stats (AP: 30, AC: 33, DX: 15, MA: 10, MD: 11, WT: 40)
 
 3. **Equipment View Panel**:
+
    - All 7 equipment slots with proper labeling
    - "(Empty)" status for unequipped slots
    - Equipment name display for equipped items
 
 4. **Ability List Panel**:
+
    - Known abilities display with ID numbers
    - Cooldown status with color coding (Green = Ready, Gray = Cooldown)
    - Real-time cooldown tracking
@@ -1125,7 +1129,7 @@ All of the above remains valid; new EngagementMode and BattleInstance mechanics 
 **Deliverables**:
 
 - [x] Damage number system
-- [ ] Ability visual effects (basic)
+- [x] Ability visual effects (basic)
 - [ ] Status effect indicators
 - [ ] Sound effects (optional)
 - [ ] UI animations and polish
