@@ -9,6 +9,7 @@
     <Compile Include="InputManager.fs" />
     <Compile Include="RenderSystem.fs" />
     <Compile Include="UISystem.fs" />
+    <Compile Include="AudioSystem.fs" />
     <Compile Include="PomoGame.fs" />
   </ItemGroup>
   <ItemGroup>

@@ -382,6 +382,7 @@ type PomoGame() as this =
     hudFont <- this.Content.Load<SpriteFont>("Fonts/Hud")
     prevScroll <- Mouse.GetState().ScrollWheelValue
     RenderSystem.init this.GraphicsDevice
+    AudioSystem.load this.Content
 
 
   override this.Update(gameTime) =
