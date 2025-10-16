@@ -187,8 +187,8 @@ type PomoGame() as this =
       let abilityId = 8<AbilityId>
       let abilities = HashSet.ofList [ abilityId ]
 
-      let cooldowns: cmap<int<AbilityId>, int64<Tick>> =
-        cmap [ (abilityId, 0L<Tick>) ]
+      let cooldowns: cmap<int<AbilityId>, TimeSpan> =
+        cmap [ (abilityId, TimeSpan.Zero) ]
 
       scenario.entities[playerId] <-
         {
@@ -335,9 +335,9 @@ type PomoGame() as this =
     else
       match gameState with
       | ValueSome state ->
-        let deltaTicks = int64 gameTime.ElapsedGameTime.Ticks * 1L<Tick>
-
-        deltaTicks |> GameState.tick state |> GameState.forceAndApply state
+        gameTime.ElapsedGameTime
+        |> GameState.tick state
+        |> GameState.forceAndApply state
 
         let wheel = Mouse.GetState().ScrollWheelValue
         let delta = wheel - prevScroll
@@ -571,6 +571,11 @@ type PomoGame() as this =
         CenterY = 0f
       }
 
+      let floatingTexts =
+        scenario.floatingTexts |> AMap.force |> HashMap.toValueArray
+
+      let gameTime = scenario.gameTime |> AVal.force
+
       RenderSystem.draw
         struct (entities, derived)
         spriteBatch
@@ -583,6 +588,8 @@ type PomoGame() as this =
         showPathfindingGrid
         pathPreview
         currentPath
+        floatingTexts
+        gameTime
 
       match hudOpt with
       | ValueSome font ->

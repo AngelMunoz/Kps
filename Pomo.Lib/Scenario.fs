@@ -5,8 +5,7 @@ open FSharp.UMX
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Components
-
-
+open Pomo.Lib.Domain.VisualEffects
 
 [<Struct>]
 type ScenarioTransition = {
@@ -14,7 +13,6 @@ type ScenarioTransition = {
   ToScenarioId: Guid<ScenarioId>
   ToPosition: Position
 }
-
 type Scenario = {
   Id: Guid<ScenarioId>
   Name: string
@@ -31,19 +29,19 @@ type Scenario = {
 type ScenarioState = {
   scenario: Scenario
   entities: cmap<Guid<EntityId>, EntityComponents>
-  gameTime: cval<int64<Tick>>
+  gameTime: cval<TimeSpan>
   battleContext: BattleContext voption
   battleInstances: cmap<Guid<BattleInstanceId>, BattleInstance>
   pendingDuels: cmap<Guid<EntityId>, Guid<EntityId>>
   pendingPartyDuels: cmap<Guid<PartyId>, Guid<PartyId>>
   parties: cmap<Guid<PartyId>, Party>
+  floatingTexts: cmap<Guid<FloatingTextId>, FloatingText>
 }
 
 type GameStateScenarios = {
   scenarios: cmap<Guid<ScenarioId>, ScenarioState>
   activeScenarioId: Guid<ScenarioId> cval
 }
-
 [<Struct>]
 type CreateScenarioParams = {
   Id: Guid<ScenarioId>
@@ -72,12 +70,13 @@ module ScenarioState =
         Transitions = Array.empty
       }
       entities = cmap()
-      gameTime = cval 0L<Tick>
+      gameTime = cval TimeSpan.Zero
       battleContext = ValueNone
       battleInstances = cmap()
       pendingDuels = cmap()
       pendingPartyDuels = cmap()
       parties = cmap()
+      floatingTexts = cmap()
     }
 
     configure baseScenario
@@ -92,12 +91,13 @@ module ScenarioManager =
     configure {
       scenario = scenario
       entities = cmap()
-      gameTime = cval 0L<Tick>
+      gameTime = cval TimeSpan.Zero
       battleContext = ValueNone
       battleInstances = cmap()
       pendingDuels = cmap()
       pendingPartyDuels = cmap()
       parties = cmap()
+      floatingTexts = cmap()
     }
 
   let getScenarioState
@@ -105,7 +105,6 @@ module ScenarioManager =
     (gameState: GameStateScenarios)
     =
     gameState.scenarios |> AMap.tryFind scenarioId
-
   let addEntityToScenario
     (entityId: Guid<EntityId>)
     (entityComponents: EntityComponents)
@@ -117,6 +116,7 @@ module ScenarioManager =
       gameTime = ValueNone
       scenarioChanges = Array.empty
       teleports = Array.empty
+      visualEffects = Array.empty
     }
 
   let removeEntityFromScenario
@@ -130,6 +130,7 @@ module ScenarioManager =
       gameTime = ValueNone
       scenarioChanges = Array.empty
       teleports = Array.empty
+      visualEffects = Array.empty
     }
 
   let listScenarios(gameState: GameStateScenarios) =

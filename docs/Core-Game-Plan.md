@@ -1124,7 +1124,7 @@ All of the above remains valid; new EngagementMode and BattleInstance mechanics 
 
 **Deliverables**:
 
-- [ ] Damage number system
+- [x] Damage number system
 - [ ] Ability visual effects (basic)
 - [ ] Status effect indicators
 - [ ] Sound effects (optional)

@@ -9,6 +9,7 @@ open Pomo.Lib.Gameplay
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Classification
+open Pomo.Lib.Domain.VisualEffects
 open Pomo.Lib.Scenario
 open Pomo.Lib.Pathfinding
 open Pomo.Lib.Collision
@@ -63,6 +64,8 @@ module RenderSystem =
     (showGrid: bool)
     (pathPreview: Pomo.Lib.Pathfinding.PathPreview.PathSegment[])
     (currentPath: Position[])
+    (floatingTexts: Pomo.Lib.Domain.VisualEffects.FloatingText[])
+    (gameTime: TimeSpan)
     =
     sb.Begin(
       SpriteSortMode.Deferred,
@@ -280,5 +283,39 @@ module RenderSystem =
         sb.DrawString(font, label, shadowPos, Color(0, 0, 0, 180))
         sb.DrawString(font, label, textPos, Color.White)
       | _ -> ()
+
+    // Render floating texts
+    match hud with
+    | ValueSome font ->
+      for ft in floatingTexts do
+        let age = gameTime - ft.CreationTick
+        let lifetime = TimeSpan.FromSeconds(2.5)
+        let progress =
+          float32(age.TotalMilliseconds / lifetime.TotalMilliseconds)
+
+        if progress <= 1.0f then
+          let yOffset = -40f * progress
+          let alpha = 1.0f - progress
+          let pos = ft.Position
+          let text = ft.Text
+
+          let color =
+            match ft.Color with
+            | Damage -> Color.Red
+            | Critical -> Color.Yellow
+            | Heal -> Color.LightGreen
+            | Evade -> Color.White
+            | _ -> Color.White
+
+          let finalColor = color * alpha
+          let textSize = font.MeasureString(text)
+          let tx = pos.X - textSize.X * 0.5f
+          let ty = pos.Y - 45f + yOffset
+          let textPos = Vector2(tx, ty)
+          let shadowPos = textPos + Vector2(1f, 1f)
+
+          sb.DrawString(font, text, shadowPos, Color(0, 0, 0, 180) * alpha)
+          sb.DrawString(font, text, textPos, finalColor)
+    | _ -> ()
 
     sb.End()

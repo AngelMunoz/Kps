@@ -356,7 +356,7 @@ module Update =
     { X = clampedX; Y = clampedY }
 
   let updateEntityWithContext
-    (time: int64<Tick>)
+    (time: TimeSpan)
     (bounds: ScenarioBounds)
     (scenario: Scenario)
     (allEntities: HashMap<Guid<EntityId>, EntityComponents>)
@@ -364,7 +364,7 @@ module Update =
     (components: EntityComponents)
     =
     let entityRadius = Utils.radiusOfStage components.Identity.Stage
-    let elapsedSeconds = float32 time / 10_000_000f
+    let elapsedSeconds = time / TimeSpan.FromSeconds 1.0 |> float32
     let entitiesArray = allEntities |> HashMap.toArrayV
 
     // Handle pathfinding if we have a path

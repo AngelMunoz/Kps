@@ -6,9 +6,6 @@ open FSharp.UMX
 
 // All measure types defined at the top
 [<Measure>]
-type Tick
-
-[<Measure>]
 type EntityId
 
 [<Measure>]
@@ -166,7 +163,7 @@ type PlayerContext = {
 type BattleContext = {
   IsActive: bool
   Participants: HashSet<Guid<EntityId>>
-  StartTick: int64<Tick>
+  StartTick: TimeSpan
   CanDisengage: bool
 }
 
@@ -186,7 +183,7 @@ type EngagementMode =
 type BattleInstance = {
   Id: Guid<BattleInstanceId>
   Participants: HashSet<Guid<EntityId>>
-  StartTick: int64<Tick>
+  StartTick: TimeSpan
 }
 
 module Classification =
@@ -330,8 +327,8 @@ module Effects =
   [<Struct>]
   type Duration =
     | Instant
-    | Timed of int64<Tick>
-    | Loop of int64<Tick> * int64<Tick> // Interval * Total Duration
+    | Timed of TimeSpan
+    | Loop of TimeSpan * TimeSpan // Interval * Total Duration
     | Permanent // For passive skill effects, never expires
 
   [<Struct>]
@@ -363,8 +360,8 @@ module Effects =
   type ActiveEffect = {
     EffectId: int<EffectId>
     SourceId: Guid<EntityId>
-    RemainingTicks: int64<Tick>
-    NextTickIn: int64<Tick>
+    RemainingTicks: TimeSpan
+    NextTickIn: TimeSpan
     Stacks: int
     Definition: EffectDefinition
   }
@@ -424,7 +421,7 @@ module Abilities =
     Id: int<AbilityId>
     Name: string
     Intent: AbilityIntent
-    Cooldown: int64<Tick>
+    Cooldown: TimeSpan
     Cost: ResourceCost voption
     Targeting: TargetType
     FormulaId: int<FormulaId> voption
@@ -460,7 +457,7 @@ module Components =
     Resources: Attributes.Resources
     Position: Position
     Movement: Movement
-    AbilityCooldowns: HashMap<int<AbilityId>, int64<Tick>>
+    AbilityCooldowns: HashMap<int<AbilityId>, TimeSpan>
     Effects: HashMap<int<EffectId>, ActiveEffect>
     Factions: Classification.Faction HashSet
     Abilities: int<AbilityId> HashSet
@@ -529,6 +526,27 @@ module Services =
     rng: unit -> float
   }
 
+module VisualEffects =
+  [<Measure>]
+  type FloatingTextId
+
+  [<Struct>]
+  type FloatingTextColor =
+    | Damage
+    | Heal
+    | Critical
+    | MPRecovery
+    | Evade
+
+  [<Struct>]
+  type FloatingText = {
+    Id: Guid<FloatingTextId>
+    Text: string
+    Position: Position
+    Color: FloatingTextColor
+    CreationTick: TimeSpan
+  }
+
 module State =
   open Components
 
@@ -543,11 +561,17 @@ module State =
     | RemovePendingPartyDuel of requester: Guid<PartyId>
 
   [<Struct>]
+  type VisualEffectChange =
+    | AddFloatingText of VisualEffects.FloatingText
+    | RemoveFloatingText of floatingTextId: Guid<VisualEffects.FloatingTextId>
+
+  [<Struct>]
   type StateChange = {
     updates: HashMap<Guid<EntityId>, EntityComponents>
     additions: HashMap<Guid<EntityId>, EntityComponents>
     removals: Guid<EntityId>[]
-    gameTime: int64<Tick> voption
+    gameTime: TimeSpan voption
     scenarioChanges: ScenarioChange[]
     teleports: TeleportChange[]
+    visualEffects: VisualEffectChange[]
   }

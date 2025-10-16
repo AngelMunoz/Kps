@@ -319,7 +319,7 @@ module GameState =
   [<Struct>]
   type EntityChange = { components: EntityComponents }
 
-  let tick (state: GameState) (time: int64<Tick>) : aval<StateChange> = adaptive {
+  let tick (state: GameState) (time: TimeSpan) : aval<StateChange> = adaptive {
     let! activeId = state.activeScenarioId
     let scenario = state.scenarios[activeId]
     let! currentTime = scenario.gameTime
@@ -385,6 +385,17 @@ module GameState =
     let entities =
       allEntityChanges |> HashMap.map(fun _ change -> change.components)
 
+    // Generate removal changes for expired floating texts
+    let! visualEffectChanges =
+      scenario.floatingTexts
+      |> AMap.choose(fun id ft ->
+        if newTime - ft.CreationTick > TimeSpan.FromSeconds(2.0) then
+          Some(RemoveFloatingText id)
+        else
+          None)
+      |> AMap.toAVal
+      |> AVal.map HashMap.toValueArray
+
     return {
       updates = entities
       additions = HashMap.empty
@@ -392,6 +403,7 @@ module GameState =
       gameTime = ValueSome newTime
       scenarioChanges = Array.empty
       teleports = Array.empty
+      visualEffects = visualEffectChanges
     }
   }
 
@@ -403,6 +415,12 @@ module GameState =
       match change.gameTime with
       | ValueSome newTime -> scenario.gameTime.Value <- newTime
       | ValueNone -> ()
+
+      for effect in change.visualEffects do
+        match effect with
+        | AddFloatingText ft -> scenario.floatingTexts.Add(ft.Id, ft) |> ignore
+        | RemoveFloatingText ftId ->
+          scenario.floatingTexts.Remove ftId |> ignore
 
       for sc in change.scenarioChanges do
         match sc with

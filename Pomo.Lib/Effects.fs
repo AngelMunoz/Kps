@@ -30,9 +30,11 @@ module StatusEffects =
           EffectId = effectToApply.Id
           SourceId = sourceId
           RemainingTicks =
-            effectToApply.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
+            effectToApply.Duration.Ticks
+            |> ValueOption.defaultValue TimeSpan.Zero
           NextTickIn =
-            effectToApply.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
+            effectToApply.Duration.Interval
+            |> ValueOption.defaultValue TimeSpan.Zero
           Stacks = 1
           Definition = effectToApply
         }
@@ -52,10 +54,10 @@ module StatusEffects =
                     e with
                         RemainingTicks =
                           effectToApply.Duration.Ticks
-                          |> ValueOption.defaultValue 0L<Tick>
+                          |> ValueOption.defaultValue TimeSpan.Zero
                         NextTickIn =
                           effectToApply.Duration.Interval
-                          |> ValueOption.defaultValue 0L<Tick>
+                          |> ValueOption.defaultValue TimeSpan.Zero
                   }
                 | AddStack maxStacks ->
                     {
@@ -63,10 +65,10 @@ module StatusEffects =
                           Stacks = min maxStacks (e.Stacks + 1)
                           RemainingTicks =
                             effectToApply.Duration.Ticks
-                            |> ValueOption.defaultValue 0L<Tick>
+                            |> ValueOption.defaultValue TimeSpan.Zero
                           NextTickIn =
                             effectToApply.Duration.Interval
-                            |> ValueOption.defaultValue 0L<Tick>
+                            |> ValueOption.defaultValue TimeSpan.Zero
                     })
             effects
     }
@@ -110,14 +112,14 @@ module StatusEffects =
       let isLoop, interval =
         match effectDef.Duration with
         | Loop(i, _) -> true, i
-        | _ -> false, 0L<Tick>
+        | _ -> false, TimeSpan.Zero
 
-      let shouldTick = isLoop && newNextTickIn <= 0L<Tick>
+      let shouldTick = isLoop && newNextTickIn <= TimeSpan.Zero
 
       let willExpire =
         match effectDef.Duration with
-        | Loop _ -> newRemainingTicks <= 0L<Tick>
-        | _ -> newRemainingTicks <= 0L<Tick>
+        | Loop _ -> newRemainingTicks <= TimeSpan.Zero
+        | _ -> newRemainingTicks <= TimeSpan.Zero
 
       if shouldTick then
         match effectDef.Kind with
@@ -141,8 +143,8 @@ module StatusEffects =
         let updatedEffect = {
           effect with
               RemainingTicks =
-                if newRemainingTicks < 0L<Tick> then
-                  0L<Tick>
+                if newRemainingTicks < TimeSpan.Zero then
+                  TimeSpan.Zero
                 else
                   newRemainingTicks
               NextTickIn = nextTickIn

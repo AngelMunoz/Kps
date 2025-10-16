@@ -1,5 +1,6 @@
 namespace Pomo.Lib.Content
 
+open System
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Abilities
 open Pomo.Lib.Domain.Effects
@@ -12,7 +13,7 @@ module EffectStore =
         Id = 1<EffectId>
         Name = "Minor Strength Buff"
         Kind = EffectKind.Buff
-        Duration = Timed(30000L<Tick>)
+        Duration = Timed(TimeSpan.FromMilliseconds(30000.0))
         Stacking = StackingRule.RefreshDuration
         Modifiers = [|
           EffectModifier.StaticMod(StatModifier.Additive(Power, 5))
@@ -24,7 +25,7 @@ module EffectStore =
         Id = 2<EffectId>
         Name = "Minor Armor Debuff"
         Kind = EffectKind.Debuff
-        Duration = Timed(20000L<Tick>)
+        Duration = Timed(TimeSpan.FromMilliseconds(20000.0))
         Stacking = StackingRule.RefreshDuration
         Modifiers = [|
           EffectModifier.StaticMod(StatModifier.Additive(DP, -5))
@@ -37,7 +38,7 @@ module EffectStore =
         Id = 100<EffectId>
         Name = "Stun"
         Kind = EffectKind.Stun
-        Duration = Timed(5000L<Tick>)
+        Duration = Timed(TimeSpan.FromMilliseconds(5000.0))
         Stacking = StackingRule.RefreshDuration
         Modifiers = Array.empty
         FormulaId = ValueNone
@@ -47,7 +48,7 @@ module EffectStore =
         Id = 101<EffectId>
         Name = "Silence"
         Kind = EffectKind.Silence
-        Duration = Timed(8000L<Tick>)
+        Duration = Timed(TimeSpan.FromMilliseconds(8000.0))
         Stacking = StackingRule.RefreshDuration
         Modifiers = Array.empty
         FormulaId = ValueNone
@@ -57,7 +58,7 @@ module EffectStore =
         Id = 102<EffectId>
         Name = "Stacking Shield"
         Kind = EffectKind.Buff
-        Duration = Timed(30000L<Tick>)
+        Duration = Timed(TimeSpan.FromMilliseconds(30000.0))
         Stacking = StackingRule.AddStack 5
         Modifiers = [| EffectModifier.StaticMod(StatModifier.Additive(DP, 2)) |]
         FormulaId = ValueNone
@@ -67,7 +68,7 @@ module EffectStore =
         Id = 103<EffectId>
         Name = "Taunt"
         Kind = EffectKind.Taunt
-        Duration = Timed(3000L<Tick>)
+        Duration = Timed(TimeSpan.FromMilliseconds(3000.0))
         Stacking = StackingRule.RefreshDuration
         Modifiers = Array.empty
         FormulaId = ValueNone
@@ -77,7 +78,7 @@ module EffectStore =
         Id = 104<EffectId>
         Name = "No-Stack Debuff"
         Kind = EffectKind.Debuff
-        Duration = Timed(10000L<Tick>)
+        Duration = Timed(TimeSpan.FromMilliseconds(10000.0))
         Stacking = StackingRule.NoStack
         Modifiers = [|
           EffectModifier.StaticMod(StatModifier.Subtractive(DX, 2))
@@ -89,7 +90,11 @@ module EffectStore =
         Id = 105<EffectId>
         Name = "Poison"
         Kind = EffectKind.DamageOverTime
-        Duration = Loop(2000L<Tick>, 8000L<Tick>)
+        Duration =
+          Loop(
+            TimeSpan.FromMilliseconds(2000.0),
+            TimeSpan.FromMilliseconds(8000.0)
+          )
         Stacking = StackingRule.RefreshDuration
         Modifiers = [|
           EffectModifier.StaticMod(StatModifier.Subtractive(HP, 5))
@@ -101,7 +106,11 @@ module EffectStore =
         Id = 106<EffectId>
         Name = "Regeneration"
         Kind = EffectKind.HealOverTime
-        Duration = Loop(2000L<Tick>, 8000L<Tick>)
+        Duration =
+          Loop(
+            TimeSpan.FromMilliseconds(2000.0),
+            TimeSpan.FromMilliseconds(8000.0)
+          )
         Stacking = StackingRule.RefreshDuration
         Modifiers = [| EffectModifier.StaticMod(StatModifier.Additive(HP, 5)) |]
         FormulaId = ValueNone
@@ -136,7 +145,7 @@ module EffectStore =
         Id = 200<EffectId>
         Name = "Sacrificial Power HP Cost"
         Kind = EffectKind.Buff
-        Duration = Timed(30000L<Tick>)
+        Duration = Timed(TimeSpan.FromMilliseconds(30000.0))
         Stacking = StackingRule.RefreshDuration
         Modifiers = [|
           EffectModifier.ResourceConversion(
@@ -152,7 +161,7 @@ module EffectStore =
         Id = 202<EffectId>
         Name = "Sacrificial Power Damage Boost"
         Kind = EffectKind.Buff
-        Duration = Timed(30000L<Tick>)
+        Duration = Timed(TimeSpan.FromMilliseconds(30000.0))
         Stacking = StackingRule.RefreshDuration
         Modifiers = [| EffectModifier.AbilityDamageMod(0.50) |]
         FormulaId = ValueNone
@@ -179,7 +188,7 @@ module EffectStore =
         Id = 300<EffectId>
         Name = "Dynamic AP Boost"
         Kind = EffectKind.Buff
-        Duration = Timed(15000L<Tick>)
+        Duration = Timed(TimeSpan.FromMilliseconds(15000.0))
         Stacking = StackingRule.RefreshDuration
         Modifiers = [| EffectModifier.DynamicMod(101<FormulaId>, AP) |]
         FormulaId = ValueSome 101<FormulaId>
@@ -190,7 +199,7 @@ module EffectStore =
         Id = 301<EffectId>
         Name = "Dynamic MA Boost"
         Kind = EffectKind.Buff
-        Duration = Timed(15000L<Tick>)
+        Duration = Timed(TimeSpan.FromMilliseconds(15000.0))
         Stacking = StackingRule.RefreshDuration
         Modifiers = [| EffectModifier.DynamicMod(101<FormulaId>, MA) |]
         FormulaId = ValueSome 101<FormulaId>
@@ -300,7 +309,7 @@ module AbilityStore =
         Name = "Melee Attack"
         Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
-        Cooldown = 2000L<Tick> // 2 seconds
+        Cooldown = TimeSpan.FromMilliseconds(2000.0) // 2 seconds
         Targeting = TargetType.SingleEnemy
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
@@ -312,7 +321,7 @@ module AbilityStore =
         Name = "Fireball"
         Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 20 }
-        Cooldown = 5000L<Tick> // 5 seconds
+        Cooldown = TimeSpan.FromMilliseconds(5000.0) // 5 seconds
         Targeting = TargetType.SingleEnemy
         FormulaId = ValueSome 2<FormulaId>
         Effects = [| 2<EffectId> |]
@@ -324,7 +333,7 @@ module AbilityStore =
         Name = "No-Stack Spell"
         Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
-        Cooldown = 1000L<Tick>
+        Cooldown = TimeSpan.FromMilliseconds(1000.0)
         Targeting = TargetType.SingleEnemy
         FormulaId = ValueNone
         Effects = [| 104<EffectId> |]
@@ -336,7 +345,7 @@ module AbilityStore =
         Name = "Buff Spell"
         Intent = AbilityIntent.Support
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
-        Cooldown = 1000L<Tick>
+        Cooldown = TimeSpan.FromMilliseconds(1000.0)
         Targeting = TargetType.Self
         FormulaId = ValueNone
         Effects = [| 1<EffectId> |] // RefreshDuration effect
@@ -348,7 +357,7 @@ module AbilityStore =
         Name = "Shield Spell"
         Intent = AbilityIntent.Support
         Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
-        Cooldown = 1000L<Tick>
+        Cooldown = TimeSpan.FromMilliseconds(1000.0)
         Targeting = TargetType.SingleAlly
         FormulaId = ValueNone
         Effects = [| 102<EffectId> |] // AddStack effect
@@ -360,7 +369,7 @@ module AbilityStore =
         Name = "Poison Spell"
         Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
-        Cooldown = 1000L<Tick>
+        Cooldown = TimeSpan.FromMilliseconds(1000.0)
         Targeting = TargetType.SingleEnemy
         FormulaId = ValueSome 3<FormulaId>
         Effects = [| 105<EffectId> |] // DoT effect
@@ -372,7 +381,7 @@ module AbilityStore =
         Name = "Regen Spell"
         Intent = AbilityIntent.Support
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
-        Cooldown = 1000L<Tick>
+        Cooldown = TimeSpan.FromMilliseconds(1000.0)
         Targeting = TargetType.SingleAlly
         FormulaId = ValueNone
         Effects = [| 106<EffectId> |] // HoT effect
@@ -384,7 +393,7 @@ module AbilityStore =
         Name = "Basic Melee Attack No Cost"
         Intent = AbilityIntent.Offensive
         Cost = ValueNone
-        Cooldown = 1000L<Tick>
+        Cooldown = TimeSpan.FromMilliseconds(1000.0)
         Targeting = TargetType.SingleEnemy
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
@@ -396,7 +405,7 @@ module AbilityStore =
         Name = "Silence Spell"
         Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 25 }
-        Cooldown = 10000L<Tick> // 10 seconds
+        Cooldown = TimeSpan.FromMilliseconds(10000.0) // 10 seconds
         Targeting = TargetType.SingleEnemy
         FormulaId = ValueNone
         Effects = [| 101<EffectId> |] // Silence effect
@@ -409,7 +418,7 @@ module AbilityStore =
         Name = "Sacrificial Strike"
         Intent = AbilityIntent.Offensive
         Cost = ValueNone
-        Cooldown = 3000L<Tick>
+        Cooldown = TimeSpan.FromMilliseconds(3000.0)
         Targeting = TargetType.SingleEnemy
         FormulaId = ValueSome 1<FormulaId>
         Effects = [| 200<EffectId>; 202<EffectId> |] // Applies HP cost + damage boost to self
@@ -421,7 +430,7 @@ module AbilityStore =
         Name = "MP Conversion"
         Intent = AbilityIntent.Support
         Cost = ValueSome { Type = ResourceType.MP; Amount = 20 }
-        Cooldown = 5000L<Tick>
+        Cooldown = TimeSpan.FromMilliseconds(5000.0)
         Targeting = TargetType.Self
         FormulaId = ValueNone
         Effects = [| 201<EffectId> |] // Converts MP to HP

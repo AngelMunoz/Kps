@@ -97,6 +97,7 @@ module GameState =
       gameTime = ValueNone
       scenarioChanges = Array.empty
       teleports = Array.empty
+      visualEffects = Array.empty
     }
 
   /// Removes an entity from the game state.
@@ -107,6 +108,7 @@ module GameState =
     gameTime = ValueNone
     scenarioChanges = Array.empty
     teleports = Array.empty
+    visualEffects = Array.empty
   }
 
   let getEntity entityId (state: GameState) =
@@ -166,6 +168,7 @@ module GameState =
           gameTime = ValueNone
           scenarioChanges = Array.empty
           teleports = Array.empty
+          visualEffects = Array.empty
         }
 
   /// Removes equipment from the specified slot.
@@ -195,6 +198,7 @@ module GameState =
         gameTime = ValueNone
         scenarioChanges = Array.empty
         teleports = Array.empty
+        visualEffects = Array.empty
       }
 
 
@@ -238,6 +242,7 @@ module GameState =
         gameTime = ValueNone
         scenarioChanges = Array.empty
         teleports = Array.empty
+        visualEffects = Array.empty
       }
 
   let activateAbility

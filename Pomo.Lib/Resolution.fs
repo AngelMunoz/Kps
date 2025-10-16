@@ -8,13 +8,13 @@ open Pomo.Lib.Domain.Effects
 open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.State
+open Pomo.Lib.Domain.VisualEffects
 open Pomo.Lib.Gameplay
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Services
 open Pomo.Lib.Domain.Abilities
 open Pomo.Lib.Scenario
 open Pomo.Lib.BattleManager
-
 open Pomo.Lib.Battle
 
 module Resolution =
@@ -28,7 +28,7 @@ module Resolution =
 
   type ResolverParams = {
     derivedStats: amap<Guid<EntityId>, DerivedStats>
-    gameTime: cval<int64<Tick>>
+    gameTime: cval<TimeSpan>
     scenarioState: ScenarioState
     players: amap<Guid<PlayerId>, PlayerContext>
     parties: amap<Guid<PartyId>, Party>
@@ -299,9 +299,11 @@ module Resolution =
         ValueSome {
           existingEffect with
               RemainingTicks =
-                effectDef.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
+                effectDef.Duration.Ticks
+                |> ValueOption.defaultValue TimeSpan.Zero
               NextTickIn =
-                effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
+                effectDef.Duration.Interval
+                |> ValueOption.defaultValue TimeSpan.Zero
         }
       | AddStack maxStacks ->
         let newStacks = min maxStacks (existingEffect.Stacks + 1)
@@ -310,9 +312,11 @@ module Resolution =
           existingEffect with
               Stacks = newStacks
               RemainingTicks =
-                effectDef.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
+                effectDef.Duration.Ticks
+                |> ValueOption.defaultValue TimeSpan.Zero
               NextTickIn =
-                effectDef.Duration.Interval |> ValueOption.defaultValue 0L<Tick>
+                effectDef.Duration.Interval
+                |> ValueOption.defaultValue TimeSpan.Zero
         }
 
     let processEffects
@@ -345,10 +349,11 @@ module Resolution =
                 EffectId = effId
                 SourceId = actorId
                 RemainingTicks =
-                  effectDef.Duration.Ticks |> ValueOption.defaultValue 0L<Tick>
+                  effectDef.Duration.Ticks
+                  |> ValueOption.defaultValue TimeSpan.Zero
                 NextTickIn =
                   effectDef.Duration.Interval
-                  |> ValueOption.defaultValue 0L<Tick>
+                  |> ValueOption.defaultValue TimeSpan.Zero
                 Stacks = 1
                 Definition = effectDef
               }
@@ -628,6 +633,36 @@ module Resolution =
               IsEvaded = false
             }
 
+        let! gameTime = rparams.gameTime
+
+        let visualEffects =
+          if baseDamageResult.IsEvaded then
+            [|
+              VisualEffectChange.AddFloatingText {
+                Id = Guid.NewGuid() |> UMX.tag
+                Text = "Miss"
+                Position = action.targetComponents.Position
+                Color = FloatingTextColor.Evade
+                CreationTick = gameTime
+              }
+            |]
+          else if baseDamageResult.Amount > 0 then
+            [|
+              VisualEffectChange.AddFloatingText {
+                Id = Guid.NewGuid() |> UMX.tag
+                Text = string baseDamageResult.Amount
+                Position = action.targetComponents.Position
+                Color =
+                  if baseDamageResult.IsCritical then
+                    FloatingTextColor.Critical
+                  else
+                    FloatingTextColor.Damage
+                CreationTick = gameTime
+              }
+            |]
+          else
+            Array.empty
+
         let finalResources =
           applyDamage baseDamageResult.Amount action.targetComponents
 
@@ -642,8 +677,6 @@ module Resolution =
             actorId
             action.abilityDefinition
             targetAfterDamage
-
-        let! gameTime = rparams.gameTime
 
         let! actorWithCost =
           Shared.applyResourceCost
@@ -672,6 +705,7 @@ module Resolution =
             gameTime = ValueNone
             scenarioChanges = Array.empty
             teleports = Array.empty
+            visualEffects = visualEffects
           }
         else
           return {
@@ -685,6 +719,7 @@ module Resolution =
             gameTime = ValueNone
             scenarioChanges = Array.empty
             teleports = Array.empty
+            visualEffects = visualEffects
           }
       }
 
@@ -710,6 +745,7 @@ module Resolution =
           gameTime = ValueNone
           scenarioChanges = Array.empty
           teleports = Array.empty
+          visualEffects = Array.empty
         }
       | ValidAction action ->
         return! AbilityResolution.resolve abilityId rparams ractors action
@@ -751,6 +787,7 @@ module Resolution =
           gameTime = ValueNone
           scenarioChanges = Array.empty
           teleports = Array.empty
+          visualEffects = Array.empty
         }
       | None ->
         return {
@@ -760,6 +797,7 @@ module Resolution =
           gameTime = ValueNone
           scenarioChanges = Array.empty
           teleports = Array.empty
+          visualEffects = Array.empty
         }
     }
 
@@ -781,6 +819,7 @@ module Resolution =
           gameTime = ValueNone
           scenarioChanges = Array.empty
           teleports = Array.empty
+          visualEffects = Array.empty
         }
       | ValueSome(Active abilityDef) ->
       // Determine actual targets based on ability targeting constraints
@@ -796,7 +835,7 @@ module Resolution =
         | MultiTarget maxTargets -> action.targets |> Array.take maxTargets
 
       // Process each target
-      let! components =
+      let stateChanges =
         actualTargets
         |> AList.ofArray
         |> AList.mapA(fun targetId ->
@@ -807,9 +846,17 @@ module Resolution =
 
           // Use unified resolver for all ability types
           resolveAbility action.abilityId (rparams, ractors))
+
+      let! components =
+        stateChanges
         |> AList.fold
           (fun acc result -> HashMap.union acc result.updates)
           HashMap.empty
+
+      let! visualEffects =
+        stateChanges
+        |> AList.collect(fun result -> result.visualEffects |> AList.ofArray)
+        |> AList.toAVal
 
       return {
         updates = components
@@ -818,6 +865,7 @@ module Resolution =
         gameTime = ValueNone
         scenarioChanges = Array.empty
         teleports = Array.empty
+        visualEffects = visualEffects |> IndexList.toArray
       }
     }
 
@@ -859,6 +907,7 @@ module Resolution =
         gameTime = ValueNone
         scenarioChanges = scenarioChanges
         teleports = Array.empty
+        visualEffects = Array.empty
       }
     | RemoveEntities entityIds ->
       return {
@@ -868,6 +917,7 @@ module Resolution =
         gameTime = ValueNone
         scenarioChanges = Array.empty
         teleports = Array.empty
+        visualEffects = Array.empty
       }
     | AddEntities entitiesToAdd ->
       return {
@@ -877,6 +927,7 @@ module Resolution =
         gameTime = ValueNone
         scenarioChanges = Array.empty
         teleports = Array.empty
+        visualEffects = Array.empty
       }
     | Teleport tp ->
       return {
@@ -886,5 +937,6 @@ module Resolution =
         gameTime = ValueNone
         scenarioChanges = Array.empty
         teleports = [| tp |]
+        visualEffects = Array.empty
       }
   }
