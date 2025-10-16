@@ -58,6 +58,8 @@ type PomoGame() as this =
   let mutable currentPath: Position[] = Array.empty
   let mutable pathPreview: PathPreview.PathSegment[] = Array.empty
   let mutable uiState: UISystem.UIState = UISystem.createUIState()
+  let mutable inputMode: InputManager.InputMode = InputManager.InputMode.Normal
+  let mutable mouseWorldPos: Vector2 = Vector2.Zero
 
   do
     base.Services.AddService(
@@ -110,6 +112,33 @@ type PomoGame() as this =
             member _.find formulaId =
               FormulaStore.definitions |> Map.find formulaId
         }
+      projectileStore =
+        { new IProjectileStore with
+            member _.tryFind projectileId =
+              ProjectileStore.definitions
+              |> Map.tryFind projectileId
+              |> ValueOption.ofOption
+
+            member _.find projectileId =
+              ProjectileStore.definitions |> Map.find projectileId
+        }
+      aoeStore =
+        { new IAoeStore with
+            member _.tryFind aoeId =
+              AoeStore.definitions |> Map.tryFind aoeId |> ValueOption.ofOption
+
+            member _.find aoeId = AoeStore.definitions |> Map.find aoeId
+        }
+      impactStore =
+        { new IImpactStore with
+            member _.tryFind impactId =
+              ImpactStore.definitions
+              |> Map.tryFind impactId
+              |> ValueOption.ofOption
+
+            member _.find impactId =
+              ImpactStore.definitions |> Map.find impactId
+        }
       rng = fun () -> Random.Shared.NextDouble()
     }
 
@@ -132,11 +161,11 @@ type PomoGame() as this =
         services
         (initialScenarioId, cmap [ initialScenarioId, initialScenarioState ])
 
-    let playerProfession = { Family = Power; Stage = First }
+    let playerProfession = { Family = Magic; Stage = First }
 
     let playerStats = {
-      Power = 15
-      Magic = 10
+      Power = 10
+      Magic = 30
       Sense = 10
       Charm = 10
     }
@@ -185,10 +214,7 @@ type PomoGame() as this =
 
       let p = scenario.entities[playerId]
       let abilityId = 8<AbilityId>
-      let abilities = HashSet.ofList [ abilityId ]
-
-      let cooldowns: cmap<int<AbilityId>, TimeSpan> =
-        cmap [ (abilityId, TimeSpan.Zero) ]
+      let abilities = HashSet.ofList [ abilityId; 2<AbilityId> ]
 
       scenario.entities[playerId] <-
         {
@@ -308,7 +334,10 @@ type PomoGame() as this =
     Console.WriteLine(
       "- Grid overlay: Pathfinding navigation grid (toggle with Key 2)"
     )
-    Console.WriteLine("- UI Panels: Character sheet (V), Equipment (E), Abilities (A)")
+
+    Console.WriteLine(
+      "- UI Panels: Character sheet (V), Equipment (E), Abilities (A)"
+    )
 
     Console.WriteLine("=======================================")
     Console.WriteLine("")
@@ -387,77 +416,78 @@ type PomoGame() as this =
           * Matrix.CreateScale(zoom)
           * Matrix.CreateTranslation(halfW, halfH, 0f)
 
+        let mouseScreen = InputManager.getMousePosition()
+        let world = InputManager.screenToWorld mouseScreen view
+        mouseWorldPos <- world
+
         let rightMouseDown = InputManager.isRightClickPressed()
 
         if rightMouseDown && not prevRightMouseDown then
-          let mouseScreen = InputManager.getMousePosition()
-          let world = InputManager.screenToWorld mouseScreen view
-
-          // Generate pathfinding preview
-          match
-            scenario.entities |> AMap.force |> HashMap.tryFindV playerId
-          with
-          | ValueSome playerComp ->
-            let entityRadius =
-              match playerComp.Identity.Stage with
-              | Stage.First -> 12f
-              | Stage.Second -> 16f
-              | Stage.Third -> 20f
-
-            let cellSize = max 20.0f (entityRadius * 2.0f)
-
-            let allEntities =
-              scenario.entities |> AMap.force |> HashMap.toArrayV
-
-            let grid =
-              Grid.createWithEntities
-                scenario.scenario
-                cellSize
-                entityRadius
-                allEntities
-                playerId
-
+          if inputMode <> InputManager.InputMode.Normal then
+            inputMode <- InputManager.InputMode.Normal
+            Console.WriteLine("[Input] Canceled ability targeting mode.")
+          else
+            // Generate pathfinding preview
             match
-              AStar.findPath grid playerComp.Position {
-                X = world.X
-                Y = world.Y
-              }
+              scenario.entities |> AMap.force |> HashMap.tryFindV playerId
             with
-            | ValueSome path ->
-              currentPath <- path
+            | ValueSome playerComp ->
+              let entityRadius =
+                match playerComp.Identity.Stage with
+                | Stage.First -> 12f
+                | Stage.Second -> 16f
+                | Stage.Third -> 20f
 
-              pathPreview <-
-                PathPreview.generatePreview scenario.scenario path entityRadius
+              let cellSize = max 20.0f (entityRadius * 2.0f)
 
-              Console.WriteLine(
-                $"[Pathfinding] Generated path with {path.Length} waypoints"
-              )
-            | ValueNone ->
-              currentPath <- Array.empty
-              pathPreview <- Array.empty
-              Console.WriteLine("[Pathfinding] No valid path found")
-          | ValueNone -> ()
+              let allEntities =
+                scenario.entities |> AMap.force |> HashMap.toArrayV
 
-          let moveCmd =
-            Rules.Move {
-              actor = playerId
-              destination = { X = world.X; Y = world.Y }
-            }
+              let grid =
+                Grid.createWithEntities
+                  scenario.scenario
+                  cellSize
+                  entityRadius
+                  allEntities
+                  playerId
 
-          Resolution.evaluate state moveCmd |> GameState.forceAndApply state
+              match
+                AStar.findPath grid playerComp.Position {
+                  X = world.X
+                  Y = world.Y
+                }
+              with
+              | ValueSome path ->
+                currentPath <- path
+
+                pathPreview <-
+                  PathPreview.generatePreview
+                    scenario.scenario
+                    path
+                    entityRadius
+
+                Console.WriteLine(
+                  $"[Pathfinding] Generated path with {path.Length} waypoints"
+                )
+              | ValueNone ->
+                currentPath <- Array.empty
+                pathPreview <- Array.empty
+                Console.WriteLine("[Pathfinding] No valid path found")
+            | ValueNone -> ()
+
+            let moveCmd =
+              Rules.Move {
+                actor = playerId
+                destination = { X = world.X; Y = world.Y }
+              }
+
+            Resolution.evaluate state moveCmd |> GameState.forceAndApply state
 
         prevRightMouseDown <- rightMouseDown
 
         let mouseDown = InputManager.isLeftClickPressed()
 
         if (mouseDown && not prevMouseDown) then
-          let mouseScreen = InputManager.getMousePosition()
-          let world = InputManager.screenToWorld mouseScreen view
-
-          Console.WriteLine(
-            $"[Input] World {world.X},{world.Y} Zoom {zoom} Camera {cameraPos.X},{cameraPos.Y}"
-          )
-
           let entities = scenario.entities |> AMap.force |> HashMap.toArrayV
 
           let inline radiusOfStage s =
@@ -475,66 +505,91 @@ type PomoGame() as this =
             let dist2 = dx * dx + dy * dy
             let inside = dist2 <= r * r
 
-            Console.WriteLine(
-              $"[Input] Check {id} Pos {comp.Position.X},{comp.Position.Y} Dist2 {dist2} R2 {r * r} Inside {inside}"
-            )
-
             if inside then
               found <- ValueSome id
 
-          selected <- found
+          match inputMode with
+          | InputManager.InputMode.Normal ->
+            selected <- found
 
-          match selected with
-          | ValueSome sid -> Console.WriteLine($"[Input] Selected {sid}")
-          | ValueNone -> Console.WriteLine("[Input] Selection cleared")
+            match selected with
+            | ValueSome sid -> Console.WriteLine($"[Input] Selected {sid}")
+            | ValueNone -> Console.WriteLine("[Input] Selection cleared")
+          | InputManager.InputMode.AbilityTargeting abilityId ->
+            match found with
+            | ValueSome targetId ->
+              GameState.activateAbility playerId abilityId [| targetId |] state
+              |> GameState.forceAndApply state
+
+              Console.WriteLine(
+                $"[Ability] Activated {abilityId} on {targetId}"
+              )
+            | ValueNone -> Console.WriteLine("[Ability] No target selected.")
+
+            inputMode <- InputManager.InputMode.Normal
+            Console.WriteLine("[Input] Reverted to normal input mode.")
+
 
         prevMouseDown <- mouseDown
 
         let key1 = Keyboard.GetState().IsKeyDown(Keys.D1)
 
         if key1 && not prevKey1Down then
-          match selected with
-          | ValueSome targetId ->
-            GameState.activateAbility playerId 8<AbilityId> [| targetId |] state
-            |> GameState.forceAndApply state
+          inputMode <- InputManager.InputMode.AbilityTargeting 8<AbilityId>
 
-            Console.WriteLine($"[Ability] Activated 8 on {targetId}")
-          | ValueNone ->
-            Console.WriteLine("[Ability] No target selected for ability 8")
+          Console.WriteLine(
+            "[Input] Entered ability targeting mode for ability 8."
+          )
 
         prevKey1Down <- key1
 
         let key2 = Keyboard.GetState().IsKeyDown(Keys.D2)
 
         if key2 && not prevKey2Down then
-          showPathfindingGrid <- not showPathfindingGrid
+          inputMode <- InputManager.InputMode.AbilityTargeting 2<AbilityId>
 
           Console.WriteLine(
-            $"[Debug] Pathfinding grid visibility: {showPathfindingGrid}"
+            "[Input] Entered ability targeting mode for ability 2."
           )
 
         prevKey2Down <- key2
 
         let keyV = Keyboard.GetState().IsKeyDown(Keys.V)
+
         if keyV && not prevKeyVDown then
           uiState <- UISystem.togglePanel UISystem.CharacterSheet uiState
-          Console.WriteLine($"[UI] Character sheet toggled: {uiState.ActivePanels |> HashSet.contains UISystem.CharacterSheet}")
+
+          Console.WriteLine(
+            $"[UI] Character sheet toggled: {uiState.ActivePanels |> HashSet.contains UISystem.CharacterSheet}"
+          )
+
         prevKeyVDown <- keyV
 
         let keyE = Keyboard.GetState().IsKeyDown(Keys.E)
+
         if keyE && not prevKeyEDown then
           uiState <- UISystem.togglePanel UISystem.EquipmentView uiState
-          Console.WriteLine($"[UI] Equipment view toggled: {uiState.ActivePanels |> HashSet.contains UISystem.EquipmentView}")
+
+          Console.WriteLine(
+            $"[UI] Equipment view toggled: {uiState.ActivePanels |> HashSet.contains UISystem.EquipmentView}"
+          )
+
         prevKeyEDown <- keyE
 
         let keyA = Keyboard.GetState().IsKeyDown(Keys.A)
+
         if keyA && not prevKeyADown then
           uiState <- UISystem.togglePanel UISystem.AbilityList uiState
-          Console.WriteLine($"[UI] Ability list toggled: {uiState.ActivePanels |> HashSet.contains UISystem.AbilityList}")
+
+          Console.WriteLine(
+            $"[UI] Ability list toggled: {uiState.ActivePanels |> HashSet.contains UISystem.AbilityList}"
+          )
+
         prevKeyADown <- keyA
 
         match selected with
-        | ValueSome entityId -> uiState <- UISystem.setSelectedEntity entityId uiState
+        | ValueSome entityId ->
+          uiState <- UISystem.setSelectedEntity entityId uiState
         | ValueNone -> uiState <- UISystem.clearSelectedEntity uiState
 
         base.Update(gameTime)
@@ -574,6 +629,11 @@ type PomoGame() as this =
       let floatingTexts =
         scenario.floatingTexts |> AMap.force |> HashMap.toValueArray
 
+      let projectiles =
+        scenario.projectiles |> AMap.force |> HashMap.toValueArray
+
+      let aoes = scenario.aoes |> AMap.force |> HashMap.toValueArray
+      let impacts = scenario.impacts |> AMap.force |> HashMap.toValueArray
       let gameTime = scenario.gameTime |> AVal.force
 
       RenderSystem.draw
@@ -589,11 +649,23 @@ type PomoGame() as this =
         pathPreview
         currentPath
         floatingTexts
+        projectiles
+        aoes
+        impacts
         gameTime
+        inputMode
+        mouseWorldPos
+        state.services
 
       match hudOpt with
       | ValueSome font ->
-        UISystem.draw spriteBatch pixel font uiState state this.GraphicsDevice.Viewport
+        UISystem.draw
+          spriteBatch
+          pixel
+          font
+          uiState
+          state
+          this.GraphicsDevice.Viewport
       | ValueNone -> ()
     | _ -> ()
 

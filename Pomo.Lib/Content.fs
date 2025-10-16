@@ -4,6 +4,66 @@ open System
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Abilities
 open Pomo.Lib.Domain.Effects
+open Pomo.Lib.Domain.Visuals
+
+module ProjectileStore =
+  let definitions: Map<int<ProjectileId>, ProjectileDefinition> =
+    Map.ofList [
+      1<ProjectileId>,
+      {
+        Id = 1<ProjectileId>
+        Name = "Fireball"
+        Shape = Shape.Circle 8.0f
+        Speed = 300.0f
+        Color = VisualColor.Red
+        Size = 16.0f
+      }
+      2<ProjectileId>,
+      {
+        Id = 2<ProjectileId>
+        Name = "Frostbolt"
+        Shape = Shape.Square 12.0f
+        Speed = 250.0f
+        Color = VisualColor.Blue
+        Size = 12.0f
+      }
+    ]
+
+module AoeStore =
+  let definitions: Map<int<AoeId>, AoeDefinition> =
+    Map.ofList [
+      1<AoeId>,
+      {
+        Id = 1<AoeId>
+        Name = "Fire Nova"
+        Shape = Shape.Circle 100.0f
+        Radius = 100.0f
+        Color = VisualColor.Orange
+      }
+    ]
+
+module ImpactStore =
+  let definitions: Map<int<ImpactId>, ImpactDefinition> =
+    Map.ofList [
+      1<ImpactId>,
+      {
+        Id = 1<ImpactId>
+        Name = "Slash"
+        Shape = Shape.Square 10.0f
+        Duration = TimeSpan.FromMilliseconds(300.0)
+        Color = VisualColor.White
+        Size = 20.0f
+      }
+      2<ImpactId>,
+      {
+        Id = 2<ImpactId>
+        Name = "Explosion"
+        Shape = Shape.Circle 20.0f
+        Duration = TimeSpan.FromMilliseconds(500.0)
+        Color = VisualColor.Yellow
+        Size = 40.0f
+      }
+    ]
 
 module EffectStore =
   let definitions: Map<int<EffectId>, EffectDefinition> =
@@ -314,6 +374,9 @@ module AbilityStore =
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
+        ProjectileId = ValueNone
+        AoeId = ValueNone
+        ImpactId = ValueSome 1<ImpactId>
       }
       2<AbilityId>,
       {
@@ -326,6 +389,9 @@ module AbilityStore =
         FormulaId = ValueSome 2<FormulaId>
         Effects = [| 2<EffectId> |]
         Requirements = Array.empty
+        ProjectileId = ValueSome 1<ProjectileId>
+        AoeId = ValueNone
+        ImpactId = ValueSome 2<ImpactId>
       }
       3<AbilityId>,
       {
@@ -338,6 +404,9 @@ module AbilityStore =
         FormulaId = ValueNone
         Effects = [| 104<EffectId> |]
         Requirements = Array.empty
+        ProjectileId = ValueNone
+        AoeId = ValueNone
+        ImpactId = ValueNone
       }
       4<AbilityId>,
       {
@@ -350,6 +419,9 @@ module AbilityStore =
         FormulaId = ValueNone
         Effects = [| 1<EffectId> |] // RefreshDuration effect
         Requirements = Array.empty
+        ProjectileId = ValueNone
+        AoeId = ValueNone
+        ImpactId = ValueNone
       }
       5<AbilityId>,
       {
@@ -362,6 +434,9 @@ module AbilityStore =
         FormulaId = ValueNone
         Effects = [| 102<EffectId> |] // AddStack effect
         Requirements = Array.empty
+        ProjectileId = ValueNone
+        AoeId = ValueNone
+        ImpactId = ValueNone
       }
       6<AbilityId>,
       {
@@ -374,6 +449,9 @@ module AbilityStore =
         FormulaId = ValueSome 3<FormulaId>
         Effects = [| 105<EffectId> |] // DoT effect
         Requirements = Array.empty
+        ProjectileId = ValueNone
+        AoeId = ValueNone
+        ImpactId = ValueNone
       }
       7<AbilityId>,
       {
@@ -386,6 +464,9 @@ module AbilityStore =
         FormulaId = ValueNone
         Effects = [| 106<EffectId> |] // HoT effect
         Requirements = Array.empty
+        ProjectileId = ValueNone
+        AoeId = ValueNone
+        ImpactId = ValueNone
       }
       8<AbilityId>,
       {
@@ -398,6 +479,9 @@ module AbilityStore =
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
+        ProjectileId = ValueNone
+        AoeId = ValueNone
+        ImpactId = ValueSome 1<ImpactId>
       }
       9<AbilityId>,
       {
@@ -410,6 +494,9 @@ module AbilityStore =
         FormulaId = ValueNone
         Effects = [| 101<EffectId> |] // Silence effect
         Requirements = Array.empty
+        ProjectileId = ValueNone
+        AoeId = ValueNone
+        ImpactId = ValueNone
       }
       // Enhanced Effects Test Abilities
       100<AbilityId>,
@@ -423,6 +510,9 @@ module AbilityStore =
         FormulaId = ValueSome 1<FormulaId>
         Effects = [| 200<EffectId>; 202<EffectId> |] // Applies HP cost + damage boost to self
         Requirements = Array.empty
+        ProjectileId = ValueNone
+        AoeId = ValueNone
+        ImpactId = ValueSome 1<ImpactId>
       }
       101<AbilityId>,
       {
@@ -435,6 +525,9 @@ module AbilityStore =
         FormulaId = ValueNone
         Effects = [| 201<EffectId> |] // Converts MP to HP
         Requirements = Array.empty
+        ProjectileId = ValueNone
+        AoeId = ValueNone
+        ImpactId = ValueNone
       }
     ]
 
@@ -904,6 +997,7 @@ open Pomo.Lib.Domain.State
 open Pomo.Lib.Domain.AggregatedEffects
 open Pomo.Lib.Scenario
 open Pomo.Lib.Gameplay
+open Pomo.Lib.Domain.Services
 
 module GameState =
   let create'
@@ -935,7 +1029,7 @@ module GameState =
     create'
       {
         effectStore =
-          { new Services.IEffectStore with
+          { new IEffectStore with
               member _.tryFind effectId =
                 EffectStore.definitions
                 |> Map.tryFind effectId
@@ -945,7 +1039,7 @@ module GameState =
                 EffectStore.definitions |> Map.find effectId
           }
         abilityStore =
-          { new Services.IAbilityStore with
+          { new IAbilityStore with
               member _.tryFind abilityId =
                 AbilityStore.definitions
                 |> Map.tryFind abilityId
@@ -955,7 +1049,7 @@ module GameState =
                 AbilityStore.definitions |> Map.find abilityId
           }
         formulaStore =
-          { new Services.IFormulaStore with
+          { new IFormulaStore with
               member _.tryFind formulaId =
                 FormulaStore.definitions
                 |> Map.tryFind formulaId
@@ -963,6 +1057,33 @@ module GameState =
 
               member _.find formulaId =
                 FormulaStore.definitions |> Map.find formulaId
+          }
+        projectileStore =
+          { new IProjectileStore with
+              member _.tryFind projectileId =
+                ProjectileStore.definitions
+                |> Map.tryFind projectileId
+                |> ValueOption.ofOption
+
+              member _.find projectileId =
+                ProjectileStore.definitions |> Map.find projectileId
+          }
+        aoeStore =
+          { new IAoeStore with
+              member _.tryFind aoeId =
+                AoeStore.definitions |> Map.tryFind aoeId |> ValueOption.ofOption
+
+              member _.find aoeId = AoeStore.definitions |> Map.find aoeId
+          }
+        impactStore =
+          { new IImpactStore with
+              member _.tryFind impactId =
+                ImpactStore.definitions
+                |> Map.tryFind impactId
+                |> ValueOption.ofOption
+
+              member _.find impactId =
+                ImpactStore.definitions |> Map.find impactId
           }
         rng = fun () -> System.Random().NextDouble()
       }

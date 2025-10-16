@@ -36,6 +36,9 @@ type ScenarioState = {
   pendingPartyDuels: cmap<Guid<PartyId>, Guid<PartyId>>
   parties: cmap<Guid<PartyId>, Party>
   floatingTexts: cmap<Guid<FloatingTextId>, FloatingText>
+  projectiles: cmap<Guid<ProjectileId>, ActiveProjectile>
+  aoes: cmap<Guid<AoeId>, ActiveAoe>
+  impacts: cmap<Guid<ImpactId>, ActiveImpact>
 }
 
 type GameStateScenarios = {
@@ -77,6 +80,9 @@ module ScenarioState =
       pendingPartyDuels = cmap()
       parties = cmap()
       floatingTexts = cmap()
+      projectiles = cmap()
+      aoes = cmap()
+      impacts = cmap()
     }
 
     configure baseScenario
@@ -98,6 +104,9 @@ module ScenarioManager =
       pendingPartyDuels = cmap()
       parties = cmap()
       floatingTexts = cmap()
+      projectiles = cmap()
+      aoes = cmap()
+      impacts = cmap()
     }
 
   let getScenarioState

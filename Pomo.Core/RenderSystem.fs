@@ -13,6 +13,8 @@ open Pomo.Lib.Domain.VisualEffects
 open Pomo.Lib.Scenario
 open Pomo.Lib.Pathfinding
 open Pomo.Lib.Collision
+open Pomo.Lib.Domain.Visuals
+open Pomo.Lib.Domain.Services
 
 module RenderSystem =
   let mutable smallCircle: Texture2D = null
@@ -65,7 +67,13 @@ module RenderSystem =
     (pathPreview: Pomo.Lib.Pathfinding.PathPreview.PathSegment[])
     (currentPath: Position[])
     (floatingTexts: Pomo.Lib.Domain.VisualEffects.FloatingText[])
+    (projectiles: ActiveProjectile[])
+    (aoes: ActiveAoe[])
+    (impacts: ActiveImpact[])
     (gameTime: TimeSpan)
+    (inputMode: InputManager.InputMode)
+    (mouseWorldPos: Vector2)
+    (services: EngineServices)
     =
     sb.Begin(
       SpriteSortMode.Deferred,
@@ -108,7 +116,7 @@ module RenderSystem =
         | _ -> Color(128, 128, 128, 100) // Gray for other
 
       match terrainObj.CollisionGeometry with
-      | Circle(center, radius) ->
+      | CollisionGeometry.Circle(center, radius) ->
         let diameter = int(radius * 2f)
         let x = int(center.X - radius)
         let y = int(center.Y - radius)
@@ -290,6 +298,7 @@ module RenderSystem =
       for ft in floatingTexts do
         let age = gameTime - ft.CreationTick
         let lifetime = TimeSpan.FromSeconds(2.5)
+
         let progress =
           float32(age.TotalMilliseconds / lifetime.TotalMilliseconds)
 
@@ -316,6 +325,56 @@ module RenderSystem =
 
           sb.DrawString(font, text, shadowPos, Color(0, 0, 0, 180) * alpha)
           sb.DrawString(font, text, textPos, finalColor)
+    | _ -> ()
+
+    // Render projectiles, aoes, impacts
+    for proj in projectiles do
+      let def = services.projectileStore.find proj.DefinitionId
+      let color = Color.toMonoGameColor def.Color
+      let size = def.Size
+      let start = Vector2(proj.StartPosition.X, proj.StartPosition.Y)
+      let dest = Vector2(proj.EndPosition.X, proj.EndPosition.Y)
+      let distance = Vector2.Distance(start, dest)
+      let travelTime = if def.Speed > 0.0f then distance / def.Speed else 0.0f
+      let progress = if travelTime > 0.0f then (float32 proj.Age.TotalSeconds) / travelTime else 1.0f
+      let clampedProgress = max 0.0f (min 1.0f progress)
+      let currentPos = Vector2.Lerp(start, dest, clampedProgress)
+      let x = int(currentPos.X - size * 0.5f)
+      let y = int(currentPos.Y - size * 0.5f)
+      sb.Draw(pixel, Rectangle(x, y, int size, int size), color)
+
+    for aoe in aoes do
+      let def = services.aoeStore.find aoe.DefinitionId
+      let color = Color.toMonoGameColor def.Color
+      let radius = def.Radius
+      let x = int(aoe.Position.X - radius)
+      let y = int(aoe.Position.Y - radius)
+      let diameter = int(radius * 2.0f)
+      sb.Draw(pixel, Rectangle(x, y, diameter, diameter), color * 0.5f)
+
+    for impact in impacts do
+      let def = services.impactStore.find impact.DefinitionId
+      let age = gameTime - impact.CreationTick
+
+      if age < def.Duration then
+        let color = Color.toMonoGameColor def.Color
+        let size = def.Size
+        let x = int(impact.Position.X - size * 0.5f)
+        let y = int(impact.Position.Y - size * 0.5f)
+        sb.Draw(pixel, Rectangle(x, y, int size, int size), color)
+
+    // Render targeting indicator
+    match inputMode with
+    | InputManager.InputMode.AbilityTargeting _ ->
+      let radius = 16f
+      let w = radius * 2f
+      let h = radius * 2f
+      let x = mouseWorldPos.X - w * 0.5f
+      let y = mouseWorldPos.Y - h * 0.5f
+      let indicatorColor = Color(255, 0, 0, 100)
+
+      if not(isNull mediumCircle) then
+        sb.Draw(mediumCircle, Vector2(x, y), indicatorColor)
     | _ -> ()
 
     sb.End()

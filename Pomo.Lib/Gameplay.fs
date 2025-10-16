@@ -11,6 +11,7 @@ open Pomo.Lib.Effects
 open Pomo.Lib.Domain.State
 open Pomo.Lib.Domain.AggregatedEffects
 open Pomo.Lib.Scenario
+open Pomo.Lib.Domain.VisualEffects
 
 type GameState = {
   scenarios: cmap<Guid<ScenarioId>, ScenarioState>
@@ -385,16 +386,71 @@ module GameState =
     let entities =
       allEntityChanges |> HashMap.map(fun _ change -> change.components)
 
-    // Generate removal changes for expired floating texts
-    let! visualEffectChanges =
+    // Generate removal changes for expired visual effects
+    let! floatingTextRemovals =
       scenario.floatingTexts
       |> AMap.choose(fun id ft ->
-        if newTime - ft.CreationTick > TimeSpan.FromSeconds(2.0) then
+        if newTime - ft.CreationTick > TimeSpan.FromSeconds(2.5) then
           Some(RemoveFloatingText id)
         else
           None)
       |> AMap.toAVal
       |> AVal.map HashMap.toValueArray
+
+    let! projectileChanges =
+      scenario.projectiles
+      |> AMap.map(fun id (proj: ActiveProjectile) ->
+        let def = state.services.projectileStore.find proj.DefinitionId
+
+        let dx = proj.StartPosition.X - proj.EndPosition.X
+        let dy = proj.StartPosition.Y - proj.EndPosition.Y
+        let distance = sqrt(dx * dx + dy * dy)
+
+        let travelTime =
+          if def.Speed > 0f then
+            distance / def.Speed
+          else
+            Single.MaxValue
+
+        let newAge = proj.Age + time
+
+        if newAge.TotalSeconds > float travelTime then
+          RemoveProjectile id
+        else
+          UpdateProjectile { proj with Age = newAge })
+      |> AMap.toAVal
+      |> AVal.map HashMap.toValueArray
+
+    let! impactRemovals =
+      scenario.impacts
+      |> AMap.choose(fun id (impact: ActiveImpact) ->
+        let def = state.services.impactStore.find impact.DefinitionId
+
+        let age = newTime - impact.CreationTick
+
+        if age > def.Duration then Some(RemoveImpact id) else None)
+      |> AMap.toAVal
+      |> AVal.map HashMap.toValueArray
+
+    let! aoeRemovals =
+      scenario.aoes
+      |> AMap.choose(fun id (aoe: ActiveAoe) ->
+        let age = newTime - aoe.CreationTick
+
+        if age > TimeSpan.FromSeconds(1.0) then
+          Some(RemoveAoe id)
+        else
+          None)
+      |> AMap.toAVal
+      |> AVal.map HashMap.toValueArray
+
+    let visualEffectChanges =
+      Array.concat [
+        floatingTextRemovals
+        projectileChanges
+        impactRemovals
+        aoeRemovals
+      ]
 
     return {
       updates = entities
@@ -421,6 +477,13 @@ module GameState =
         | AddFloatingText ft -> scenario.floatingTexts.Add(ft.Id, ft) |> ignore
         | RemoveFloatingText ftId ->
           scenario.floatingTexts.Remove ftId |> ignore
+        | AddProjectile p -> scenario.projectiles.Add(p.Id, p) |> ignore
+        | UpdateProjectile p -> scenario.projectiles.[p.Id] <- p
+        | RemoveProjectile pId -> scenario.projectiles.Remove pId |> ignore
+        | AddAoe a -> scenario.aoes.Add(a.Id, a) |> ignore
+        | RemoveAoe aId -> scenario.aoes.Remove aId |> ignore
+        | AddImpact i -> scenario.impacts.Add(i.Id, i) |> ignore
+        | RemoveImpact iId -> scenario.impacts.Remove iId |> ignore
 
       for sc in change.scenarioChanges do
         match sc with

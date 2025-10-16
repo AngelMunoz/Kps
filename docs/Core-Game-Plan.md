@@ -1,9 +1,9 @@
 # Core Game Plan - MonoGame Integration & Gameplay Systems
 
-**Status**: ✅ **PHASE 6.8 COMPLETE** - Personal Entity Detail Views implemented with character sheet, equipment view, and ability list panels. Ready for Phase 6.9 (Enhanced Visual Feedback & Polish).
+**Status**: 🚧 **PHASE 6.9 IN PROGRESS** - Implemented ability targeting mode and visual effects for projectiles, AoEs, and impacts.
 
 **Created**: 2025-10-11
-**Updated**: 2025-10-15
+**Updated**: 2025-10-16
 
 **Prerequisites**: Phases 0-5.5 of RPG-Core-Plan.md completed
 

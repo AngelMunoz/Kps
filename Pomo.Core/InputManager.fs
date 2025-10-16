@@ -1,10 +1,16 @@
-﻿namespace Pomo.Core
+namespace Pomo.Core
 
 open System
 open Microsoft.Xna.Framework
 open Microsoft.Xna.Framework.Input
+open Pomo.Lib.Domain
 
 module InputManager =
+  [<Struct>]
+  type InputMode =
+    | Normal
+    | AbilityTargeting of abilityId: int<AbilityId>
+
   let inline screenToWorld (screenPos: Vector2) (view: Matrix) =
     Vector2.Transform(screenPos, Matrix.Invert view)
 

@@ -177,7 +177,7 @@ module Resolution =
       }
   }
 
-  let checkTauntTarget actorEffects =
+  let checkTauntTarget(actorEffects: HashMap<'a, ActiveEffect>) =
     actorEffects
     |> HashMap.filter(fun _ effect -> effect.Definition.Kind.IsTaunt)
     |> HashMap.fold
@@ -636,8 +636,11 @@ module Resolution =
         let! gameTime = rparams.gameTime
 
         let visualEffects =
+          let mutable effects = ResizeArray()
+
+          // Add floating text for damage/miss
           if baseDamageResult.IsEvaded then
-            [|
+            effects.Add(
               VisualEffectChange.AddFloatingText {
                 Id = Guid.NewGuid() |> UMX.tag
                 Text = "Miss"
@@ -645,9 +648,9 @@ module Resolution =
                 Color = FloatingTextColor.Evade
                 CreationTick = gameTime
               }
-            |]
+            )
           else if baseDamageResult.Amount > 0 then
-            [|
+            effects.Add(
               VisualEffectChange.AddFloatingText {
                 Id = Guid.NewGuid() |> UMX.tag
                 Text = string baseDamageResult.Amount
@@ -659,9 +662,44 @@ module Resolution =
                     FloatingTextColor.Damage
                 CreationTick = gameTime
               }
-            |]
-          else
-            Array.empty
+            )
+
+          // Add projectile, AoE, and impact effects
+          action.abilityDefinition.ProjectileId
+          |> ValueOption.iter(fun defId ->
+            effects.Add(
+              VisualEffectChange.AddProjectile {
+                Id = Guid.NewGuid() |> UMX.tag
+                DefinitionId = defId
+                StartPosition = action.actorComponents.Position
+                EndPosition = action.targetComponents.Position
+                Age = TimeSpan.Zero
+              }
+            ))
+
+          action.abilityDefinition.AoeId
+          |> ValueOption.iter(fun defId ->
+            effects.Add(
+              VisualEffectChange.AddAoe {
+                Id = Guid.NewGuid() |> UMX.tag
+                DefinitionId = defId
+                Position = action.targetComponents.Position
+                CreationTick = gameTime
+              }
+            ))
+
+          action.abilityDefinition.ImpactId
+          |> ValueOption.iter(fun defId ->
+            effects.Add(
+              VisualEffectChange.AddImpact {
+                Id = Guid.NewGuid() |> UMX.tag
+                DefinitionId = defId
+                Position = action.targetComponents.Position
+                CreationTick = gameTime
+              }
+            ))
+
+          effects.ToArray()
 
         let finalResources =
           applyDamage baseDamageResult.Amount action.targetComponents

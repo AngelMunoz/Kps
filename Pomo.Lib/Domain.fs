@@ -26,6 +26,60 @@ type ScenarioId
 [<Measure>]
 type BattleInstanceId
 
+[<Measure>]
+type ProjectileId
+
+[<Measure>]
+type AoeId
+
+[<Measure>]
+type ImpactId
+
+[<Measure>]
+type FloatingTextId
+
+module Visuals =
+  [<Struct>]
+  type Shape =
+    | Circle of float32
+    | Square of float32
+
+  [<Struct>]
+  type VisualColor =
+    | Red
+    | Green
+    | Blue
+    | Yellow
+    | White
+    | Purple
+    | Orange
+
+  type ProjectileDefinition = {
+    Id: int<ProjectileId>
+    Name: string
+    Shape: Shape
+    Speed: float32
+    Color: VisualColor
+    Size: float32
+  }
+
+  type AoeDefinition = {
+    Id: int<AoeId>
+    Name: string
+    Shape: Shape
+    Radius: float32
+    Color: VisualColor
+  }
+
+  type ImpactDefinition = {
+    Id: int<ImpactId>
+    Name: string
+    Shape: Shape
+    Duration: TimeSpan
+    Color: VisualColor
+    Size: float32
+  }
+
 // Core types available at namespace level
 [<Struct>]
 type ResourceType =
@@ -427,6 +481,9 @@ module Abilities =
     FormulaId: int<FormulaId> voption
     Effects: int<EffectId>[]
     Requirements: AbilityRequirement[]
+    ProjectileId: int<ProjectileId> voption
+    AoeId: int<AoeId> voption
+    ImpactId: int<ImpactId> voption
   }
 
   [<Struct>]
@@ -506,6 +563,7 @@ module Rules =
 module Services =
   open Abilities
   open Effects
+  open Visuals
 
   type IAbilityStore =
     abstract member tryFind: int<AbilityId> -> AbilityKind voption
@@ -519,16 +577,31 @@ module Services =
     abstract member tryFind: int<FormulaId> -> FormulaDefinition voption
     abstract member find: int<FormulaId> -> FormulaDefinition
 
+  type IProjectileStore =
+    abstract member tryFind:
+      int<ProjectileId> -> ProjectileDefinition voption
+    abstract member find: int<ProjectileId> -> ProjectileDefinition
+
+  type IAoeStore =
+    abstract member tryFind: int<AoeId> -> AoeDefinition voption
+    abstract member find: int<AoeId> -> AoeDefinition
+
+  type IImpactStore =
+    abstract member tryFind: int<ImpactId> -> ImpactDefinition voption
+    abstract member find: int<ImpactId> -> ImpactDefinition
+
   type EngineServices = {
     abilityStore: IAbilityStore
     effectStore: IEffectStore
     formulaStore: IFormulaStore
+    projectileStore: IProjectileStore
+    aoeStore: IAoeStore
+    impactStore: IImpactStore
     rng: unit -> float
   }
 
 module VisualEffects =
-  [<Measure>]
-  type FloatingTextId
+  open Visuals
 
   [<Struct>]
   type FloatingTextColor =
@@ -547,8 +620,41 @@ module VisualEffects =
     CreationTick: TimeSpan
   }
 
+  [<Struct>]
+  type ActiveProjectile = {
+    Id: Guid<ProjectileId>
+    DefinitionId: int<ProjectileId>
+    StartPosition: Position
+    EndPosition: Position
+    Age: TimeSpan
+  }
+
+  [<Struct>]
+  type ActiveAoe = {
+    Id: Guid<AoeId>
+    DefinitionId: int<AoeId>
+    Position: Position
+    CreationTick: TimeSpan
+  }
+
+  [<Struct>]
+  type ActiveImpact = {
+    Id: Guid<ImpactId>
+    DefinitionId: int<ImpactId>
+    Position: Position
+    CreationTick: TimeSpan
+  }
+
+  [<Struct>]
+  type VisualEffect =
+    | FloatingText of text: FloatingText
+    | Projectile of projectile: ActiveProjectile
+    | Aoe of aoe: ActiveAoe
+    | Impact of impact: ActiveImpact
+
 module State =
   open Components
+  open VisualEffects
 
   [<Struct>]
   type ScenarioChange =
@@ -562,8 +668,15 @@ module State =
 
   [<Struct>]
   type VisualEffectChange =
-    | AddFloatingText of VisualEffects.FloatingText
-    | RemoveFloatingText of floatingTextId: Guid<VisualEffects.FloatingTextId>
+    | AddFloatingText of addText: FloatingText
+    | RemoveFloatingText of floatingTextId: Guid<FloatingTextId>
+    | AddProjectile of addProjectile: ActiveProjectile
+    | UpdateProjectile of updatedProjectile: ActiveProjectile
+    | RemoveProjectile of projectileId: Guid<ProjectileId>
+    | AddAoe of addAoe: ActiveAoe
+    | RemoveAoe of aoeId: Guid<AoeId>
+    | AddImpact of addImpact: ActiveImpact
+    | RemoveImpact of impactId: Guid<ImpactId>
 
   [<Struct>]
   type StateChange = {
@@ -575,3 +688,4 @@ module State =
     teleports: TeleportChange[]
     visualEffects: VisualEffectChange[]
   }
+
