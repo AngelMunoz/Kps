@@ -211,10 +211,10 @@ type PomoGame() as this =
     // Add terrain objects and transitions for Phase 6.5 & 6.6 visualization
     transact(fun _ ->
       let scenario = GameState.getActiveScenario state |> AVal.force
-
       let p = scenario.entities[playerId]
-      let abilityId = 8<AbilityId>
-      let abilities = HashSet.ofList [ abilityId; 2<AbilityId> ]
+      let fireballAbilityId = 2<AbilityId>
+      let meleeAbilityId = 8<AbilityId>
+      let abilities = HashSet.ofList [ fireballAbilityId; meleeAbilityId ]
 
       scenario.entities[playerId] <-
         {
@@ -535,10 +535,10 @@ type PomoGame() as this =
         let key1 = Keyboard.GetState().IsKeyDown(Keys.D1)
 
         if key1 && not prevKey1Down then
-          inputMode <- InputManager.InputMode.AbilityTargeting 8<AbilityId>
+          inputMode <- InputManager.InputMode.AbilityTargeting 2<AbilityId>
 
           Console.WriteLine(
-            "[Input] Entered ability targeting mode for ability 8."
+            "[Input] Entered ability targeting mode for Fireball (ability 2)."
           )
 
         prevKey1Down <- key1

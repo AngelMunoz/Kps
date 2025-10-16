@@ -1071,7 +1071,9 @@ module GameState =
         aoeStore =
           { new IAoeStore with
               member _.tryFind aoeId =
-                AoeStore.definitions |> Map.tryFind aoeId |> ValueOption.ofOption
+                AoeStore.definitions
+                |> Map.tryFind aoeId
+                |> ValueOption.ofOption
 
               member _.find aoeId = AoeStore.definitions |> Map.find aoeId
           }
