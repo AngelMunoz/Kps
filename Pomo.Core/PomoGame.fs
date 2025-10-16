@@ -62,6 +62,37 @@ type PomoGame() as this =
   let mutable inputMode: InputManager.InputMode = InputManager.InputMode.Normal
   let mutable mouseWorldPos: Vector2 = Vector2.Zero
 
+  let mutable navigationDebugGrid: Pomo.Lib.Pathfinding.PathfindingGrid voption =
+    ValueNone
+
+  let mutable terrainVersion: int64 = 0L
+
+  let computeTerrainVersion(scenario: Pomo.Lib.Scenario.Scenario) =
+    let objs = scenario.TerrainObjects |> IndexList.toArray
+
+    let hashObjs =
+      objs
+      |> Array.fold
+        (fun s o ->
+          s + int64(HashCode.Combine(o.Id, o.Position.X, o.Position.Y)))
+        0L
+
+    let transHash =
+      scenario.Transitions
+      |> Array.fold
+        (fun s t ->
+          s
+          + int64(
+            HashCode.Combine(
+              t.FromPosition.X,
+              t.FromPosition.Y,
+              t.ToScenarioId
+            )
+          ))
+        0L
+
+    hashObjs + transHash
+
   do
     base.Services.AddService(
       typeof<GraphicsDeviceManager>,
@@ -164,13 +195,6 @@ type PomoGame() as this =
 
     let playerProfession = { Family = Magic; Stage = First }
 
-    let playerStats = {
-      Power = 10
-      Magic = 30
-      Sense = 10
-      Charm = 10
-    }
-
     let starterKit =
       Pomo.Lib.Content.CharacterKitStore.definitions[playerProfession]
 
@@ -185,14 +209,8 @@ type PomoGame() as this =
     GameState.apply state playerChange
     playerId <- _playerId
 
-    let enemyProfession = { Family = Magic; Stage = First }
+    let enemyProfession = { Family = Charm; Stage = First }
 
-    let enemyStats = {
-      Power = 10
-      Magic = 15
-      Sense = 10
-      Charm = 10
-    }
 
     let enemyKit = CharacterKitStore.definitions[enemyProfession]
 
@@ -304,6 +322,17 @@ type PomoGame() as this =
             scenario = updatedScenario
       }
 
+      // Precompute navigation debug grid sharing scenario origin
+      let debugGrid =
+        Pomo.Lib.Pathfinding.Grid.createWithEntities
+          updatedScenario
+          32.0f
+          16.0f
+          [||]
+          (Guid.Empty |> UMX.tag<EntityId>)
+
+      navigationDebugGrid <- ValueSome debugGrid
+
       // Update the scenario in the game state
       let activeScenarioId = state.activeScenarioId |> AVal.force
       state.scenarios.[activeScenarioId] <- updatedScenarioState)
@@ -365,6 +394,7 @@ type PomoGame() as this =
       this.Exit()
     else
       match gameState with
+      | ValueNone -> base.Update(gameTime)
       | ValueSome state ->
         gameTime.ElapsedGameTime
         |> GameState.tick state
@@ -387,6 +417,22 @@ type PomoGame() as this =
           prevScroll <- wheel
 
         let scenario = GameState.getActiveScenario state |> AVal.force
+
+        let newVersion = computeTerrainVersion scenario.scenario
+
+        if newVersion <> terrainVersion then
+          terrainVersion <- newVersion
+
+          navigationDebugGrid <-
+            let g =
+              Pomo.Lib.Pathfinding.Grid.createWithEntities
+                scenario.scenario
+                32.0f
+                16.0f
+                [||]
+                (Guid.Empty |> UMX.tag<EntityId>)
+
+            ValueSome g
 
         // Check for scenario transitions
         let detectedTransitions =
@@ -545,16 +591,17 @@ type PomoGame() as this =
 
         prevKey1Down <- key1
 
-        let key2 = Keyboard.GetState().IsKeyDown(Keys.D2)
 
-        if key2 && not prevKey2Down then
-          inputMode <- InputManager.InputMode.AbilityTargeting 2<AbilityId>
+        let keyF2 = Keyboard.GetState().IsKeyDown(Keys.F2)
+
+        if keyF2 && not prevKey2Down then
+          showPathfindingGrid <- not showPathfindingGrid
 
           Console.WriteLine(
-            "[Input] Entered ability targeting mode for ability 2."
+            $"[Debug] showPathfindingGrid toggled: {showPathfindingGrid}"
           )
 
-        prevKey2Down <- key2
+        prevKey2Down <- keyF2
 
         let keyV = Keyboard.GetState().IsKeyDown(Keys.V)
 
@@ -609,13 +656,14 @@ type PomoGame() as this =
 
         prevKeyRDown <- keyR
 
-        match selected with
-        | ValueSome entityId ->
-          uiState <- UISystem.setSelectedEntity entityId uiState
-        | ValueNone -> uiState <- UISystem.clearSelectedEntity uiState
+    match selected with
+    | ValueSome entityId when not(uiState.SelectedEntity = ValueSome entityId) ->
+      uiState <- UISystem.setSelectedEntity entityId uiState
+    | ValueNone when not(uiState.SelectedEntity = ValueSome playerId) ->
+      uiState <- UISystem.setSelectedEntity playerId uiState
+    | _ -> ()
 
-        base.Update(gameTime)
-      | ValueNone -> base.Update(gameTime)
+    base.Update(gameTime)
 
 
   override this.Draw(gameTime) =
@@ -644,8 +692,8 @@ type PomoGame() as this =
       let bounds = {
         Width = scenario.scenario.BoundsWidth
         Height = scenario.scenario.BoundsHeight
-        CenterX = 0f
-        CenterY = 0f
+        CenterX = scenario.scenario.BoundsWidth * 0.5f
+        CenterY = scenario.scenario.BoundsHeight * 0.5f
       }
 
       let floatingTexts =
@@ -658,37 +706,67 @@ type PomoGame() as this =
       let impacts = scenario.impacts |> AMap.force |> HashMap.toValueArray
       let gameTime = scenario.gameTime |> AVal.force
 
-      RenderSystem.draw
-        struct (entities, derived)
-        spriteBatch
-        pixel
-        hudOpt
+      spriteBatch.Begin(
+        SpriteSortMode.Deferred,
+        BlendState.AlphaBlend,
+        SamplerState.PointClamp,
+        null,
+        null,
+        null,
         view
-        selected
-        bounds
-        scenario.scenario
-        showPathfindingGrid
-        pathPreview
-        currentPath
-        floatingTexts
-        projectiles
-        aoes
-        impacts
-        gameTime
-        inputMode
-        mouseWorldPos
-        state.services
+      )
 
-      match hudOpt with
-      | ValueSome font ->
+      let worldCtx = {
+        Pomo.Core.RenderSystem.WorldContext.Bounds = bounds
+        Pomo.Core.RenderSystem.WorldContext.TerrainScenario = scenario.scenario
+      }
+
+      let navCtx = {
+        Pomo.Core.RenderSystem.NavigationContext.ShowGrid = showPathfindingGrid
+        Pomo.Core.RenderSystem.NavigationContext.PathPreview = pathPreview
+        Pomo.Core.RenderSystem.NavigationContext.CurrentPath = currentPath
+        Pomo.Core.RenderSystem.NavigationContext.Grid = navigationDebugGrid
+      }
+
+      let entityCtx = {
+        Pomo.Core.RenderSystem.EntityContext.Entities = entities
+        Pomo.Core.RenderSystem.EntityContext.Derived = derived
+        Pomo.Core.RenderSystem.EntityContext.Selected = selected
+        Pomo.Core.RenderSystem.EntityContext.Hud = hudOpt
+      }
+
+      let effectsCtx = {
+        Pomo.Core.RenderSystem.EffectsContext.FloatingTexts = floatingTexts
+        Pomo.Core.RenderSystem.EffectsContext.Projectiles = projectiles
+        Pomo.Core.RenderSystem.EffectsContext.Aoes = aoes
+        Pomo.Core.RenderSystem.EffectsContext.Impacts = impacts
+        Pomo.Core.RenderSystem.EffectsContext.GameTime = gameTime
+        Pomo.Core.RenderSystem.EffectsContext.Services = state.services
+        Pomo.Core.RenderSystem.EffectsContext.Hud = hudOpt
+      }
+
+      let inputCtx = {
+        Pomo.Core.RenderSystem.InputContext.InputMode = inputMode
+        Pomo.Core.RenderSystem.InputContext.MouseWorldPos = mouseWorldPos
+      }
+
+      RenderSystem.drawWorld spriteBatch pixel worldCtx
+      RenderSystem.drawNavigation spriteBatch pixel navCtx
+      RenderSystem.drawEntitiesPhase spriteBatch pixel entityCtx
+      RenderSystem.drawEffectsPhase spriteBatch pixel effectsCtx
+      RenderSystem.drawInputPhase spriteBatch inputCtx
+      spriteBatch.End()
+
+      hudOpt
+      |> ValueOption.iter(fun font ->
         UISystem.draw
           spriteBatch
           pixel
           font
           uiState
           state
-          this.GraphicsDevice.Viewport
-      | ValueNone -> ()
+          this.GraphicsDevice.Viewport)
+
     | _ -> ()
 
     base.Draw(gameTime)
