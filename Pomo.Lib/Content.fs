@@ -5,6 +5,7 @@ open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Abilities
 open Pomo.Lib.Domain.Effects
 open Pomo.Lib.Domain.Visuals
+open Pomo.Lib.Domain.Scenario
 
 module ProjectileStore =
   let definitions: Map<int<ProjectileId>, ProjectileDefinition> =

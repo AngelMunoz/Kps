@@ -2,7 +2,7 @@ namespace Pomo.Lib.Collision
 
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
-open Pomo.Lib.Scenario
+open Pomo.Lib.Domain.Scenario
 
 module Geometry =
   let inline private sub (a: Position) (b: Position) = {

@@ -5,53 +5,7 @@ open FSharp.UMX
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Components
-open Pomo.Lib.Domain.VisualEffects
-
-[<Struct>]
-type ScenarioTransition = {
-  FromPosition: Position
-  ToScenarioId: Guid<ScenarioId>
-  ToPosition: Position
-}
-type Scenario = {
-  Id: Guid<ScenarioId>
-  Name: string
-  BoundsWidth: float32
-  BoundsHeight: float32
-  BattleEnabled: bool
-  CombatType: ScenarioCombatType
-  EngagementMode: EngagementMode
-  TerrainObjects: TerrainObject IndexList
-  VisualLayers: VisualLayer[]
-  Transitions: ScenarioTransition[]
-}
-
-type ScenarioState = {
-  scenario: Scenario
-  entities: cmap<Guid<EntityId>, EntityComponents>
-  gameTime: cval<TimeSpan>
-  battleContext: BattleContext voption
-  battleInstances: cmap<Guid<BattleInstanceId>, BattleInstance>
-  pendingDuels: cmap<Guid<EntityId>, Guid<EntityId>>
-  pendingPartyDuels: cmap<Guid<PartyId>, Guid<PartyId>>
-  parties: cmap<Guid<PartyId>, Party>
-  floatingTexts: cmap<Guid<FloatingTextId>, FloatingText>
-  projectiles: cmap<Guid<ProjectileId>, ActiveProjectile>
-  aoes: cmap<Guid<AoeId>, ActiveAoe>
-  impacts: cmap<Guid<ImpactId>, ActiveImpact>
-}
-
-type GameStateScenarios = {
-  scenarios: cmap<Guid<ScenarioId>, ScenarioState>
-  activeScenarioId: Guid<ScenarioId> cval
-}
-[<Struct>]
-type CreateScenarioParams = {
-  Id: Guid<ScenarioId>
-  Name: string
-  BoundsWidth: float32
-  BoundsHeight: float32
-}
+open Pomo.Lib.Domain.Scenario
 
 module ScenarioState =
 
@@ -114,6 +68,7 @@ module ScenarioManager =
     (gameState: GameStateScenarios)
     =
     gameState.scenarios |> AMap.tryFind scenarioId
+
   let addEntityToScenario
     (entityId: Guid<EntityId>)
     (entityComponents: EntityComponents)

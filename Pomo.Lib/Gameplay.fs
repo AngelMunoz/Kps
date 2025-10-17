@@ -13,15 +13,6 @@ open Pomo.Lib.Domain.AggregatedEffects
 open Pomo.Lib.Scenario
 open Pomo.Lib.Domain.VisualEffects
 
-type GameState = {
-  scenarios: cmap<Guid<ScenarioId>, ScenarioState>
-  activeScenarioId: Guid<ScenarioId> cval
-  players: cmap<Guid<PlayerId>, PlayerContext>
-  parties: cmap<Guid<PartyId>, Party>
-  services: Services.EngineServices
-}
-
-
 module GameState =
 
   let getActiveScenario(state: GameState) = adaptive {

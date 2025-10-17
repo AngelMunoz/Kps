@@ -6,7 +6,7 @@ open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.State
-open Pomo.Lib.Scenario
+open Pomo.Lib.Domain.Scenario
 
 module BattleInstanceLifecycle =
 

@@ -6,7 +6,7 @@ open FSharp.UMX
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.Classification
-open Pomo.Lib.Scenario
+open Pomo.Lib.Domain.Scenario
 open Pomo.Lib.Collision
 open Pomo.Lib.Pathfinding
 

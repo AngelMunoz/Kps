@@ -13,7 +13,7 @@ open Pomo.Lib.Gameplay
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Services
 open Pomo.Lib.Domain.Abilities
-open Pomo.Lib.Scenario
+open Pomo.Lib.Domain.Scenario
 open Pomo.Lib.BattleManager
 open Pomo.Lib.Battle
 
@@ -934,7 +934,11 @@ module Resolution =
                   let newMp = min maxMp (actor.Resources.MP + rep.Amount)
                   { actor.Resources with MP = newMp }
 
-              let updatedActor = { actor with Resources = updatedResources }
+              let updatedActor = {
+                actor with
+                    Resources = updatedResources
+              }
+
               HashMap.add rep.Actor updatedActor acc
             | ValueNone -> acc)
           HashMap.empty

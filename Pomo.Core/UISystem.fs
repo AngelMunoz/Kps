@@ -9,9 +9,8 @@ open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Classification
 open Pomo.Lib.Domain.Components
+open Pomo.Lib.Domain.State
 open Pomo.Lib.Domain.Inventory
-open Pomo.Lib.Domain.Abilities
-open Pomo.Lib.Gameplay
 open Pomo.Lib.Operations
 
 module UISystem =

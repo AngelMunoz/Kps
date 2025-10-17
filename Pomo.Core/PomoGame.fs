@@ -13,15 +13,15 @@ open FSharp.UMX
 open Pomo.Core.Localization
 open Pomo.Lib.Gameplay
 open Pomo.Lib.Domain
-open Pomo.Lib.Domain.Attributes
+open Pomo.Lib.Domain.Scenario
 open Pomo.Lib.Domain.Classification
 open Pomo.Lib.Domain.Services
+open Pomo.Lib.Domain.State
 open Pomo.Lib.Rules
 open Pomo.Lib.Content
 open Pomo.Lib.Operations
 open Pomo.Lib.Scenario
 open Pomo.Lib.Pathfinding
-open Pomo.Lib.ScenarioTransitions
 open FSharp.Data.Adaptive
 
 type PomoGame() as this =
@@ -67,7 +67,7 @@ type PomoGame() as this =
 
   let mutable terrainVersion: int64 = 0L
 
-  let computeTerrainVersion(scenario: Pomo.Lib.Scenario.Scenario) =
+  let computeTerrainVersion(scenario: Scenario) =
     let objs = scenario.TerrainObjects |> IndexList.toArray
 
     let hashObjs =
@@ -385,7 +385,7 @@ type PomoGame() as this =
     AudioSystem.load this.Content
 
 
-  override this.Update(gameTime) =
+  override this.Update gameTime =
 
     let exitRequested =
       GamePad.GetState(PlayerIndex.One).Buttons.Back = ButtonState.Pressed

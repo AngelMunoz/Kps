@@ -5,14 +5,12 @@ open Microsoft.Xna.Framework
 open Microsoft.Xna.Framework.Graphics
 open FSharp.UMX
 open FSharp.Data.Adaptive
-open Pomo.Lib.Gameplay
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Classification
 open Pomo.Lib.Domain.VisualEffects
-open Pomo.Lib.Scenario
+open Pomo.Lib.Domain.Scenario
 open Pomo.Lib.Pathfinding
-open Pomo.Lib.Collision
 open Pomo.Lib.Domain.Visuals
 open Pomo.Lib.Domain.Services
 
@@ -93,7 +91,7 @@ module RenderSystem =
   let private drawTerrainObjects
     (sb: SpriteBatch)
     (pixel: Texture2D)
-    (scenario: Pomo.Lib.Scenario.Scenario)
+    (scenario: Scenario)
     =
     let terrainObjects = scenario.TerrainObjects |> IndexList.toArray
 
@@ -124,7 +122,7 @@ module RenderSystem =
   let private drawTransitions
     (sb: SpriteBatch)
     (pixel: Texture2D)
-    (scenario: Pomo.Lib.Scenario.Scenario)
+    (scenario: Scenario)
     =
     for transition in scenario.Transitions do
       let pos = transition.FromPosition
@@ -140,7 +138,7 @@ module RenderSystem =
   let private drawGrid
     (sb: SpriteBatch)
     (pixel: Texture2D)
-    (scenario: Pomo.Lib.Scenario.Scenario)
+    (scenario: Scenario)
     showGrid
     =
     if showGrid then
@@ -432,7 +430,7 @@ module RenderSystem =
   [<Struct>]
   type WorldContext = {
     Bounds: Pomo.Lib.Domain.ScenarioBounds
-    TerrainScenario: Pomo.Lib.Scenario.Scenario
+    TerrainScenario: Scenario
   }
 
   [<Struct>]

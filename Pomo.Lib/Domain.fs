@@ -660,9 +660,68 @@ module VisualEffects =
     | Aoe of aoe: ActiveAoe
     | Impact of impact: ActiveImpact
 
+module Scenario =
+
+
+  [<Struct>]
+  type ScenarioTransition = {
+    FromPosition: Position
+    ToScenarioId: Guid<ScenarioId>
+    ToPosition: Position
+  }
+
+  type Scenario = {
+    Id: Guid<ScenarioId>
+    Name: string
+    BoundsWidth: float32
+    BoundsHeight: float32
+    BattleEnabled: bool
+    CombatType: ScenarioCombatType
+    EngagementMode: EngagementMode
+    TerrainObjects: TerrainObject IndexList
+    VisualLayers: VisualLayer[]
+    Transitions: ScenarioTransition[]
+  }
+
+  type ScenarioState = {
+    scenario: Scenario
+    entities: cmap<Guid<EntityId>, Components.EntityComponents>
+    gameTime: cval<TimeSpan>
+    battleContext: BattleContext voption
+    battleInstances: cmap<Guid<BattleInstanceId>, BattleInstance>
+    pendingDuels: cmap<Guid<EntityId>, Guid<EntityId>>
+    pendingPartyDuels: cmap<Guid<PartyId>, Guid<PartyId>>
+    parties: cmap<Guid<PartyId>, Party>
+    floatingTexts: cmap<Guid<FloatingTextId>, VisualEffects.FloatingText>
+    projectiles: cmap<Guid<ProjectileId>, VisualEffects.ActiveProjectile>
+    aoes: cmap<Guid<AoeId>, VisualEffects.ActiveAoe>
+    impacts: cmap<Guid<ImpactId>, VisualEffects.ActiveImpact>
+  }
+
+  type GameStateScenarios = {
+    scenarios: cmap<Guid<ScenarioId>, ScenarioState>
+    activeScenarioId: Guid<ScenarioId> cval
+  }
+
+  [<Struct>]
+  type CreateScenarioParams = {
+    Id: Guid<ScenarioId>
+    Name: string
+    BoundsWidth: float32
+    BoundsHeight: float32
+  }
+
 module State =
   open Components
   open VisualEffects
+
+  type GameState = {
+    scenarios: cmap<Guid<ScenarioId>, Scenario.ScenarioState>
+    activeScenarioId: Guid<ScenarioId> cval
+    players: cmap<Guid<PlayerId>, PlayerContext>
+    parties: cmap<Guid<PartyId>, Party>
+    services: Services.EngineServices
+  }
 
   [<Struct>]
   type ScenarioChange =

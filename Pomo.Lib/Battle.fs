@@ -5,7 +5,7 @@ open FSharp.UMX
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.Abilities
-open Pomo.Lib.Scenario
+open Pomo.Lib.Domain.Scenario
 open FSharp.Data.Adaptive
 
 module Engagement =
