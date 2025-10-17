@@ -1,0 +1,8 @@
+-- Generated with https://www.bfxr.net/
+DamageReceived.wav
+FireBlip.wav
+MissedHit.wav
+SkillActivation.wav
+
+-- Bulby Music https://bsky.app/profile/bulby8bit.bsky.social
+bg_temp.mp3 // Shy But Deadly 8 Bit -> https://www.youtube.com/watch?v=xxNqaU9x_4w

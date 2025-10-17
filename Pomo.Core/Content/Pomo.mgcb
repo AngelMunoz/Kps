@@ -13,11 +13,41 @@
 
 #---------------------------------- Content ---------------------------------#
 
+#begin Audio/bg_temp.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/build:Audio/bg_temp.mp3
+
+#begin Audio/DamageReceived.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/DamageReceived.wav
+
 #begin Audio/FireBlip.wav
 /importer:WavImporter
 /processor:SoundEffectProcessor
 /processorParam:Quality=Best
 /build:Audio/FireBlip.wav
+
+#begin Audio/FireBlip.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/FireBlip.wav
+
+#begin Audio/MissedHit.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/MissedHit.wav
+
+#begin Audio/SkillActivation.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SkillActivation.wav
 
 #begin Fonts/Hud.spritefont
 /importer:FontDescriptionImporter
