@@ -62,6 +62,9 @@ type PomoGame() as this =
   let mutable inputMode: InputManager.InputMode = InputManager.InputMode.Normal
   let mutable mouseWorldPos: Vector2 = Vector2.Zero
 
+  let mutable playerInputState: InputManager.PlayerInputState =
+    InputManager.createInitialState()
+
   let mutable navigationDebugGrid: Pomo.Lib.Pathfinding.PathfindingGrid voption =
     ValueNone
 
@@ -530,7 +533,7 @@ type PomoGame() as this =
             | ValueNone -> ()
 
             let moveCmd =
-              Rules.Move {
+              Rules.Navigate {
                 actor = playerId
                 destination = { X = world.X; Y = world.Y }
               }
@@ -664,32 +667,21 @@ type PomoGame() as this =
         prevKeyRDown <- keyR
 
         let keyboardState = Keyboard.GetState()
-        let enemyMoveSpeed = 100.0f
-        let mutable enemyMoveDir = Vector2.Zero
 
-        if keyboardState.IsKeyDown(Keys.Up) then
-          enemyMoveDir.Y <- enemyMoveDir.Y - 1.0f
+        playerInputState <-
+          InputManager.updateMovement playerInputState keyboardState gameTime
 
-        if keyboardState.IsKeyDown(Keys.Down) then
-          enemyMoveDir.Y <- enemyMoveDir.Y + 1.0f
-
-        if keyboardState.IsKeyDown(Keys.Left) then
-          enemyMoveDir.X <- enemyMoveDir.X - 1.0f
-
-        if keyboardState.IsKeyDown(Keys.Right) then
-          enemyMoveDir.X <- enemyMoveDir.X + 1.0f
-
-        if enemyMoveDir.LengthSquared() > 0.0f then
-          enemyMoveDir.Normalize()
+        if playerInputState.Velocity.LengthSquared() > 0.0f then
           let enemyEntity = scenario.entities |> AMap.find enemyId |> AVal.force
+          let deltaTime = float32 gameTime.ElapsedGameTime.TotalSeconds
 
           let newPos = {
-            X = enemyEntity.Position.X + enemyMoveDir.X * enemyMoveSpeed
-            Y = enemyEntity.Position.Y + enemyMoveDir.Y * enemyMoveSpeed
+            X = enemyEntity.Position.X + playerInputState.Velocity.X * deltaTime
+            Y = enemyEntity.Position.Y + playerInputState.Velocity.Y * deltaTime
           }
 
           let moveCmd =
-            Rules.Move {
+            Rules.SetPosition {
               actor = enemyId
               destination = newPos
             }

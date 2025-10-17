@@ -518,7 +518,7 @@ module CommandHandler =
     }
 
   let resolveMove
-    (action: MoveAction)
+    (action: NavigateAction)
     (resolverParams: ResolverParams)
     : aval<StateChange> =
     adaptive {
@@ -545,6 +545,39 @@ module CommandHandler =
             e.Movement
 
         let updatedEntity = { e with Movement = updatedMovement }
+
+        return {
+          updates = HashMap.ofList [ action.actor, updatedEntity ]
+          additions = HashMap.empty
+          removals = Array.empty
+          gameTime = ValueNone
+          scenarioChanges = Array.empty
+          teleports = Array.empty
+          visualEffects = Array.empty
+        }
+      | None ->
+        return {
+          updates = HashMap.empty
+          additions = HashMap.empty
+          removals = Array.empty
+          gameTime = ValueNone
+          scenarioChanges = Array.empty
+          teleports = Array.empty
+          visualEffects = Array.empty
+        }
+    }
+
+  let resolveSetPosition
+    (action: SetPositionAction)
+    (resolverParams: ResolverParams)
+    : aval<StateChange> =
+    adaptive {
+      let! entity =
+        resolverParams.scenarioState.entities |> AMap.tryFind action.actor
+
+      match entity with
+      | Some e ->
+        let updatedEntity = { e with Position = action.destination }
 
         return {
           updates = HashMap.ofList [ action.actor, updatedEntity ]
@@ -700,7 +733,8 @@ module CommandHandler =
 
     match cmd with
     | UseAbility action -> return! resolveUseAbility action resolverParams
-    | Move action -> return! resolveMove action resolverParams
+    | Navigate action -> return! resolveMove action resolverParams
+    | SetPosition action -> return! resolveSetPosition action resolverParams
     | ReplenishResources replenishments ->
       return! resolveReplenishResources replenishments resolverParams
     | Duel duelAction ->
