@@ -37,6 +37,7 @@ module ScenarioState =
       projectiles = cmap()
       aoes = cmap()
       impacts = cmap()
+      pendingResolutions = cmap()
     }
 
     configure baseScenario
@@ -61,6 +62,7 @@ module ScenarioManager =
       projectiles = cmap()
       aoes = cmap()
       impacts = cmap()
+      pendingResolutions = cmap()
     }
 
   let getScenarioState

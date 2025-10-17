@@ -373,21 +373,8 @@ module RenderSystem =
       let def = services.projectileStore.find proj.DefinitionId
       let color = Color.toMonoGameColor def.Color
       let size = def.Size
-      let start = Vector2(proj.StartPosition.X, proj.StartPosition.Y)
-      let dest = Vector2(proj.EndPosition.X, proj.EndPosition.Y)
-      let distance = Vector2.Distance(start, dest)
-      let travelTime = if def.Speed > 0.0f then distance / def.Speed else 0.0f
-
-      let progress =
-        if travelTime > 0.0f then
-          (float32 proj.Age.TotalSeconds) / travelTime
-        else
-          1.0f
-
-      let clampedProgress = max 0.0f (min 1.0f progress)
-      let currentPos = Vector2.Lerp(start, dest, clampedProgress)
-      let x = int(currentPos.X - size * 0.5f)
-      let y = int(currentPos.Y - size * 0.5f)
+      let x = int(proj.CurrentPosition.X - size * 0.5f)
+      let y = int(proj.CurrentPosition.Y - size * 0.5f)
       sb.Draw(pixel, Rectangle(x, y, int size, int size), color)
 
   let private drawAoes

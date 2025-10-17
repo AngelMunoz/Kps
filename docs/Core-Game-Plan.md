@@ -1,9 +1,9 @@
 # Core Game Plan - MonoGame Integration & Gameplay Systems
 
-**Status**: 🚧 **PHASE 6.9 IN PROGRESS** - Implemented ability targeting mode and visual effects for projectiles, AoEs, and impacts.
+**Status**: 🚧 **PHASE 6.9 IN PROGRESS** - Implemented deferred resolution system for abilities. Projectiles now dynamically track targets and apply effects on collision, synchronizing visual feedback with gameplay impact.
 
 **Created**: 2025-10-11
-**Updated**: 2025-10-16
+**Updated**: 2025-10-17
 
 **Prerequisites**: Phases 0-5.5 of RPG-Core-Plan.md completed
 
@@ -1100,7 +1100,7 @@ All of the above remains valid; new EngagementMode and BattleInstance mechanics 
   - Color-coded (damage = red, heal = green, critical = yellow)
   - Animation: rise and fade
 - **Ability Animations**:
-  - Projectiles for ranged abilities
+  - **Dynamic Projectiles**: Projectiles for ranged abilities now dynamically follow their targets. The visual effect is synchronized with the gameplay impact, which is determined by collision detection. The resolution of the ability's effects (e.g., damage) is deferred until the projectile physically hits the target, ensuring visual and gameplay consistency even if the target moves.
   - Area indicators for AoE
   - Impact effects on targets
 - **Status Effect Indicators**:

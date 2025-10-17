@@ -38,6 +38,9 @@ type ImpactId
 [<Measure>]
 type FloatingTextId
 
+[<Measure>]
+type PendingResolutionId
+
 module Visuals =
   [<Struct>]
   type Shape =
@@ -79,6 +82,15 @@ module Visuals =
     Color: VisualColor
     Size: float32
   }
+
+[<Struct>]
+type PendingResolution = {
+  Id: Guid<PendingResolutionId>
+  ActorId: Guid<EntityId>
+  TargetId: Guid<EntityId>
+  AbilityId: int<AbilityId>
+  TriggerTick: TimeSpan
+}
 
 // Core types available at namespace level
 [<Struct>]
@@ -632,9 +644,10 @@ module VisualEffects =
   type ActiveProjectile = {
     Id: Guid<ProjectileId>
     DefinitionId: int<ProjectileId>
-    StartPosition: Position
-    EndPosition: Position
-    Age: TimeSpan
+    CurrentPosition: Position
+    TargetId: Guid<EntityId>
+    CreationTick: TimeSpan
+    PendingResolutionId: Guid<PendingResolutionId>
   }
 
   [<Struct>]
@@ -643,6 +656,7 @@ module VisualEffects =
     DefinitionId: int<AoeId>
     Position: Position
     CreationTick: TimeSpan
+    PendingResolutionId: Guid<PendingResolutionId>
   }
 
   [<Struct>]
@@ -651,6 +665,7 @@ module VisualEffects =
     DefinitionId: int<ImpactId>
     Position: Position
     CreationTick: TimeSpan
+    PendingResolutionId: Guid<PendingResolutionId>
   }
 
   [<Struct>]
@@ -696,6 +711,7 @@ module Scenario =
     projectiles: cmap<Guid<ProjectileId>, VisualEffects.ActiveProjectile>
     aoes: cmap<Guid<AoeId>, VisualEffects.ActiveAoe>
     impacts: cmap<Guid<ImpactId>, VisualEffects.ActiveImpact>
+    pendingResolutions: cmap<Guid<PendingResolutionId>, PendingResolution>
   }
 
   type GameStateScenarios = {
@@ -744,6 +760,8 @@ module State =
     | RemoveAoe of aoeId: Guid<AoeId>
     | AddImpact of addImpact: ActiveImpact
     | RemoveImpact of impactId: Guid<ImpactId>
+    | AddPendingResolution of addResolution: PendingResolution
+    | RemovePendingResolution of resolutionId: Guid<PendingResolutionId>
 
   [<Struct>]
   type StateChange = {

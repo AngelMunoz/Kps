@@ -64,3 +64,15 @@ module DamageResult =
     Element = Attributes.Neutral
     ElementalDamage = 0
   }
+
+
+module StateChange =
+  let empty: State.StateChange = {
+    updates = HashMap.empty
+    additions = HashMap.empty
+    removals = Array.empty
+    gameTime = ValueNone
+    scenarioChanges = Array.empty
+    teleports = Array.empty
+    visualEffects = Array.empty
+  }

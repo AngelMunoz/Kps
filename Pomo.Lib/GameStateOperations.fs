@@ -113,7 +113,7 @@ module GameState =
 
   let getEntity entityId (state: GameState) =
     adaptive {
-      let! scenario = GameState.getActiveScenario state
+      let! scenario = Scenario.getActiveScenario state
       return! scenario.entities |> AMap.tryFind entityId
     }
     |> AVal.force
@@ -130,7 +130,7 @@ module GameState =
 
     let entitiesMap =
       adaptive {
-        let! scenario = GameState.getActiveScenario state
+        let! scenario = Scenario.getActiveScenario state
         return! scenario.entities |> AMap.toAVal
       }
       |> AVal.force
@@ -208,7 +208,7 @@ module GameState =
 
     let entitiesMap =
       adaptive {
-        let! scenario = GameState.getActiveScenario state
+        let! scenario = Scenario.getActiveScenario state
         return! scenario.entities |> AMap.toAVal
       }
       |> AVal.force
@@ -259,13 +259,13 @@ module GameState =
     }
 
     let command = UseAbility action
-    Resolution.evaluate state command
+    CommandHandler.evaluate state command
 
   /// Returns all alive entities.
   /// Uses ASet.force on existing adaptive projection.
   let inline getAliveEntities(state: GameState) =
     adaptive {
-      let! scenario = GameState.getActiveScenario state
+      let! scenario = Scenario.getActiveScenario state
       let! aliveEntities = Projections.aAlive scenario.entities |> AMap.toAVal
       return aliveEntities
     }
@@ -275,7 +275,7 @@ module GameState =
   /// Uses direct access to AbilityCooldowns and Abilities.
   let inline getReadyAbilities entityId (state: GameState) =
     adaptive {
-      let! scenario = GameState.getActiveScenario state
+      let! scenario = Scenario.getActiveScenario state
       let! found = scenario.entities |> AMap.tryFind entityId
 
       match found with
@@ -290,7 +290,7 @@ module GameState =
   /// Forces evaluation of adaptive stats and returns snapshot.
   let inline getDerivedStatsSnapshot entityId (state: GameState) =
     adaptive {
-      let! stats = GameState.getDerivedStats state
+      let! stats = DerivedStats.getDerivedStats state
       return! stats |> AMap.tryFind entityId
     }
     |> AVal.force

@@ -4,30 +4,24 @@ open System
 open FSharp.UMX
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
-open Pomo.Lib.Domain.Effects
 open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.State
 open Pomo.Lib.Domain.VisualEffects
 open Pomo.Lib.Gameplay
-open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Services
+open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Abilities
 open Pomo.Lib.Domain.Scenario
 open Pomo.Lib.BattleManager
 open Pomo.Lib.Battle
+open Pomo.Lib.EffectApplication
 
-module Resolution =
-  [<Struct>]
-  type DamageParams = {
-    services: EngineServices
-    attackerStats: DerivedStats
-    defenderStats: DerivedStats
-    attackerEffects: HashMap<int<EffectId>, ActiveEffect>
-  }
+module CommandHandler =
+  open Pomo.Lib.Domain.Effects
 
   type ResolverParams = {
-    derivedStats: amap<Guid<EntityId>, DerivedStats>
+    derivedStats: amap<Guid<EntityId>, Attributes.DerivedStats>
     gameTime: cval<TimeSpan>
     scenarioState: ScenarioState
     players: amap<Guid<PlayerId>, PlayerContext>
@@ -42,140 +36,6 @@ module Resolution =
   }
 
   type ResolverFn = ResolverParams * ResolverActors -> aval<StateChange>
-
-  let calculateHitChance attackerStat defenderStat =
-    let attackerValue = float attackerStat
-    let defenderValue = float defenderStat
-
-    // Base chance to hit is 50%, adjusted by stats
-    let baseHitChance = 0.5
-
-    // If both stats are zero, it's a guaranteed hit.
-    if attackerValue = 0.0 && defenderValue = 0.0 then
-      1.0
-    else
-      // The effective stat difference. We use max to avoid negative results which would flip the logic.
-      let effectiveAttacker = max 0.0 attackerValue
-      let effectiveDefender = max 0.0 defenderValue
-
-      let statAdvantage = effectiveAttacker - effectiveDefender
-
-      // The divisor scales the effect of the stat advantage.
-      // A larger divisor means stats have less impact on hit chance.
-      let divisor = 100.0
-
-      let chance = baseHitChance + (statAdvantage / divisor)
-
-      // Clamp the result between a minimum and maximum hit chance
-      // to ensure there's always a chance to hit or miss.
-      max 0.05 (min 0.95 chance)
-
-  let calculateDamage (damageParams: DamageParams) formulaId = adaptive {
-    match damageParams.services.formulaStore.tryFind formulaId with
-    | ValueSome formula ->
-
-      let formulaResult =
-        formula.Calculate {
-          InvokerStats = damageParams.attackerStats
-          InvokerElementalAttributes =
-            damageParams.attackerStats.ElementAttributes
-          TargetElementalResistances =
-            damageParams.defenderStats.ElementResistances
-        }
-
-      // STEP 1: Hit/Miss calculation based on damage type
-      let hitRoll = damageParams.services.rng()
-
-      let hitChance =
-        match formulaResult.DamageType with
-        | DamageType.Neutral -> 1.0
-        | DamageType.Physical ->
-          calculateHitChance
-            damageParams.attackerStats.AC
-            damageParams.defenderStats.HV
-        | DamageType.Magical ->
-          calculateHitChance
-            damageParams.attackerStats.LK
-            damageParams.defenderStats.LK
-
-      let isHit = hitRoll <= hitChance
-
-      if not isHit then
-        return {
-          Amount = 0
-          IsCritical = false
-          IsEvaded = true
-        }
-      else
-        // STEP 2-4: Calculate damage (includes base damage, modifiers, and final damage)
-        // Apply critical hit (uses LK)
-        let critRoll = damageParams.services.rng()
-        let isCritical = critRoll < float damageParams.attackerStats.LK * 0.01
-
-        let damageBonus =
-          if isCritical then
-            int(
-              float(formulaResult.BaseDamage + formulaResult.ElementalDamage)
-              * 0.10
-            )
-          else
-            0
-
-        let finalElementalDamage =
-          if formulaResult.ElementalDamage > 0 then
-            let elementRes =
-              damageParams.defenderStats.ElementResistances.TryFindV
-                formulaResult.Element
-              |> ValueOption.defaultValue 0.0
-
-            float formulaResult.ElementalDamage * (1.0 - elementRes) |> int
-          else
-            0
-
-        let totalDamage = formulaResult.BaseDamage + finalElementalDamage
-
-        // Apply defense reduction
-        let damageAfterDefense =
-          match formulaResult.DamageType with
-          | DamageType.Physical -> totalDamage - damageParams.defenderStats.DP
-          | DamageType.Magical -> totalDamage - damageParams.defenderStats.MD
-          | DamageType.Neutral -> totalDamage
-
-        // Apply AbilityDamageMod from active effects
-        let abilityDamageMod =
-          damageParams.attackerEffects
-          |> HashMap.fold
-            (fun acc _ effect ->
-              effect.Definition.Modifiers
-              |> Array.fold
-                (fun modAcc modifier ->
-                  match modifier with
-                  | EffectModifier.AbilityDamageMod value -> modAcc + value
-                  | _ -> modAcc)
-                acc)
-            0.0
-
-        let damageWithModifier =
-          if abilityDamageMod > 0.0 then
-            damageAfterDefense
-            + int(float damageAfterDefense * abilityDamageMod)
-          else
-            damageAfterDefense
-
-        let finalDamage = max 0 (damageWithModifier + damageBonus)
-
-        return {
-          Amount = int finalDamage
-          IsCritical = isCritical
-          IsEvaded = false
-        }
-    | ValueNone ->
-      return {
-        Amount = 0
-        IsCritical = false
-        IsEvaded = false
-      }
-  }
 
   let checkTauntTarget(actorEffects: HashMap<'a, ActiveEffect>) =
     actorEffects
@@ -193,6 +53,8 @@ module Resolution =
     |> ValueOption.map _.SourceId
 
   module ValidateAction =
+    open Pomo.Lib.Domain.Attributes
+
     let checkStun(actor: EntityComponents) =
       actor.Effects |> HashMap.exists(fun _ e -> e.Definition.Kind.IsStun)
 
@@ -286,211 +148,6 @@ module Resolution =
         | None -> struct (ractors.target, initialTarget)
     }
 
-  module Shared =
-    let determineNewEffect
-      (effectDef: EffectDefinition)
-      (existingEffect: ActiveEffect)
-      =
-      let stacking = effectDef.Stacking
-
-      match stacking with
-      | NoStack -> ValueNone
-      | RefreshDuration ->
-        ValueSome {
-          existingEffect with
-              RemainingTicks =
-                effectDef.Duration.Ticks
-                |> ValueOption.defaultValue TimeSpan.Zero
-              NextTickIn =
-                effectDef.Duration.Interval
-                |> ValueOption.defaultValue TimeSpan.Zero
-        }
-      | AddStack maxStacks ->
-        let newStacks = min maxStacks (existingEffect.Stacks + 1)
-
-        ValueSome {
-          existingEffect with
-              Stacks = newStacks
-              RemainingTicks =
-                effectDef.Duration.Ticks
-                |> ValueOption.defaultValue TimeSpan.Zero
-              NextTickIn =
-                effectDef.Duration.Interval
-                |> ValueOption.defaultValue TimeSpan.Zero
-        }
-
-    let processEffects
-      (effectStore: Services.IEffectStore)
-      (abilityDef: ActiveAbilityDefinition)
-      (actorId: Guid<EntityId>)
-      (currentEffects: HashMap<int<EffectId>, ActiveEffect>)
-      =
-
-      let mutable updatedMap = currentEffects
-
-      for effId in abilityDef.Effects do
-        let existing = HashMap.tryFindV effId updatedMap
-
-        let newEffect =
-          match existing with
-          | ValueSome actEff ->
-            // Determine stacking update
-            match determineNewEffect actEff.Definition actEff with
-            | ValueSome newEff -> ValueSome newEff
-            | ValueNone -> ValueNone
-          | ValueNone ->
-            let effect = effectStore.tryFind effId
-
-            match effect with
-            | ValueNone -> ValueNone // Effect definition not found, skip
-            | ValueSome effectDef ->
-              // Create new effect instance
-              let newEff: ActiveEffect = {
-                EffectId = effId
-                SourceId = actorId
-                RemainingTicks =
-                  effectDef.Duration.Ticks
-                  |> ValueOption.defaultValue TimeSpan.Zero
-                NextTickIn =
-                  effectDef.Duration.Interval
-                  |> ValueOption.defaultValue TimeSpan.Zero
-                Stacks = 1
-                Definition = effectDef
-              }
-
-              ValueSome newEff
-
-        newEffect
-        |> ValueOption.iter(fun ne ->
-          updatedMap <- HashMap.add effId ne updatedMap)
-
-      updatedMap
-
-    let applyAbilityEffects
-      effectStore
-      actorId
-      (abilityDef: ActiveAbilityDefinition)
-      (targetComponents: EntityComponents)
-      =
-      adaptive {
-        let currentEffects = targetComponents.Effects
-
-        let effects =
-          processEffects effectStore abilityDef actorId currentEffects
-
-        return {
-          targetComponents with
-              Effects = effects
-        }
-      }
-
-    let checkForDeath (newHp: int) (targetComponents: EntityComponents) =
-      if newHp <= 0 && targetComponents.Resources.Status = Status.Alive then
-        {
-          targetComponents.Resources with
-              Status = Dead
-              HP = newHp
-        }
-      else
-        {
-          targetComponents.Resources with
-              HP = newHp
-        }
-
-    let applyResourceCost
-      (costOpt: ResourceCost voption)
-      (actorComponents: EntityComponents)
-      (damageAmount: int)
-      =
-      adaptive {
-        // Extract ResourceConversion modifiers from active effects
-        let resourceConversions =
-          actorComponents.Effects
-          |> HashMap.fold
-            (fun acc _ effect ->
-              effect.Definition.Modifiers
-              |> Array.fold
-                (fun convAcc modifier ->
-                  match modifier with
-                  | EffectModifier.ResourceConversion(fromType, toType, ratio) ->
-                    (fromType, toType, ratio) :: convAcc
-                  | _ -> convAcc)
-                acc)
-            []
-
-        // Apply base cost if present
-        let resourcesAfterBaseCost =
-          match costOpt with
-          | ValueSome cost ->
-            match cost.Type with
-            | ResourceType.HP -> {
-                actorComponents.Resources with
-                    HP = actorComponents.Resources.HP - cost.Amount
-              }
-            | ResourceType.MP ->
-                {
-                  actorComponents.Resources with
-                      MP = actorComponents.Resources.MP - cost.Amount
-                }
-          | ValueNone -> actorComponents.Resources
-
-        // Apply ResourceConversion modifiers
-        let finalResources: Attributes.Resources =
-          resourceConversions
-          |> List.fold
-            (fun (resources: Attributes.Resources) (fromType, toType, ratio) ->
-              match fromType, toType with
-              | ResourceType.HP, ResourceType.HP when ratio < 0.0 ->
-                // HP-cost amplification: consume HP based on damage dealt
-                let hpCost = int(float damageAmount * abs ratio)
-
-                {
-                  resources with
-                      HP = resources.HP - hpCost
-                }
-              | ResourceType.MP, ResourceType.HP when ratio > 0.0 ->
-                // MP to HP conversion: convert MP to HP
-                let mpToConvert = resources.MP
-                let hpGained = int(float mpToConvert * ratio)
-
-                {
-                  resources with
-                      MP = 0
-                      HP = resources.HP + hpGained
-                }
-              | ResourceType.HP, ResourceType.MP when ratio > 0.0 ->
-                // HP to MP conversion
-                let hpToConvert = resources.HP
-                let mpGained = int(float hpToConvert * ratio)
-
-                {
-                  resources with
-                      HP = 0
-                      MP = resources.MP + mpGained
-                }
-              | _ -> resources)
-            resourcesAfterBaseCost
-
-        return {
-          actorComponents with
-              Resources = finalResources
-        }
-      }
-
-    let updateCooldowns
-      (actorComponents: EntityComponents)
-      abilityId
-      gameTime
-      abilityDef
-      =
-      {
-        actorComponents with
-            AbilityCooldowns =
-              actorComponents.AbilityCooldowns
-              |> HashMap.map(fun k v ->
-                if k = abilityId then gameTime + abilityDef.Cooldown else v)
-      }
-
   [<Struct>]
   type ValidatedActionResult = {
     actor: EntityComponents
@@ -533,7 +190,7 @@ module Resolution =
       | ValueSome(Active abilityDef) ->
 
       match actor, target with
-      | Some actor, Some target when actor.Resources.Status = Alive ->
+      | Some actor, Some target when actor.Resources.Status.IsAlive ->
         let! canUse =
           Engagement.canUseAbility
             rparams.scenarioState
@@ -592,17 +249,8 @@ module Resolution =
     }
 
   module AbilityResolution =
-    let applyDamage (damage: int) (targetComponents: EntityComponents) =
-      let newHp = max 0 (targetComponents.Resources.HP - damage)
 
-      let updatedTargetWithDamage = {
-        targetComponents with
-            EntityComponents.Resources.HP = newHp
-      }
-
-      Shared.checkForDeath newHp updatedTargetWithDamage
-
-    let resolve
+    let resolveImmediate
       (abilityId: int<AbilityId>)
       (rparams: ResolverParams)
       (ractors: ResolverActors)
@@ -616,7 +264,7 @@ module Resolution =
         let! targetStats = rparams.derivedStats |> AMap.find targetId
 
         let calculateDamage =
-          calculateDamage {
+          Resolution.calculateDamage {
             services = rparams.services
             attackerStats = actorStats
             defenderStats = targetStats
@@ -664,45 +312,10 @@ module Resolution =
               }
             )
 
-          // Add projectile, AoE, and impact effects
-          action.abilityDefinition.ProjectileId
-          |> ValueOption.iter(fun defId ->
-            effects.Add(
-              VisualEffectChange.AddProjectile {
-                Id = Guid.NewGuid() |> UMX.tag
-                DefinitionId = defId
-                StartPosition = action.actorComponents.Position
-                EndPosition = action.targetComponents.Position
-                Age = TimeSpan.Zero
-              }
-            ))
-
-          action.abilityDefinition.AoeId
-          |> ValueOption.iter(fun defId ->
-            effects.Add(
-              VisualEffectChange.AddAoe {
-                Id = Guid.NewGuid() |> UMX.tag
-                DefinitionId = defId
-                Position = action.targetComponents.Position
-                CreationTick = gameTime
-              }
-            ))
-
-          action.abilityDefinition.ImpactId
-          |> ValueOption.iter(fun defId ->
-            effects.Add(
-              VisualEffectChange.AddImpact {
-                Id = Guid.NewGuid() |> UMX.tag
-                DefinitionId = defId
-                Position = action.targetComponents.Position
-                CreationTick = gameTime
-              }
-            ))
-
           effects.ToArray()
 
         let finalResources =
-          applyDamage baseDamageResult.Amount action.targetComponents
+          Resolution.applyDamage baseDamageResult.Amount action.targetComponents
 
         let targetAfterDamage = {
           action.targetComponents with
@@ -710,20 +323,20 @@ module Resolution =
         }
 
         let! targetAfterEffects =
-          Shared.applyAbilityEffects
+          Resolution.applyAbilityEffects
             rparams.services.effectStore
             actorId
             action.abilityDefinition
             targetAfterDamage
 
         let! actorWithCost =
-          Shared.applyResourceCost
+          Resolution.applyResourceCost
             action.cost
             action.actorComponents
             baseDamageResult.Amount
 
         let actorWithCooldown =
-          Shared.updateCooldowns
+          Resolution.updateCooldowns
             actorWithCost
             abilityId
             gameTime
@@ -761,6 +374,111 @@ module Resolution =
           }
       }
 
+    let resolveDeferred
+      (abilityId: int<AbilityId>)
+      (rparams: ResolverParams)
+      (ractors: ResolverActors)
+      (action: ValidatedActionResult)
+      =
+      adaptive {
+        let! gameTime = rparams.gameTime
+        let mutable visualEffects = ResizeArray()
+        let resolutionId = Guid.NewGuid() |> UMX.tag
+
+        // Schedule visual effects and pending resolutions
+        action.abilityDefinition.ProjectileId
+        |> ValueOption.iter(fun defId ->
+          let projectileDef = rparams.services.projectileStore.find defId
+
+          let resolution = {
+            Id = resolutionId
+            ActorId = ractors.actor
+            TargetId = ractors.target
+            AbilityId = abilityId
+            TriggerTick = gameTime + TimeSpan.FromSeconds(5.0) // Fallback timeout
+          }
+
+          visualEffects.Add(AddPendingResolution resolution)
+
+          visualEffects.Add(
+            AddProjectile {
+              Id = Guid.NewGuid() |> UMX.tag
+              DefinitionId = defId
+              CurrentPosition = action.actorComponents.Position
+              TargetId = ractors.target
+              CreationTick = gameTime
+              PendingResolutionId = resolutionId
+            }
+          ))
+
+        action.abilityDefinition.AoeId
+        |> ValueOption.iter(fun defId ->
+          let resolution = {
+            Id = resolutionId
+            ActorId = ractors.actor
+            TargetId = ractors.target
+            AbilityId = abilityId
+            TriggerTick = gameTime + TimeSpan.FromSeconds(0.5) // Example delay
+          }
+
+          visualEffects.Add(AddPendingResolution resolution)
+
+          visualEffects.Add(
+            AddAoe {
+              Id = Guid.NewGuid() |> UMX.tag
+              DefinitionId = defId
+              Position = action.targetComponents.Position
+              CreationTick = gameTime
+              PendingResolutionId = resolutionId
+            }
+          ))
+
+        action.abilityDefinition.ImpactId
+        |> ValueOption.iter(fun defId ->
+          let impactDef = rparams.services.impactStore.find defId
+
+          let resolution = {
+            Id = resolutionId
+            ActorId = ractors.actor
+            TargetId = ractors.target
+            AbilityId = abilityId
+            TriggerTick = gameTime + impactDef.Duration
+          }
+
+          visualEffects.Add(AddPendingResolution resolution)
+
+          visualEffects.Add(
+            AddImpact {
+              Id = Guid.NewGuid() |> UMX.tag
+              DefinitionId = defId
+              Position = action.targetComponents.Position
+              CreationTick = gameTime
+              PendingResolutionId = resolutionId
+            }
+          ))
+
+        // Only apply cost and cooldown immediately
+        let! actorWithCost =
+          Resolution.applyResourceCost action.cost action.actorComponents 0 // No damage dealt yet
+
+        let actorWithCooldown =
+          Resolution.updateCooldowns
+            actorWithCost
+            abilityId
+            gameTime
+            action.abilityDefinition
+
+        return {
+          updates = HashMap.single ractors.actor actorWithCooldown
+          additions = HashMap.empty
+          removals = Array.empty
+          gameTime = ValueNone
+          scenarioChanges = Array.empty
+          teleports = Array.empty
+          visualEffects = visualEffects.ToArray()
+        }
+      }
+
   /// Resolves an ability command
   let resolveAbility(abilityId: int<AbilityId>) : ResolverFn =
     fun (rparams, ractors) -> adaptive {
@@ -786,7 +504,17 @@ module Resolution =
           visualEffects = Array.empty
         }
       | ValidAction action ->
-        return! AbilityResolution.resolve abilityId rparams ractors action
+        let hasVisualEffect =
+          action.abilityDefinition.ProjectileId.IsSome
+          || action.abilityDefinition.AoeId.IsSome
+          || action.abilityDefinition.ImpactId.IsSome
+
+        if hasVisualEffect then
+          return!
+            AbilityResolution.resolveDeferred abilityId rparams ractors action
+        else
+          return!
+            AbilityResolution.resolveImmediate abilityId rparams ractors action
     }
 
   let resolveMove
@@ -957,7 +685,7 @@ module Resolution =
   let evaluate (state: GameState) (cmd: Command) : aval<StateChange> = adaptive {
     let! activeScenarioId = state.activeScenarioId
     let! scenarioState = state.scenarios |> AMap.find activeScenarioId
-    let! derivedStats = GameState.getDerivedStats state
+    let! derivedStats = DerivedStats.getDerivedStats state
     let players = state.players
     let parties = state.parties
 

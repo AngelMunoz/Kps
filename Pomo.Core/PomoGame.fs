@@ -66,6 +66,7 @@ type PomoGame() as this =
     ValueNone
 
   let mutable terrainVersion: int64 = 0L
+  let mutable isGridDirty: bool = true
 
   let computeTerrainVersion(scenario: Scenario) =
     let objs = scenario.TerrainObjects |> IndexList.toArray
@@ -229,7 +230,7 @@ type PomoGame() as this =
     // Set initial positions for visibility (Phase 6.1) and give player a basic ability (Phase 6.2)
     // Add terrain objects and transitions for Phase 6.5 & 6.6 visualization
     transact(fun _ ->
-      let scenario = GameState.getActiveScenario state |> AVal.force
+      let scenario = Scenario.getActiveScenario state |> AVal.force
       let p = scenario.entities[playerId]
       let fireballAbilityId = 2<AbilityId>
       let meleeAbilityId = 8<AbilityId>
@@ -417,13 +418,15 @@ type PomoGame() as this =
           zoom <- z
           prevScroll <- wheel
 
-        let scenario = GameState.getActiveScenario state |> AVal.force
+        let scenario = Scenario.getActiveScenario state |> AVal.force
 
         let newVersion = computeTerrainVersion scenario.scenario
 
         if newVersion <> terrainVersion then
           terrainVersion <- newVersion
+          isGridDirty <- true
 
+        if isGridDirty then
           navigationDebugGrid <-
             let g =
               Pomo.Lib.Pathfinding.Grid.createWithEntities
@@ -434,6 +437,8 @@ type PomoGame() as this =
                 (Guid.Empty |> UMX.tag<EntityId>)
 
             ValueSome g
+
+          isGridDirty <- false
 
         // Check for scenario transitions
         let detectedTransitions =
@@ -530,7 +535,8 @@ type PomoGame() as this =
                 destination = { X = world.X; Y = world.Y }
               }
 
-            Resolution.evaluate state moveCmd |> GameState.forceAndApply state
+            CommandHandler.evaluate state moveCmd
+            |> GameState.forceAndApply state
 
         prevRightMouseDown <- rightMouseDown
 
@@ -650,12 +656,45 @@ type PomoGame() as this =
               }
             |]
 
-          Resolution.evaluate state replenishCmd
+          CommandHandler.evaluate state replenishCmd
           |> GameState.forceAndApply state
 
           Console.WriteLine("[Debug] Player MP replenished.")
 
         prevKeyRDown <- keyR
+
+        let keyboardState = Keyboard.GetState()
+        let enemyMoveSpeed = 100.0f
+        let mutable enemyMoveDir = Vector2.Zero
+
+        if keyboardState.IsKeyDown(Keys.Up) then
+          enemyMoveDir.Y <- enemyMoveDir.Y - 1.0f
+
+        if keyboardState.IsKeyDown(Keys.Down) then
+          enemyMoveDir.Y <- enemyMoveDir.Y + 1.0f
+
+        if keyboardState.IsKeyDown(Keys.Left) then
+          enemyMoveDir.X <- enemyMoveDir.X - 1.0f
+
+        if keyboardState.IsKeyDown(Keys.Right) then
+          enemyMoveDir.X <- enemyMoveDir.X + 1.0f
+
+        if enemyMoveDir.LengthSquared() > 0.0f then
+          enemyMoveDir.Normalize()
+          let enemyEntity = scenario.entities |> AMap.find enemyId |> AVal.force
+
+          let newPos = {
+            X = enemyEntity.Position.X + enemyMoveDir.X * enemyMoveSpeed
+            Y = enemyEntity.Position.Y + enemyMoveDir.Y * enemyMoveSpeed
+          }
+
+          let moveCmd =
+            Rules.Move {
+              actor = enemyId
+              destination = newPos
+            }
+
+          CommandHandler.evaluate state moveCmd |> GameState.forceAndApply state
 
     match selected with
     | ValueSome entityId when not(uiState.SelectedEntity = ValueSome entityId) ->
@@ -684,11 +723,12 @@ type PomoGame() as this =
 
       let hudOpt = if isNull hudFont then ValueNone else ValueSome hudFont
 
-      let scenario = GameState.getActiveScenario state |> AVal.force
+      let scenario = Scenario.getActiveScenario state |> AVal.force
 
       let entities = scenario.entities |> AMap.force |> HashMap.toArrayV
 
-      let derived = GameState.getDerivedStats state |> AVal.force |> AMap.force
+      let derived =
+        DerivedStats.getDerivedStats state |> AVal.force |> AMap.force
 
       let bounds = {
         Width = scenario.scenario.BoundsWidth
