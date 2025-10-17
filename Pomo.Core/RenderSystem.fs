@@ -19,17 +19,9 @@ module RenderSystem =
   let mutable mediumCircle: Texture2D = null
   let mutable largeCircle: Texture2D = null
 
-  let mutable labelCache: HashMap<Guid<EntityId>, struct (string * Vector2)> =
-    HashMap.empty
+  let mutable effectIcon: Texture2D = null
 
-  let invalidateLabel id =
-    labelCache <- labelCache |> HashMap.remove id
 
-  let invalidateLabels ids =
-    labelCache <-
-      ids |> Seq.fold (fun acc id -> acc |> HashMap.remove id) labelCache
-
-  let clearLabelCache() = labelCache <- HashMap.empty
 
   let private makeCircle (gd: GraphicsDevice) (radius: int) =
     let size = radius * 2
@@ -57,6 +49,11 @@ module RenderSystem =
 
     if isNull largeCircle then
       largeCircle <- makeCircle gd 20
+
+    if isNull effectIcon then
+      effectIcon <- new Texture2D(gd, 10, 10)
+      let data = Array.create (10 * 10) Color.White
+      effectIcon.SetData(data)
 
   let private circleForStage stage =
     match stage with
@@ -226,12 +223,10 @@ module RenderSystem =
   let private drawEntity
     (sb: SpriteBatch)
     (pixel: Texture2D)
-    (hud: SpriteFont voption)
     (selected: Guid<EntityId> voption)
     (derived: HashMap<Guid<EntityId>, DerivedStats>)
     (id: Guid<EntityId>)
     (comp: Components.EntityComponents)
-    (labelData: struct (string * Vector2) voption)
     =
     let pos = comp.Position
 
@@ -298,15 +293,34 @@ module RenderSystem =
     sb.Draw(pixel, mpBackRect, Color(80, 80, 20))
     sb.Draw(pixel, mpFillRect, Color.Yellow)
 
-    match hud, labelData with
-    | ValueSome font, ValueSome(struct (label, size)) ->
-      let tx = pos.X - size.X * 0.5f
-      let ty = float32 hpBackRect.Y - size.Y - 2f
-      let textPos = Vector2(tx, ty)
-      let shadowPos = textPos + Vector2(1f, 1f)
-      sb.DrawString(font, label, shadowPos, Color(0, 0, 0, 180))
-      sb.DrawString(font, label, textPos, Color.White)
-    | _ -> ()
+    if not(isNull effectIcon) && not(comp.Effects.IsEmpty) then
+      let effects = comp.Effects |> HashMap.toValueArray
+      let iconSize = 10f
+      let padding = 2f
+      let totalW = float32 effects.Length * (iconSize + padding) - padding
+      let startX = pos.X - totalW * 0.5f
+      let circleH = if isNull circle then 24f else float32 circle.Height
+      let startY = pos.Y + circleH * 0.5f + 4f
+
+      for i in 0 .. effects.Length - 1 do
+        let effect = effects.[i]
+        let x = startX + float32 i * (iconSize + padding)
+
+        let effectColor =
+          match effect.Definition.Kind with
+          | Effects.EffectKind.Buff -> Color.LightGreen
+          | Effects.EffectKind.HealOverTime -> Color.LightGreen
+          | Effects.EffectKind.Debuff -> Color.IndianRed
+          | Effects.EffectKind.DamageOverTime -> Color.IndianRed
+          | Effects.EffectKind.Stun -> Color.DarkOrange
+          | Effects.EffectKind.Silence -> Color.MediumPurple
+          | Effects.EffectKind.Taunt -> Color.Gold
+
+        sb.Draw(
+          effectIcon,
+          Rectangle(int x, int startY, int iconSize, int iconSize),
+          effectColor
+        )
 
   let private drawFloatingTexts
     (sb: SpriteBatch)
@@ -512,22 +526,7 @@ module RenderSystem =
 
   let drawEntitiesPhase sb pixel (ctx: EntityContext) =
     for struct (id, comp) in ctx.Entities do
-      let labelData =
-        match ctx.Hud with
-        | ValueSome font ->
-          match labelCache |> HashMap.tryFindV id with
-          | ValueSome data -> ValueSome data
-          | ValueNone ->
-            let label =
-              string comp.Identity.Family + "/" + string comp.Identity.Stage
-
-            let size = font.MeasureString(label)
-            let data = struct (label, size)
-            labelCache <- labelCache |> HashMap.add id data
-            ValueSome data
-        | ValueNone -> ValueNone
-
-      drawEntity sb pixel ctx.Hud ctx.Selected ctx.Derived id comp labelData
+      drawEntity sb pixel ctx.Selected ctx.Derived id comp
 
   let drawEffectsPhase sb pixel (ctx: EffectsContext) =
     drawFloatingTexts sb pixel ctx.Hud ctx.FloatingTexts ctx.GameTime

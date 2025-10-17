@@ -1104,8 +1104,8 @@ All of the above remains valid; new EngagementMode and BattleInstance mechanics 
   - Area indicators for AoE
   - Impact effects on targets
 - **Status Effect Indicators**:
+  - Icon overlays on entities for buffs/debuffs implemented.
   - Particle effects for buffs/debuffs
-  - Icon overlays on entities
 
 ### 6.9.2 Sound Effects (Optional)
 
@@ -1130,15 +1130,15 @@ All of the above remains valid; new EngagementMode and BattleInstance mechanics 
 
 - [x] Damage number system
 - [x] Ability visual effects (basic)
-- [ ] Status effect indicators
+- [x] Status effect indicators
 - [ ] Sound effects (optional)
 - [ ] UI animations and polish
 
 **Testing Requirements**:
 
-- [ ] Damage numbers test: Verify numbers display with correct values and colors
-- [ ] Visual effects test: Verify effects play on ability activation and impact
-- [ ] Status indicator test: Verify active effects display as icons/particles on entities
+- [x] Damage numbers test: Verify numbers display with correct values and colors
+- [x] Visual effects test: Verify effects play on ability activation and impact
+- [x] Status indicator test: Verify active effects display as icons/particles on entities
 - [ ] Animation test: Verify UI transitions and health bar animations work smoothly
 - [ ] Performance test: Verify visual effects don't impact frame rate significantly
 
