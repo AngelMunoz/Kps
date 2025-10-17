@@ -531,7 +531,7 @@ module CommandHandler =
         let entityRadius =
           Pomo.Lib.Movement.Utils.radiusOfStage e.Identity.Stage
 
-        let allEntities = resolverParams.scenarioState.entities |> AMap.force
+        let! allEntities = resolverParams.scenarioState.entities |> AMap.toAVal
         let entitiesArray = allEntities |> HashMap.toArrayV
 
         let updatedMovement =
@@ -589,8 +589,7 @@ module CommandHandler =
             EntityRadius = entityRadius
           }
 
-        let! allEntities =
-          resolverParams.scenarioState.entities |> AMap.toAVal
+        let! allEntities = resolverParams.scenarioState.entities |> AMap.toAVal
 
         let entitiesArray = allEntities |> HashMap.toArrayV
 

@@ -65,6 +65,8 @@ type PomoGame() as this =
   let mutable playerInputState: InputManager.PlayerInputState =
     InputManager.createInitialState()
 
+  let clickThrottle = InputManager.createThrottleState()
+
   let mutable navigationDebugGrid: Pomo.Lib.Pathfinding.PathfindingGrid voption =
     ValueNone
 
@@ -479,67 +481,57 @@ type PomoGame() as this =
 
         let rightMouseDown = InputManager.isRightClickPressed()
 
+        InputManager.updateThrottle clickThrottle gameTime.ElapsedGameTime
+
         if rightMouseDown && not prevRightMouseDown then
           if inputMode <> InputManager.InputMode.Normal then
             inputMode <- InputManager.InputMode.Normal
             Console.WriteLine("[Input] Canceled ability targeting mode.")
           else
-            // Generate pathfinding preview
             match
-              scenario.entities |> AMap.force |> HashMap.tryFindV playerId
+              InputManager.tryThrottleClick clickThrottle (ValueSome world)
             with
-            | ValueSome playerComp ->
+            | ValueSome clickWorld ->
+              let moveCmd =
+                Rules.Navigate {
+                  actor = playerId
+                  destination = { X = clickWorld.X; Y = clickWorld.Y }
+                }
+
+              CommandHandler.evaluate state moveCmd
+              |> GameState.forceAndApply state
+
+              let playerComp = scenario.entities[playerId]
+
               let entityRadius =
                 match playerComp.Identity.Stage with
                 | Stage.First -> 12f
                 | Stage.Second -> 16f
                 | Stage.Third -> 20f
 
-              let cellSize = max 20.0f (entityRadius * 2.0f)
+              match playerComp.Movement.Path with
+              | [] ->
+                currentPath <- Array.empty
+                pathPreview <- Array.empty
+              | waypoints ->
+                let fullPath =
+                  Array.concat [|
+                    [| playerComp.Position |]
+                    waypoints |> List.toArray
+                  |]
 
-              let allEntities =
-                scenario.entities |> AMap.force |> HashMap.toArrayV
-
-              let grid =
-                Grid.createWithEntities
-                  scenario.scenario
-                  cellSize
-                  entityRadius
-                  allEntities
-                  playerId
-
-              match
-                AStar.findPath grid playerComp.Position {
-                  X = world.X
-                  Y = world.Y
-                }
-              with
-              | ValueSome path ->
-                currentPath <- path
+                currentPath <- fullPath
 
                 pathPreview <-
                   PathPreview.generatePreview
                     scenario.scenario
-                    path
+                    fullPath
                     entityRadius
 
                 Console.WriteLine(
-                  $"[Pathfinding] Generated path with {path.Length} waypoints"
+                  $"[Pathfinding] Preview generated for {fullPath.Length} points"
                 )
-              | ValueNone ->
-                currentPath <- Array.empty
-                pathPreview <- Array.empty
-                Console.WriteLine("[Pathfinding] No valid path found")
             | ValueNone -> ()
-
-            let moveCmd =
-              Rules.Navigate {
-                actor = playerId
-                destination = { X = world.X; Y = world.Y }
-              }
-
-            CommandHandler.evaluate state moveCmd
-            |> GameState.forceAndApply state
 
         prevRightMouseDown <- rightMouseDown
 
