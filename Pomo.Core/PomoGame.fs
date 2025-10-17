@@ -681,7 +681,7 @@ type PomoGame() as this =
           }
 
           let moveCmd =
-            Rules.SetPosition {
+            Rules.AdvancePosition {
               actor = enemyId
               destination = newPos
             }

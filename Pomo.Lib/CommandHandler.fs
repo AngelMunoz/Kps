@@ -517,7 +517,7 @@ module CommandHandler =
             AbilityResolution.resolveImmediate abilityId rparams ractors action
     }
 
-  let resolveMove
+  let resolveNavigate
     (action: NavigateAction)
     (resolverParams: ResolverParams)
     : aval<StateChange> =
@@ -567,8 +567,8 @@ module CommandHandler =
         }
     }
 
-  let resolveSetPosition
-    (action: SetPositionAction)
+  let resolveAdvancePosition
+    (action: AdvancePositionAction)
     (resolverParams: ResolverParams)
     : aval<StateChange> =
     adaptive {
@@ -577,17 +577,36 @@ module CommandHandler =
 
       match entity with
       | Some e ->
-        let updatedEntity = { e with Position = action.destination }
+        let entityRadius =
+          Pomo.Lib.Movement.Utils.radiusOfStage e.Identity.Stage
 
-        return {
-          updates = HashMap.ofList [ action.actor, updatedEntity ]
-          additions = HashMap.empty
-          removals = Array.empty
-          gameTime = ValueNone
-          scenarioChanges = Array.empty
-          teleports = Array.empty
-          visualEffects = Array.empty
-        }
+        if
+          Pomo.Lib.Collision.Query.canMoveTo
+            action.destination
+            entityRadius
+            resolverParams.scenarioState.scenario
+        then
+          let updatedEntity = { e with Position = action.destination }
+
+          return {
+            updates = HashMap.ofList [ action.actor, updatedEntity ]
+            additions = HashMap.empty
+            removals = Array.empty
+            gameTime = ValueNone
+            scenarioChanges = Array.empty
+            teleports = Array.empty
+            visualEffects = Array.empty
+          }
+        else
+          return {
+            updates = HashMap.empty
+            additions = HashMap.empty
+            removals = Array.empty
+            gameTime = ValueNone
+            scenarioChanges = Array.empty
+            teleports = Array.empty
+            visualEffects = Array.empty
+          }
       | None ->
         return {
           updates = HashMap.empty
@@ -733,8 +752,9 @@ module CommandHandler =
 
     match cmd with
     | UseAbility action -> return! resolveUseAbility action resolverParams
-    | Navigate action -> return! resolveMove action resolverParams
-    | SetPosition action -> return! resolveSetPosition action resolverParams
+    | Navigate action -> return! resolveNavigate action resolverParams
+    | AdvancePosition action ->
+      return! resolveAdvancePosition action resolverParams
     | ReplenishResources replenishments ->
       return! resolveReplenishResources replenishments resolverParams
     | Duel duelAction ->

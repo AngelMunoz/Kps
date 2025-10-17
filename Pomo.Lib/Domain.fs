@@ -556,7 +556,7 @@ module Rules =
   }
 
   [<Struct>]
-  type SetPositionAction = {
+  type AdvancePositionAction = {
     actor: Guid<EntityId>
     destination: Position
   }
@@ -579,7 +579,7 @@ module Rules =
   type Command =
     | UseAbility of abilityAction: UseAbilityAction
     | Navigate of navigateAction: NavigateAction
-    | SetPosition of setPositionAction: SetPositionAction
+    | AdvancePosition of advancePositionAction: AdvancePositionAction
     | Duel of duelAction: DuelCommand
     | RemoveEntities of entityIds: Guid<EntityId> seq
     | AddEntities of
