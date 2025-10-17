@@ -191,6 +191,29 @@ module Update =
     EntityRadius: float32
   }
 
+  [<Struct>]
+  type AdvanceArgs = {
+    Position: Position
+    Velocity: Position // Using Position as a vector type for simplicity
+    Elapsed: float32
+    Scenario: Scenario
+    EntityRadius: float32
+  }
+
+  let internal advancePosition (args: AdvanceArgs) =
+    let terrainModifier =
+      TerrainMovement.getTerrainSpeedModifier args.Position args.Scenario args.EntityRadius
+
+    let finalVelocityX = args.Velocity.X * terrainModifier
+    let finalVelocityY = args.Velocity.Y * terrainModifier
+
+    let proposedPos = {
+        X = args.Position.X + finalVelocityX * args.Elapsed
+        Y = args.Position.Y + finalVelocityY * args.Elapsed
+    }
+    
+    proposedPos
+
   let private moveTowards args =
     let {
           Position = position
@@ -219,7 +242,7 @@ module Update =
       let newY = position.Y + dy / dist * moveAmount
       struct ({ X = newX; Y = newY }, false)
 
-  let private checkEntityCollision
+  let internal checkEntityCollision
     (pos: Position)
     (entityId: Guid<EntityId>)
     (entityRadius: float32)

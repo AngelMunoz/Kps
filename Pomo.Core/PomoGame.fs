@@ -667,23 +667,25 @@ type PomoGame() as this =
         prevKeyRDown <- keyR
 
         let keyboardState = Keyboard.GetState()
+        let enemyEntity = scenario.entities |> AMap.find enemyId |> AVal.force
+        let baseSpeed = enemyEntity.Movement.Speed
 
         playerInputState <-
-          InputManager.updateMovement playerInputState keyboardState gameTime
+          InputManager.updateMovement
+            playerInputState
+            keyboardState
+            gameTime
+            baseSpeed
 
         if playerInputState.Velocity.LengthSquared() > 0.0f then
-          let enemyEntity = scenario.entities |> AMap.find enemyId |> AVal.force
-          let deltaTime = float32 gameTime.ElapsedGameTime.TotalSeconds
-
-          let newPos = {
-            X = enemyEntity.Position.X + playerInputState.Velocity.X * deltaTime
-            Y = enemyEntity.Position.Y + playerInputState.Velocity.Y * deltaTime
-          }
-
           let moveCmd =
             Rules.AdvancePosition {
               actor = enemyId
-              destination = newPos
+              velocity = {
+                X = playerInputState.Velocity.X
+                Y = playerInputState.Velocity.Y
+              }
+              elapsed = gameTime.ElapsedGameTime.TotalSeconds |> float32
             }
 
           CommandHandler.evaluate state moveCmd |> GameState.forceAndApply state

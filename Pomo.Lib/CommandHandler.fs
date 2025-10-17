@@ -580,13 +580,35 @@ module CommandHandler =
         let entityRadius =
           Pomo.Lib.Movement.Utils.radiusOfStage e.Identity.Stage
 
-        if
+        let proposedPos =
+          Pomo.Lib.Movement.Update.advancePosition {
+            Position = e.Position
+            Velocity = action.velocity
+            Elapsed = action.elapsed
+            Scenario = resolverParams.scenarioState.scenario
+            EntityRadius = entityRadius
+          }
+
+        let! allEntities =
+          resolverParams.scenarioState.entities |> AMap.toAVal
+
+        let entitiesArray = allEntities |> HashMap.toArrayV
+
+        let terrainClear =
           Pomo.Lib.Collision.Query.canMoveTo
-            action.destination
+            proposedPos
             entityRadius
             resolverParams.scenarioState.scenario
-        then
-          let updatedEntity = { e with Position = action.destination }
+
+        let entityCollision =
+          Pomo.Lib.Movement.Update.checkEntityCollision
+            proposedPos
+            action.actor
+            entityRadius
+            entitiesArray
+
+        if terrainClear && not entityCollision then
+          let updatedEntity = { e with Position = proposedPos }
 
           return {
             updates = HashMap.ofList [ action.actor, updatedEntity ]

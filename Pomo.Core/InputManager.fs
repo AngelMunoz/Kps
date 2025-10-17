@@ -25,7 +25,7 @@ module InputManager =
     TimeSinceLastInput = 0.0f
   }
 
-  let updateMovement (state: PlayerInputState) (keyboard: KeyboardState) (gameTime: GameTime) =
+  let updateMovement (state: PlayerInputState) (keyboard: KeyboardState) (gameTime: GameTime) (maxSpeed: float32) =
     let mutable moveDirection = Vector2.Zero
     if keyboard.IsKeyDown(Keys.Up) then moveDirection.Y <- moveDirection.Y - 1.0f
     if keyboard.IsKeyDown(Keys.Down) then moveDirection.Y <- moveDirection.Y + 1.0f
@@ -49,9 +49,8 @@ module InputManager =
 
     // Acceleration and Deceleration logic
     let mutable velocity = state.Velocity
-    let maxSpeed = 200.0f
-    let acceleration = 300.0f
-    let deceleration = 400.0f
+    let acceleration = maxSpeed * 1.5f
+    let deceleration = maxSpeed * 2.0f
 
     if newState.IsAccelerating then
       velocity <- velocity + newState.MoveDirection * acceleration * deltaTime

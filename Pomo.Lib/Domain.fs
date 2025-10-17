@@ -558,7 +558,8 @@ module Rules =
   [<Struct>]
   type AdvancePositionAction = {
     actor: Guid<EntityId>
-    destination: Position
+    velocity: Position
+    elapsed: float32
   }
 
   [<Struct>]
