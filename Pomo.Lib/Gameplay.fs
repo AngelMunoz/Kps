@@ -698,10 +698,29 @@ module GameState =
         aoeRemovals.AsArray
       |]
 
-    let finalUpdates =
-      HashMap.union
-        projectileStateChanges.updates
-        nonProjectileResolutionChanges.updates
+    let updates =
+      projectileStateChanges.updates
+      |> HashMap.union nonProjectileResolutionChanges.updates
+
+    let keyedEntities = entities |> AMap.map(fun id comp -> struct (id, comp))
+
+    let! finalUpdates =
+      keyedEntities
+      |> AMap.reduce(
+        AdaptiveReduction.fold updates (fun acc struct (id, comp) ->
+          HashMap.alterV
+            id
+            (fun existing ->
+              match existing with
+              | ValueSome existing ->
+                ValueSome {
+                  existing with
+                      Position = comp.Position
+                      Movement = comp.Movement
+                }
+              | ValueNone -> ValueSome comp)
+            acc)
+      )
 
     return {
       updates = finalUpdates
