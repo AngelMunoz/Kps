@@ -103,10 +103,6 @@ module CommandHandler =
         | StatRequirement(stat, minValue) ->
           let actualValue =
             match stat with
-            | Power -> actorStats.AP
-            | Magic -> actorStats.MA
-            | Sense -> actorStats.DA
-            | Charm -> actorStats.HP
             | AP -> actorStats.AP
             | AC -> actorStats.AC
             | DX -> actorStats.DX

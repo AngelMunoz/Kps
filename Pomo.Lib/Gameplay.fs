@@ -135,7 +135,7 @@ module DerivedStats =
 
     struct (statBonuses, elemAttr, elemRes)
 
-  let private applyModifiers
+  let applyModifiers
     (effectStore: Services.IEffectStore)
     (formulaStore: Services.IFormulaStore)
     (baseStats: BaseAttributes)

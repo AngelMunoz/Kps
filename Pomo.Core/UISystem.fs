@@ -317,7 +317,7 @@ module UISystem =
         let abilityId = abilities.[i]
         let abilityY = startY + float32 i * lineHeight
 
-        let isReady = readyAbilities |> HashMap.containsKey abilityId
+        let isReady = readyAbilities |> HashSet.contains abilityId
         let statusText = if isReady then "(Ready)" else "(Cooldown)"
         let color = if isReady then Color.LimeGreen else Color.Gray
 

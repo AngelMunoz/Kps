@@ -76,9 +76,7 @@ module EffectStore =
         Kind = EffectKind.Buff
         Duration = Timed(TimeSpan.FromMilliseconds(30000.0))
         Stacking = StackingRule.RefreshDuration
-        Modifiers = [|
-          EffectModifier.StaticMod(StatModifier.Additive(Power, 5))
-        |]
+        Modifiers = [| EffectModifier.StaticMod(StatModifier.Additive(AP, 5)) |]
         FormulaId = ValueNone
       }
       2<EffectId>,
