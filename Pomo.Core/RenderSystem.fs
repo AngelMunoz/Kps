@@ -139,13 +139,7 @@ module RenderSystem =
     showGrid
     =
     if showGrid then
-      let grid =
-        Grid.createWithEntities
-          scenario
-          32.0f
-          16.0f
-          [||]
-          (Guid.Empty |> UMX.tag<EntityId>)
+      let grid = Grid.createGrid scenario 32.0f 16.0f
 
       let cellSize = int grid.CellSize
 

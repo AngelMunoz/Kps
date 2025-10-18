@@ -37,12 +37,10 @@ type PathfindingGrid = {
 
 module Grid =
 
-  let createWithEntities
+  let createGrid
     (scenario: Scenario)
     (cellSize: float32)
     (entityRadius: float32)
-    (allEntities: struct (Guid<EntityId> * EntityComponents) array)
-    (excludeEntityId: Guid<EntityId>)
     : PathfindingGrid =
     let width = int(ceil(scenario.BoundsWidth / cellSize))
     let height = int(ceil(scenario.BoundsHeight / cellSize))
@@ -58,27 +56,7 @@ module Grid =
         let checkRadius = entityRadius + 6.0f
         let isTerrainWalkable = Query.canMoveTo pos checkRadius scenario
 
-        // Check for entity collisions (excluding the moving entity itself)
-        let mutable entityCollision = false
-
-        if isTerrainWalkable then
-          for struct (id, entity) in allEntities do
-            if id <> excludeEntityId && not entityCollision then
-              let otherRadius =
-                match entity.Identity.Stage with
-                | Stage.First -> 12f
-                | Stage.Second -> 16f
-                | Stage.Third -> 20f
-
-              let dx = pos.X - entity.Position.X
-              let dy = pos.Y - entity.Position.Y
-              let dist2 = dx * dx + dy * dy
-              let minDist = checkRadius + otherRadius + 8.0f // Extra buffer for entity avoidance
-
-              if dist2 < minDist * minDist then
-                entityCollision <- true
-
-        let isWalkable = isTerrainWalkable && not entityCollision
+        let isWalkable = isTerrainWalkable
 
         let cost =
           if not isWalkable then
@@ -94,26 +72,8 @@ module Grid =
                 | Some _ -> 2.0f
                 | None -> 1.0f
 
-            // Add entity proximity penalty to discourage paths too close to entities
-            let mutable proximityPenalty = 1.0f
 
-            for struct (id, entity) in allEntities do
-              if id <> excludeEntityId then
-                let otherRadius =
-                  match entity.Identity.Stage with
-                  | Stage.First -> 12f
-                  | Stage.Second -> 16f
-                  | Stage.Third -> 20f
-
-                let dx = pos.X - entity.Position.X
-                let dy = pos.Y - entity.Position.Y
-                let dist = sqrt(dx * dx + dy * dy)
-                let warningDist = checkRadius + otherRadius + 16.0f // Warning zone
-
-                if dist < warningDist then
-                  proximityPenalty <- proximityPenalty + 1.5f
-
-            waterPenalty * proximityPenalty
+            waterPenalty
 
         {
           X = x

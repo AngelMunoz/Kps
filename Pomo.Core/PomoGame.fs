@@ -329,13 +329,7 @@ type PomoGame() as this =
       }
 
       // Precompute navigation debug grid sharing scenario origin
-      let debugGrid =
-        Pomo.Lib.Pathfinding.Grid.createWithEntities
-          updatedScenario
-          32.0f
-          16.0f
-          [||]
-          (Guid.Empty |> UMX.tag<EntityId>)
+      let debugGrid = Grid.createGrid updatedScenario 32.0f 16.0f
 
       navigationDebugGrid <- ValueSome debugGrid
 
@@ -433,13 +427,7 @@ type PomoGame() as this =
 
         if isGridDirty then
           navigationDebugGrid <-
-            let g =
-              Pomo.Lib.Pathfinding.Grid.createWithEntities
-                scenario.scenario
-                32.0f
-                16.0f
-                [||]
-                (Guid.Empty |> UMX.tag<EntityId>)
+            let g = Grid.createGrid scenario.scenario 32.0f 16.0f
 
             ValueSome g
 

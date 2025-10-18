@@ -261,29 +261,21 @@ module GameState =
     let command = UseAbility action
     CommandHandler.evaluate state command
 
-  /// Returns all alive entities.
-  /// Uses ASet.force on existing adaptive projection.
-  let inline getAliveEntities(state: GameState) =
-    adaptive {
-      let! scenario = Scenario.getActiveScenario state
-      let! aliveEntities = Projections.aAlive scenario.entities |> AMap.toAVal
-      return aliveEntities
-    }
-    |> AVal.force
-
   /// Returns abilities not on cooldown for an entity.
   /// Uses direct access to AbilityCooldowns and Abilities.
   let inline getReadyAbilities entityId (state: GameState) =
     adaptive {
       let! scenario = Scenario.getActiveScenario state
       let! found = scenario.entities |> AMap.tryFind entityId
+      let! gameTime = scenario.gameTime
 
       match found with
-      | None -> return HashMap.empty
+      | None -> return HashSet.empty
       | Some components ->
-        return!
-          Projections.aReadyForEntity components scenario.gameTime
-          |> AMap.toAVal
+        return
+          components.AbilityCooldowns
+          |> HashMap.filter(fun abilityId readyTick -> readyTick <= gameTime)
+          |> HashMap.keys
     }
     |> AVal.force
 

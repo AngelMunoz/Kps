@@ -535,13 +535,11 @@ module CommandHandler =
         let entitiesArray = allEntities |> HashMap.toArrayV
 
         let updatedMovement =
-          Pomo.Lib.Movement.PathfindingCommands.setDestinationWithEntities
+          Pomo.Lib.Movement.PathfindingCommands.setDestinationWithPathfinding
             resolverParams.scenarioState.scenario
             e.Position
             action.destination
             entityRadius
-            entitiesArray
-            action.actor
             e.Movement
 
         let updatedEntity = { e with Movement = updatedMovement }
@@ -599,14 +597,7 @@ module CommandHandler =
             entityRadius
             resolverParams.scenarioState.scenario
 
-        let entityCollision =
-          Pomo.Lib.Movement.Update.checkEntityCollision
-            proposedPos
-            action.actor
-            entityRadius
-            entitiesArray
-
-        if terrainClear && not entityCollision then
+        if terrainClear then
           let updatedEntity = { e with Position = proposedPos }
 
           return {

@@ -175,11 +175,6 @@ type TeleportChange = {
 
 [<Struct>]
 type Stat =
-  // Base attributes
-  | Power
-  | Magic
-  | Sense
-  | Charm
   // Derived stats (using game definition names)
   | AP // Attack Power
   | AC // Accuracy

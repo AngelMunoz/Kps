@@ -13,14 +13,79 @@ open Pomo.Lib.Domain.AggregatedEffects
 open Pomo.Lib.Scenario
 open Pomo.Lib.Domain.VisualEffects
 open Pomo.Lib.EffectApplication
-
+open Pomo.Lib.Movement
 
 module Scenario =
-
-
   let getActiveScenario(state: GameState) = adaptive {
     let! scenarioId = state.activeScenarioId
     return state.scenarios[scenarioId]
+  }
+
+
+module ScenarioState =
+  let inline entityById entityId (scenario: Scenario.ScenarioState) =
+    scenario.entities |> AMap.tryFind entityId
+
+module Entity =
+  open ScenarioState
+
+  let Identity entityId (scenario: Scenario.ScenarioState) = adaptive {
+    let! entityOpt = entityById entityId scenario
+    return entityOpt |> Option.map _.Identity
+  }
+
+  let BaseStats entityId (scenario: Scenario.ScenarioState) = adaptive {
+    let! entityOpt = entityById entityId scenario
+    return entityOpt |> Option.map _.BaseStats
+  }
+
+  let Resources entityId (scenario: Scenario.ScenarioState) = adaptive {
+    let! entityOpt = entityById entityId scenario
+    return entityOpt |> Option.map _.Resources
+  }
+
+  let Position entityId (scenario: Scenario.ScenarioState) = adaptive {
+    let! entityOpt = entityById entityId scenario
+    return entityOpt |> Option.map _.Position
+  }
+
+  let Movement entityId (scenario: Scenario.ScenarioState) = adaptive {
+    let! entityOpt = entityById entityId scenario
+    return entityOpt |> Option.map _.Movement
+  }
+
+  let AbilityCooldowns entityId (scenario: Scenario.ScenarioState) = adaptive {
+    let! entityOpt = entityById entityId scenario
+    return entityOpt |> Option.map _.AbilityCooldowns
+  }
+
+  let Effects entityId (scenario: Scenario.ScenarioState) = adaptive {
+    let! entityOpt = entityById entityId scenario
+    return entityOpt |> Option.map _.Effects
+  }
+
+  let Factions entityId (scenario: Scenario.ScenarioState) = adaptive {
+    let! entityOpt = entityById entityId scenario
+    return entityOpt |> Option.map _.Factions
+  }
+
+  let Abilities entityId (scenario: Scenario.ScenarioState) = adaptive {
+    let! entityOpt = entityById entityId scenario
+    return entityOpt |> Option.map _.Abilities
+  }
+
+  let Equipment entityId (scenario: Scenario.ScenarioState) = adaptive {
+    let! entityOpt = entityById entityId scenario
+    return entityOpt |> Option.map _.Equipment
+  }
+
+  let PartyId entityId (scenario: Scenario.ScenarioState) = adaptive {
+    let! entityOpt = entityById entityId scenario
+
+    return
+      match entityOpt with
+      | Some entity -> entity.PartyId
+      | None -> ValueNone
   }
 
 
@@ -32,245 +97,167 @@ module DerivedStats =
     | ValueSome e -> e.Modifiers
     | ValueNone -> Array.empty
 
-  let getAdditiveModifiers(effects: EffectModifier alist) =
-    effects
-    |> AList.fold
-      (fun acc modifier ->
-        match modifier with
-        | EffectModifier.StaticMod(StatModifier.Additive(stat, value)) ->
-          match HashMap.tryFind stat acc with
-          | Some existing -> HashMap.add stat (existing + value) acc
-          | None -> HashMap.add stat value acc
-        | _ -> acc)
-      HashMap.empty
-    |> AMap.ofAVal
+  let inline private addInt stat value =
+    HashMap.alterV stat (fun existing ->
+      match existing with
+      | ValueSome e -> ValueSome(e + value)
+      | ValueNone -> ValueSome value)
+
+  let inline private mulFloat stat value =
+    HashMap.alterV stat (fun existing ->
+      match existing with
+      | ValueSome e -> ValueSome(e * value)
+      | ValueNone -> ValueSome value)
 
   let private aggregateEquipment
     (equipment: HashMap<Inventory.Slot, Inventory.Equipment>)
     =
-    let mutable equipmentStatBonuses = HashMap.empty<Stat, int>
-    let mutable equipmentElementalAttributes = HashMap.empty<Element, float>
-    let mutable equipmentElementalResistances = HashMap.empty<Element, float>
+    let mutable statBonuses = HashMap.empty<Stat, int>
+    let mutable elemAttr = HashMap.empty<Element, float>
+    let mutable elemRes = HashMap.empty<Element, float>
 
-    for item in equipment |> HashMap.toValueArray do
-      for bonus in item.StatBonuses do
-        equipmentStatBonuses <-
-          equipmentStatBonuses
-          |> HashMap.alterV bonus.Stat (fun existing ->
-            match existing with
-            | ValueSome value -> ValueSome(value + bonus.Value)
-            | ValueNone -> ValueSome bonus.Value)
+    let inline addElem map k v =
+      map
+      |> HashMap.alterV k (fun existing ->
+        match existing with
+        | ValueSome e -> ValueSome(e + v)
+        | ValueNone -> ValueSome v)
 
-      for struct (element, value) in
-        item.ElementalAttributes |> HashMap.toArrayV do
-        equipmentElementalAttributes <-
-          equipmentElementalAttributes
-          |> HashMap.alterV element (fun existing ->
-            match existing with
-            | ValueSome existingValue -> ValueSome(existingValue + value)
-            | ValueNone -> ValueSome value)
+    for _, item in equipment do
+      for b in item.StatBonuses do
+        statBonuses <- addInt b.Stat b.Value statBonuses
 
-      for struct (element, value) in
-        item.ElementalResistances |> HashMap.toArrayV do
-        equipmentElementalResistances <-
-          equipmentElementalResistances
-          |> HashMap.alterV element (fun existing ->
-            match existing with
-            | ValueSome existingValue -> ValueSome(existingValue + value)
-            | ValueNone -> ValueSome value)
+      for (e, v) in item.ElementalAttributes do
+        elemAttr <- addElem elemAttr e v
 
-    struct (equipmentStatBonuses,
-            equipmentElementalAttributes,
-            equipmentElementalResistances)
+      for (e, v) in item.ElementalResistances do
+        elemRes <- addElem elemRes e v
+
+    struct (statBonuses, elemAttr, elemRes)
 
   let private applyModifiers
-    (services: Services.EngineServices)
+    (effectStore: Services.IEffectStore)
+    (formulaStore: Services.IFormulaStore)
     (baseStats: BaseAttributes)
     (effects: HashMap<int<EffectId>, ActiveEffect>)
     (equipment: HashMap<Inventory.Slot, Inventory.Equipment>)
     : aval<DerivedStats> =
-
     adaptive {
-      let struct (equipmentStatBonuses, equipmentElementalAttributes,
-                  equipmentElementalResistances) =
+      let struct (equipStatBonuses, equipElemAttr, equipElemRes) =
         aggregateEquipment equipment
-      // Gather all effect modifiers from active effects
-      let modifiers =
-        effects
-        |> HashMap.toArrayV
-        |> Array.collect(fun struct (_, effect) ->
-          let mods = getModifiersForEffect services.effectStore effect.EffectId
-          mods |> Array.map(fun m -> struct (m, effect.Stacks)))
 
-      // Aggregate static modifiers by Stat and kind
-      let addMap, subMap, mulMap, divMap =
-        modifiers
-        |> Array.fold
-          (fun (addMap, subMap, mulMap, divMap) (struct (modifier, stacks)) ->
-            match modifier with
-            | EffectModifier.StaticMod statMod ->
-              match statMod with
-              | StatModifier.Additive(stat, value) ->
-                let total = value * stacks
+      let mutable addMap = HashMap.empty<Stat, int>
+      let mutable factorMap = HashMap.empty<Stat, float>
+      let mutable dynamics = ResizeArray<struct (int<FormulaId> * Stat * int)>()
 
-                let addMap =
-                  match HashMap.tryFindV stat addMap with
-                  | ValueSome existing ->
-                    HashMap.add stat (existing + total) addMap
-                  | ValueNone -> HashMap.add stat total addMap
+      effects
+      |> HashMap.iter(fun _ eff ->
+        let stacks = eff.Stacks
+        let mods = getModifiersForEffect effectStore eff.EffectId
 
-                addMap, subMap, mulMap, divMap
-              | StatModifier.Subtractive(stat, value) ->
-                let total = value * stacks
+        mods
+        |> Array.iter(fun m ->
+          match m with
+          | EffectModifier.StaticMod sm ->
+            match sm with
+            | StatModifier.Additive(stat, v) ->
+              addMap <- addInt stat (v * stacks) addMap
+            | StatModifier.Subtractive(stat, v) ->
+              addMap <- addInt stat (-v * stacks) addMap
+            | StatModifier.Multiplicative(stat, v) ->
+              let stacked =
+                if stacks > 1 then Math.Pow(v, float stacks) else v
 
-                let subMap =
-                  match HashMap.tryFindV stat subMap with
-                  | ValueSome existing ->
-                    HashMap.add stat (existing + total) subMap
-                  | ValueNone -> HashMap.add stat total subMap
+              factorMap <-
+                HashMap.alterV
+                  stat
+                  (fun existing ->
+                    match existing with
+                    | ValueSome e -> ValueSome(e * stacked)
+                    | ValueNone -> ValueSome stacked)
+                  factorMap
+            | StatModifier.Divisive(stat, v) ->
+              let stacked =
+                if stacks > 1 then Math.Pow(v, float stacks) else v
 
-                addMap, subMap, mulMap, divMap
-              | StatModifier.Multiplicative(stat, value) ->
-                let stackedValue =
-                  if stacks > 1 then Math.Pow(value, float stacks) else value
+              let inv = 1.0 / stacked
 
-                let mulMap =
-                  match HashMap.tryFindV stat mulMap with
-                  | ValueSome existing ->
-                    HashMap.add stat (existing * stackedValue) mulMap
-                  | ValueNone -> HashMap.add stat stackedValue mulMap
+              factorMap <-
+                HashMap.alterV
+                  stat
+                  (fun existing ->
+                    match existing with
+                    | ValueSome e -> ValueSome(e * inv)
+                    | ValueNone -> ValueSome inv)
+                  factorMap
 
-                addMap, subMap, mulMap, divMap
-              | StatModifier.Divisive(stat, value) ->
-                let stackedValue =
-                  if stacks > 1 then Math.Pow(value, float stacks) else value
+          | EffectModifier.DynamicMod(formulaId, stat) ->
+            dynamics.Add(struct (formulaId, stat, stacks))
+          | _ -> ()))
 
-                let divMap =
-                  match HashMap.tryFindV stat divMap with
-                  | ValueSome existing ->
-                    HashMap.add stat (existing * stackedValue) divMap
-                  | ValueNone -> HashMap.add stat stackedValue divMap
+      let inline applyAll (addMapRef: HashMap<Stat, int>) stat current =
+        let addV = HashMap.tryFindV stat addMapRef |> ValueOption.defaultValue 0
 
-                addMap, subMap, mulMap, divMap
-            | _ -> addMap, subMap, mulMap, divMap)
-          (HashMap.empty, HashMap.empty, HashMap.empty, HashMap.empty)
+        let factor =
+          HashMap.tryFindV stat factorMap |> ValueOption.defaultValue 1.0
 
-      // Helper to apply aggregated modifiers to a given stat value
-      let inline applyAll stat current =
-        let addV = HashMap.tryFindV stat addMap |> ValueOption.defaultValue 0
-        let subV = HashMap.tryFindV stat subMap |> ValueOption.defaultValue 0
-        let mulV = HashMap.tryFindV stat mulMap |> ValueOption.defaultValue 1.0
-        let divV = HashMap.tryFindV stat divMap |> ValueOption.defaultValue 1.0
+        let equipV =
+          HashMap.tryFindV stat equipStatBonuses |> ValueOption.defaultValue 0
 
-        let equipBonus =
-          HashMap.tryFindV stat equipmentStatBonuses
-          |> ValueOption.defaultValue 0
+        int(float(current + addV + equipV) * factor)
 
-        let pre = current + addV - subV + equipBonus
-        let scaled = int(float pre * mulV / divV)
-        scaled
-
-      // 1) Apply base stat modifiers (only to base stats)
-      let modifiedBase = {
-        baseStats with
-            Power = applyAll Power baseStats.Power
-            Magic = applyAll Magic baseStats.Magic
-            Sense = applyAll Sense baseStats.Sense
-            Charm = applyAll Charm baseStats.Charm
+      let initial = {
+        AP = baseStats.Power * 2
+        AC = baseStats.Power + int(float baseStats.Power * 1.25)
+        DX = baseStats.Power
+        MP = baseStats.Magic * 5
+        MA = baseStats.Magic * 2
+        MD = baseStats.Magic + int(float baseStats.Magic * 1.25)
+        WT = baseStats.Sense * 5
+        DA = baseStats.Sense * 2
+        LK = baseStats.Sense + int(float baseStats.Sense * 0.5)
+        HP = baseStats.Charm * 10
+        DP = baseStats.Charm + int(float baseStats.Charm * 1.25)
+        HV = baseStats.Charm * 2
+        ElementAttributes = equipElemAttr
+        ElementResistances = equipElemRes
       }
 
-      // 2) Compute derived stats from modified base
-      let initialDerived = {
-        // Power derived stats
-        AP = modifiedBase.Power * 2
-        AC = modifiedBase.Power + int(float modifiedBase.Power * 1.25)
-        DX = modifiedBase.Power
-        // Magic derived stats
-        MP = modifiedBase.Magic * 5
-        MA = modifiedBase.Magic * 2
-        MD = modifiedBase.Magic + int(float modifiedBase.Magic * 1.25)
-        // Sense derived stats
-        WT = modifiedBase.Sense * 5
-        DA = modifiedBase.Sense * 2
-        LK = modifiedBase.Sense + int(float modifiedBase.Sense * 0.5)
-        // Charm derived stats
-        HP = modifiedBase.Charm * 10
-        DP = modifiedBase.Charm + int(float modifiedBase.Charm * 1.25)
-        HV = modifiedBase.Charm * 2
+      dynamics
+      |> Seq.iter(fun struct (formulaId, stat, stacks) ->
+        match formulaStore.tryFind formulaId with
+        | ValueSome f ->
+          let ctx: Abilities.CalculationContext = {
+            InvokerStats = initial
+            InvokerElementalAttributes = initial.ElementAttributes
+            TargetElementalResistances = HashMap.empty
+          }
 
-        // Equipment elemental attributes and resistances
-        ElementAttributes = equipmentElementalAttributes
-        ElementResistances = equipmentElementalResistances
+          let value = f.Calculate ctx |> _.BaseDamage
+
+          if stacks > 1 then
+            addMap <- addInt stat (value * stacks) addMap
+          else
+            addMap <- addInt stat value addMap
+        | ValueNone -> ())
+
+      let final = {
+        initial with
+            HP = applyAll addMap HP initial.HP
+            MP = applyAll addMap MP initial.MP
+            AP = applyAll addMap AP initial.AP
+            MA = applyAll addMap MA initial.MA
+            MD = applyAll addMap MD initial.MD
+            DA = applyAll addMap DA initial.DA
+            DX = applyAll addMap DX initial.DX
+            WT = applyAll addMap WT initial.WT
+            LK = applyAll addMap LK initial.LK
+            DP = applyAll addMap DP initial.DP
+            AC = applyAll addMap AC initial.AC
+            HV = applyAll addMap HV initial.HV
       }
 
-      // 2.5) Process DynamicMod modifiers: evaluate formulas and add to addMap
-      let dynamicAddMap =
-        modifiers
-        |> Array.fold
-          (fun dynAddMap (struct (modifier, _stacks)) ->
-            match modifier with
-            | EffectModifier.DynamicMod(formulaId, stat) ->
-              match services.formulaStore.tryFind formulaId with
-              | ValueSome formula ->
-                // Evaluate formula with current derived stats as context
-                let context: Abilities.CalculationContext = {
-                  InvokerStats = initialDerived
-                  InvokerElementalAttributes = initialDerived.ElementAttributes
-                  TargetElementalResistances = HashMap.empty
-                }
-
-                let result = formula.Calculate context
-                // Use BaseDamage as the stat modifier value
-                let value = result.BaseDamage
-
-                match HashMap.tryFindV stat dynAddMap with
-                | ValueSome existing ->
-                  HashMap.add stat (existing + value) dynAddMap
-                | ValueNone -> HashMap.add stat value dynAddMap
-              | ValueNone -> dynAddMap
-            | _ -> dynAddMap)
-          HashMap.empty
-
-      // Merge dynamic modifiers into addMap
-      let finalAddMap =
-        dynamicAddMap
-        |> HashMap.fold
-          (fun acc stat value ->
-            match HashMap.tryFindV stat acc with
-            | ValueSome existing -> HashMap.add stat (existing + value) acc
-            | ValueNone -> HashMap.add stat value acc)
-          addMap
-
-      // Helper to apply all modifiers (including dynamic) to derived stats
-      let inline applyAllWithDynamic stat current =
-        let addV =
-          HashMap.tryFindV stat finalAddMap |> ValueOption.defaultValue 0
-
-        let subV = HashMap.tryFindV stat subMap |> ValueOption.defaultValue 0
-        let mulV = HashMap.tryFindV stat mulMap |> ValueOption.defaultValue 1.0
-        let divV = HashMap.tryFindV stat divMap |> ValueOption.defaultValue 1.0
-        let pre = current + addV - subV
-        let scaled = int(float pre * mulV / divV)
-        scaled
-
-      // 3) Apply derived stat static and dynamic modifiers (all kinds)
-      let finalDerived = {
-        initialDerived with
-            HP = applyAllWithDynamic HP initialDerived.HP
-            MP = applyAllWithDynamic MP initialDerived.MP
-            AP = applyAllWithDynamic AP initialDerived.AP
-            MA = applyAllWithDynamic MA initialDerived.MA
-            MD = applyAllWithDynamic MD initialDerived.MD
-            DA = applyAllWithDynamic DA initialDerived.DA
-            DX = applyAllWithDynamic DX initialDerived.DX
-            WT = applyAllWithDynamic WT initialDerived.WT
-            LK = applyAllWithDynamic LK initialDerived.LK
-            DP = applyAllWithDynamic DP initialDerived.DP
-            AC = applyAllWithDynamic AC initialDerived.AC
-            HV = applyAllWithDynamic HV initialDerived.HV
-      }
-
-      return finalDerived
+      return final
     }
 
   let getDerivedStats(state: GameState) = adaptive {
@@ -279,19 +266,44 @@ module DerivedStats =
     return
       scenario.entities
       |> AMap.mapA(fun _ c ->
-        applyModifiers state.services c.BaseStats c.Effects c.Equipment)
+        applyModifiers
+          state.services.effectStore
+          state.services.formulaStore
+          c.BaseStats
+          c.Effects
+          c.Equipment)
   }
 
-  let getDerivedStatsInScenario services (state: Scenario.ScenarioState) =
+  let getDerivedStatsInScenario
+    (services: Services.EngineServices)
+    (state: Scenario.ScenarioState)
+    =
     state.entities
     |> AMap.mapA(fun _ c ->
-      applyModifiers services c.BaseStats c.Effects c.Equipment)
+      applyModifiers
+        services.effectStore
+        services.formulaStore
+        c.BaseStats
+        c.Effects
+        c.Equipment)
 
+  let inline byEntity
+    (effectStore: Services.IEffectStore)
+    (formulaStore: Services.IFormulaStore)
+    (entity: EntityComponents)
+    =
+    applyModifiers
+      effectStore
+      formulaStore
+      entity.BaseStats
+      entity.Effects
+      entity.Equipment
 
 module Projectile =
   let updateProjectiles
     (state: GameState)
     (scenario: Scenario.ScenarioState)
+    (entities: amap<Guid<EntityId>, EntityComponents>)
     (time: TimeSpan)
     (newTime: TimeSpan)
     =
@@ -307,7 +319,7 @@ module Projectile =
               |]
         }
       else
-        let! targetOpt = scenario.entities |> AMap.tryFind proj.TargetId
+        let! targetOpt = entities |> AMap.tryFind proj.TargetId
 
         match targetOpt with
         | Some target ->
@@ -325,15 +337,19 @@ module Projectile =
             let! resolution =
               scenario.pendingResolutions |> AMap.find proj.PendingResolutionId
 
-            let! actor = scenario.entities |> AMap.find resolution.ActorId
+            let! actor = entities |> AMap.find resolution.ActorId
 
             let! actorStats =
-              DerivedStats.getDerivedStatsInScenario state.services scenario
-              |> AMap.find resolution.ActorId
+              actor
+              |> DerivedStats.byEntity
+                state.services.effectStore
+                state.services.formulaStore
 
             let! targetStats =
-              DerivedStats.getDerivedStatsInScenario state.services scenario
-              |> AMap.find resolution.TargetId
+              target
+              |> DerivedStats.byEntity
+                state.services.effectStore
+                state.services.formulaStore
 
             let ability = state.services.abilityStore.find resolution.AbilityId
 
@@ -439,6 +455,7 @@ module Projectile =
   let getNonProjectileResolutions
     (state: GameState)
     (scenario: Scenario.ScenarioState)
+    (entities: amap<Guid<EntityId>, EntityComponents>)
     newTime
     =
     scenario.pendingResolutions
@@ -448,20 +465,23 @@ module Projectile =
         |> AMap.exists(fun _ p -> p.PendingResolutionId = res.Id)
 
       return not isProjectile && newTime >= res.TriggerTick
-
     })
     |> AMap.mapA(fun _ res -> adaptive {
       // Handle AoE/Impact resolutions here as before
-      let! actor = scenario.entities |> AMap.find res.ActorId
-      let! target = scenario.entities |> AMap.find res.TargetId
+      let! actor = entities |> AMap.find res.ActorId
+      let! target = entities |> AMap.find res.TargetId
 
       let! actorStats =
-        DerivedStats.getDerivedStatsInScenario state.services scenario
-        |> AMap.find res.ActorId
+        actor
+        |> DerivedStats.byEntity
+          state.services.effectStore
+          state.services.formulaStore
 
       let! targetStats =
-        DerivedStats.getDerivedStatsInScenario state.services scenario
-        |> AMap.find res.TargetId
+        target
+        |> DerivedStats.byEntity
+          state.services.effectStore
+          state.services.formulaStore
 
       let ability = state.services.abilityStore.find res.AbilityId
 
@@ -535,74 +555,59 @@ module Projectile =
 
 module GameState =
 
-  let getAllies(state: GameState) = adaptive {
-    let! scenario = Scenario.getActiveScenario state
-
-    return
-      scenario.entities
-      |> AMap.filter(fun _ c ->
-        c.Factions |> HashSet.contains Classification.Ally)
-  }
-
-  let getEnemies(state: GameState) = adaptive {
-    let! scenario = Scenario.getActiveScenario state
-
-    return
-      scenario.entities
-      |> AMap.filter(fun _ c ->
-        c.Factions |> HashSet.contains Classification.Enemy)
-  }
-
-  let getValidTargets(state: GameState) = adaptive {
-    let! scenario = Scenario.getActiveScenario state
-
-    let entities =
-      scenario.entities
-      |> AMap.filter(fun _ c ->
-        c.Factions |> HashSet.contains Classification.Ally
-        || c.Factions |> HashSet.contains Classification.Enemy)
-      |> AMap.toAVal
-
-    return entities
-  }
-
-  let private getAMapAsArray(projectiles: amap<Guid<_>, _>) =
-    projectiles |> AMap.toAVal |> AVal.map HashMap.toValueArray
-
-  let getActiveProjectile
-    pendingResolutionId
-    (projectiles: amap<Guid<ProjectileId>, ActiveProjectile>)
-    =
-    adaptive {
-      let! projectiles = getAMapAsArray projectiles
-
-      return
-        projectiles
-        |> Array.tryFind(fun p -> p.PendingResolutionId = pendingResolutionId)
-    }
-
-  let getActiveAoe pendingResolutionId (aoes: amap<Guid<AoeId>, ActiveAoe>) = adaptive {
-    let! aoes = getAMapAsArray aoes
-
-    return
-      aoes
-      |> Array.tryFind(fun a -> a.PendingResolutionId = pendingResolutionId)
-  }
-
-  let getActiveImpact
-    pendingResolutionId
-    (impacts: amap<Guid<ImpactId>, ActiveImpact>)
-    =
-    adaptive {
-      let! impacts = getAMapAsArray impacts
-
-      return
-        impacts
-        |> Array.tryFind(fun i -> i.PendingResolutionId = pendingResolutionId)
-    }
-
   [<Struct>]
-  type EntityChange = { components: EntityComponents }
+  type TickEffectsMappingArgs = {
+    time: TimeSpan
+    scenario: Scenario.Scenario
+    effectStore: Services.IEffectStore
+    formulaStore: Services.IFormulaStore
+  }
+
+  let runTickEffects
+    (args: TickEffectsMappingArgs)
+    currentEntityId
+    currentEntity
+    : aval<EntityComponents> =
+    adaptive {
+      let {
+            time = time
+            scenario = scenario
+            effectStore = effectStore
+            formulaStore = formulaStore
+          } =
+        args
+
+      let struct (updatedEffects, tickResult) =
+        StatusEffects.tickEffects effectStore currentEntity.Effects time
+
+      let movedComponents =
+        {
+          Width = scenario.BoundsWidth
+          Height = scenario.BoundsHeight
+          CenterX = 0f
+          CenterY = 0f
+        }
+        |> Update.withPath time scenario currentEntityId currentEntity
+
+      let! derivedStatsForEntity =
+        movedComponents |> DerivedStats.byEntity effectStore formulaStore
+
+
+      let maxHp = derivedStatsForEntity.HP
+      let currentHp = movedComponents.Resources.HP
+      let newHp = min maxHp (currentHp + tickResult.Healing)
+
+      let updatedResources = {
+        movedComponents.Resources with
+            HP = max 0 (newHp - tickResult.Damage)
+      }
+
+      return {
+        movedComponents with
+            Effects = updatedEffects
+            Resources = updatedResources
+      }
+    }
 
   let tick (state: GameState) (time: TimeSpan) : aval<StateChange> = adaptive {
     let! activeId = state.activeScenarioId
@@ -611,64 +616,38 @@ module GameState =
 
     let newTime = currentTime + time
 
-    let! allEntityChanges =
-      scenario.entities
-      |> AMap.mapA(fun entityId components -> adaptive {
-        let struct (updatedEffects, tickResult) =
-          StatusEffects.tickEffects
-            state.services.effectStore
-            components.Effects
-            time
-
-        let bounds = {
-          Width = scenario.scenario.BoundsWidth
-          Height = scenario.scenario.BoundsHeight
-          CenterX = 0f
-          CenterY = 0f
-        }
-
-        let! _entities = scenario.entities |> AMap.toAVal
-
-        let movedComponents =
-          Pomo.Lib.Movement.Update.updateEntityWithContext
-            time
-            bounds
-            scenario.scenario
-            _entities
-            entityId
-            components
-
-        let! derivedStats = adaptive {
-          let! derived = DerivedStats.getDerivedStats state
-          return! derived |> AMap.tryFind entityId
-        }
-
-        let maxHp =
-          match derivedStats with
-          | Some stats -> stats.HP
-          | None -> components.Resources.HP
-
-        let currentHp = components.Resources.HP
-        let newHp = min maxHp (currentHp + tickResult.Healing)
-        let finalHp = max 0 (newHp - tickResult.Damage)
-
-        let updatedResources = {
-          movedComponents.Resources with
-              HP = finalHp
-        }
-
-        let updatedComponents = {
-          movedComponents with
-              Effects = updatedEffects
-              Resources = updatedResources
-        }
-
-        return { components = updatedComponents }
-      })
-      |> AMap.toAVal
-
     let entities =
-      allEntityChanges |> HashMap.map(fun _ change -> change.components)
+      scenario.entities
+      |> AMap.mapA(
+        runTickEffects {
+          time = time
+          scenario = scenario.scenario
+          effectStore = state.services.effectStore
+          formulaStore = state.services.formulaStore
+        }
+      )
+
+    let! projectileStateChanges =
+      Projectile.updateProjectiles state scenario entities time newTime
+      |> AMap.reduce(
+        AdaptiveReduction.fold StateChange.empty (fun acc change -> {
+          acc with
+              updates = HashMap.union acc.updates change.updates
+              visualEffects =
+                Array.append acc.visualEffects change.visualEffects
+        })
+      )
+
+    let! nonProjectileResolutionChanges =
+      Projectile.getNonProjectileResolutions state scenario entities newTime
+      |> AMap.reduce(
+        AdaptiveReduction.fold StateChange.empty (fun acc change -> {
+          acc with
+              updates = HashMap.union acc.updates change.updates
+              visualEffects =
+                Array.append acc.visualEffects change.visualEffects
+        })
+      )
 
     // Generate removal changes for expired visual effects
     let! floatingTextRemovals =
@@ -678,13 +657,10 @@ module GameState =
           Some(RemoveFloatingText id)
         else
           None)
-      |> AMap.toAVal
-      |> AVal.map HashMap.toValueArray
-
-    let! projectileStateChanges =
-      Projectile.updateProjectiles state scenario time newTime
-      |> AMap.toAVal
-      |> AVal.map HashMap.toValueArray
+      |> AMap.reduce(
+        AdaptiveReduction.fold IndexList.empty (fun acc change ->
+          IndexList.add change acc)
+      )
 
     let! impactRemovals =
       scenario.impacts
@@ -694,8 +670,10 @@ module GameState =
         let age = newTime - impact.CreationTick
 
         if age > def.Duration then Some(RemoveImpact id) else None)
-      |> AMap.toAVal
-      |> AVal.map HashMap.toValueArray
+      |> AMap.reduce(
+        AdaptiveReduction.fold IndexList.empty (fun acc change ->
+          IndexList.add change acc)
+      )
 
     let! aoeRemovals =
       scenario.aoes
@@ -706,34 +684,24 @@ module GameState =
           Some(RemoveAoe id)
         else
           None)
-      |> AMap.toAVal
-      |> AVal.map HashMap.toValueArray
+      |> AMap.reduce(
+        AdaptiveReduction.fold IndexList.empty (fun acc change ->
+          IndexList.add change acc)
+      )
 
-    let! nonProjectileResolutionChanges =
-      Projectile.getNonProjectileResolutions state scenario newTime
-      |> AMap.toAVal
-      |> AVal.map HashMap.toValueArray
+    let visualEffectChanges =
+      Array.concat [|
+        projectileStateChanges.visualEffects
+        nonProjectileResolutionChanges.visualEffects
+        floatingTextRemovals.AsArray
+        impactRemovals.AsArray
+        aoeRemovals.AsArray
+      |]
 
-    let struct (finalUpdates, resolvedVisualEffects) =
-      let initial = struct (entities, ResizeArray())
-
-      let changes =
-        Array.concat [ projectileStateChanges; nonProjectileResolutionChanges ]
-
-      changes
-      |> Array.fold
-        (fun struct (updates, effects: VisualEffectChange ResizeArray) change ->
-          let newUpdates = HashMap.union updates change.updates
-          effects.AddRange change.visualEffects
-          struct (newUpdates, effects))
-        initial
-
-    let visualEffectChanges = [|
-      yield! floatingTextRemovals
-      yield! impactRemovals
-      yield! aoeRemovals
-      yield! resolvedVisualEffects
-    |]
+    let finalUpdates =
+      HashMap.union
+        projectileStateChanges.updates
+        nonProjectileResolutionChanges.updates
 
     return {
       updates = finalUpdates
@@ -816,39 +784,3 @@ module GameState =
           | ValueNone -> ()
 
       ())
-
-module Projections =
-
-
-  let aAlive entities =
-    entities |> AMap.filter(fun _ c -> c.Resources.Status.IsAlive)
-
-  let aReadyAbilities entities gameTime = adaptive {
-    let! gameTime = gameTime
-    let! entities = entities |> AMap.toAVal
-    let entities = entities |> HashMap.toArrayV
-
-    return
-      entities
-      |> Array.collect(fun struct (_, c) ->
-        c.AbilityCooldowns
-        |> HashMap.toArrayV
-        |> Array.filter(fun struct (_, readyTick) -> readyTick <= gameTime))
-      |> HashMap.OfArray
-
-  }
-
-  let aReadyForEntity entity gameTime =
-    adaptive {
-      let! gameTime = gameTime
-
-      return
-        entity.AbilityCooldowns
-        |> HashMap.chooseV(fun abilityId readyTick ->
-          if readyTick <= gameTime then
-            ValueSome abilityId
-          else
-            ValueNone)
-
-    }
-    |> AMap.ofAVal

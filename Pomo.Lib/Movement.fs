@@ -65,34 +65,7 @@ module PathMovement =
     // Use larger cell size and account for entity radius in collision detection
     let cellSize = max 24.0f (entityRadius * 2.5f) // Ensure cells are large enough for the entity
 
-    let grid =
-      Grid.createWithEntities
-        scenario
-        cellSize
-        entityRadius
-        [||]
-        (Guid.Empty |> UMX.tag<EntityId>)
-
-    AStar.findPath grid start goal
-
-  let calculatePathWithEntities
-    (scenario: Scenario)
-    (start: Position)
-    (goal: Position)
-    (entityRadius: float32)
-    (allEntities: struct (Guid<EntityId> * EntityComponents) array)
-    (excludeEntityId: Guid<EntityId>)
-    : Position[] voption =
-    // Use larger cell size and account for entity radius in collision detection
-    let cellSize = max 20.0f (entityRadius * 2.0f) // Smaller cells for better entity avoidance
-
-    let grid =
-      Grid.createWithEntities
-        scenario
-        cellSize
-        entityRadius
-        allEntities
-        excludeEntityId
+    let grid = Grid.createGrid scenario cellSize entityRadius
 
     AStar.findPath grid start goal
 
@@ -143,42 +116,6 @@ module PathfindingCommands =
               Path = []
         }
 
-  let setDestinationWithEntities
-    (scenario: Scenario)
-    (start: Position)
-    (destination: Position)
-    (entityRadius: float32)
-    (allEntities: struct (Guid<EntityId> * EntityComponents) array)
-    (excludeEntityId: Guid<EntityId>)
-    (movement: Movement)
-    : Movement =
-    let calculated =
-      PathMovement.calculatePathWithEntities
-        scenario
-        start
-        destination
-        entityRadius
-        allEntities
-        excludeEntityId
-      |> ValueOption.orElseWith(fun _ ->
-        PathMovement.calculatePath scenario start destination entityRadius)
-
-    match calculated with
-    | ValueSome path when path.Length > 1 ->
-      let pathList = List.ofArray path.[1..] // Skip first position (current position)
-
-      {
-        movement with
-            Destination = ValueSome destination
-            Path = pathList
-      }
-    | _ ->
-        {
-          movement with
-              Destination = ValueSome destination
-              Path = []
-        }
-
 module Update =
 
   [<Struct>]
@@ -200,18 +137,21 @@ module Update =
     EntityRadius: float32
   }
 
-  let internal advancePosition (args: AdvanceArgs) =
+  let internal advancePosition(args: AdvanceArgs) =
     let terrainModifier =
-      TerrainMovement.getTerrainSpeedModifier args.Position args.Scenario args.EntityRadius
+      TerrainMovement.getTerrainSpeedModifier
+        args.Position
+        args.Scenario
+        args.EntityRadius
 
     let finalVelocityX = args.Velocity.X * terrainModifier
     let finalVelocityY = args.Velocity.Y * terrainModifier
 
     let proposedPos = {
-        X = args.Position.X + finalVelocityX * args.Elapsed
-        Y = args.Position.Y + finalVelocityY * args.Elapsed
+      X = args.Position.X + finalVelocityX * args.Elapsed
+      Y = args.Position.Y + finalVelocityY * args.Elapsed
     }
-    
+
     proposedPos
 
   let private moveTowards args =
@@ -242,27 +182,6 @@ module Update =
       let newY = position.Y + dy / dist * moveAmount
       struct ({ X = newX; Y = newY }, false)
 
-  let internal checkEntityCollision
-    (pos: Position)
-    (entityId: Guid<EntityId>)
-    (entityRadius: float32)
-    (entitiesArray: struct (Guid<EntityId> * EntityComponents) array)
-    : bool =
-    let mutable collision = false
-
-    for struct (id, other) in entitiesArray do
-      if id <> entityId && not collision then
-        let otherR = Utils.radiusOfStage other.Identity.Stage
-        let dx = pos.X - other.Position.X
-        let dy = pos.Y - other.Position.Y
-        let dist2 = dx * dx + dy * dy
-        let rad = entityRadius + otherR
-
-        if dist2 < rad * rad then
-          collision <- true
-
-    collision
-
   [<Struct>]
   type MovementResult =
     | ContinueMoving of Position * Movement
@@ -275,20 +194,12 @@ module Update =
     (currentPos: Position)
     (finalDest: Position voption)
     (entityRadius: float32)
-    (entitiesArray: struct (Guid<EntityId> * EntityComponents) array)
-    (entityId: Guid<EntityId>)
     (components: EntityComponents)
     : MovementResult =
     match finalDest with
     | ValueSome dest ->
       let pathResult =
-        PathMovement.calculatePathWithEntities
-          scenario
-          currentPos
-          dest
-          entityRadius
-          entitiesArray
-          entityId
+        PathMovement.calculatePath scenario currentPos dest entityRadius
         |> ValueOption.orElseWith(fun _ ->
           PathMovement.calculatePath scenario currentPos dest entityRadius)
 
@@ -310,34 +221,20 @@ module Update =
     (clampedPos: Position)
     (entityId: Guid<EntityId>)
     (entityRadius: float32)
-    (entitiesArray: struct (Guid<EntityId> * EntityComponents) array)
     (scenario: Scenario)
     (components: EntityComponents)
     (arrived: bool)
     (remainingPath: Position list)
     : MovementResult =
-    let entityCollision =
-      checkEntityCollision clampedPos entityId entityRadius entitiesArray
 
     let terrainBlocked = not(Query.canMoveTo clampedPos entityRadius scenario)
 
-    if entityCollision then
+    if terrainBlocked then
       handlePathRecalculation
         scenario
         components.Position
         components.Movement.Destination
         entityRadius
-        entitiesArray
-        entityId
-        components
-    elif terrainBlocked then
-      handlePathRecalculation
-        scenario
-        components.Position
-        components.Movement.Destination
-        entityRadius
-        entitiesArray
-        entityId
         components
     elif arrived && remainingPath.IsEmpty then
       let finalMovement = {
@@ -378,17 +275,15 @@ module Update =
 
     { X = clampedX; Y = clampedY }
 
-  let updateEntityWithContext
+  let withPath
     (time: TimeSpan)
-    (bounds: ScenarioBounds)
     (scenario: Scenario)
-    (allEntities: HashMap<Guid<EntityId>, EntityComponents>)
     (entityId: Guid<EntityId>)
     (components: EntityComponents)
+    (bounds: ScenarioBounds)
     =
     let entityRadius = Utils.radiusOfStage components.Identity.Stage
     let elapsedSeconds = time / TimeSpan.FromSeconds 1.0 |> float32
-    let entitiesArray = allEntities |> HashMap.toArrayV
 
     // Handle pathfinding if we have a path
     match components.Movement.Path with
@@ -411,13 +306,10 @@ module Update =
 
         let clampedPos = clampToBounds proposedPos bounds
 
-        let entityCollision =
-          checkEntityCollision clampedPos entityId entityRadius entitiesArray
-
         let terrainBlocked =
           not(Query.canMoveTo clampedPos entityRadius scenario)
 
-        if entityCollision || terrainBlocked then
+        if terrainBlocked then
           {
             components with
                 Movement = {
@@ -469,7 +361,6 @@ module Update =
             clampedPos
             entityId
             entityRadius
-            entitiesArray
             scenario
             components
             arrived
