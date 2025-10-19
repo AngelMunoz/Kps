@@ -702,7 +702,11 @@ type PomoGame() as this =
       let entities = scenario.entities |> AMap.force |> HashMap.toArrayV
 
       let derived =
-        DerivedStats.getDerivedStats state |> AVal.force |> AMap.force
+        adaptive {
+          let! derived = DerivedStats.getDerivedStats state
+          return! derived |> AMap.toAVal
+        }
+        |> AVal.force
 
       let bounds = {
         Width = scenario.scenario.BoundsWidth

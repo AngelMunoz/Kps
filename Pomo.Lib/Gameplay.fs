@@ -90,23 +90,11 @@ module Entity =
 
 
 module DerivedStats =
-  let getModifiersForEffect (effectStore: Services.IEffectStore) effectId =
-    let effect = effectStore.tryFind effectId
-
-    match effect with
-    | ValueSome e -> e.Modifiers
-    | ValueNone -> Array.empty
 
   let inline private addInt stat value =
     HashMap.alterV stat (fun existing ->
       match existing with
       | ValueSome e -> ValueSome(e + value)
-      | ValueNone -> ValueSome value)
-
-  let inline private mulFloat stat value =
-    HashMap.alterV stat (fun existing ->
-      match existing with
-      | ValueSome e -> ValueSome(e * value)
       | ValueNone -> ValueSome value)
 
   let private aggregateEquipment
@@ -153,7 +141,11 @@ module DerivedStats =
       effects
       |> HashMap.iter(fun _ eff ->
         let stacks = eff.Stacks
-        let mods = getModifiersForEffect effectStore eff.EffectId
+
+        let mods =
+          effectStore.tryFind eff.EffectId
+          |> ValueOption.map _.Modifiers
+          |> ValueOption.defaultValue Array.empty
 
         mods
         |> Array.iter(fun m ->

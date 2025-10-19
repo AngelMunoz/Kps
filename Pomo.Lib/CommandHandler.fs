@@ -3,6 +3,7 @@ namespace Pomo.Lib.Rules
 open System
 open FSharp.UMX
 open FSharp.Data.Adaptive
+open Pomo.Lib
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Domain.Components
@@ -35,7 +36,7 @@ module CommandHandler =
     target: Guid<EntityId>
   }
 
-  type ResolverFn = ResolverParams * ResolverActors -> aval<StateChange>
+  type ResolverFn = ResolverParams -> ResolverActors -> aval<StateChange>
 
   let checkTauntTarget(actorEffects: HashMap<'a, ActiveEffect>) =
     actorEffects
@@ -53,7 +54,6 @@ module CommandHandler =
     |> ValueOption.map _.SourceId
 
   module ValidateAction =
-    open Pomo.Lib.Domain.Attributes
 
     let checkStun(actor: EntityComponents) =
       actor.Effects |> HashMap.exists(fun _ e -> e.Definition.Kind.IsStun)
@@ -256,8 +256,9 @@ module CommandHandler =
         let actorId = ractors.actor
         let targetId = action.target
 
-        let! actorStats = rparams.derivedStats |> AMap.find actorId
-        let! targetStats = rparams.derivedStats |> AMap.find targetId
+        let! gameTime = rparams.gameTime
+        and! actorStats = rparams.derivedStats |> AMap.find actorId
+        and! targetStats = rparams.derivedStats |> AMap.find targetId
 
         let calculateDamage =
           Resolution.calculateDamage {
@@ -277,38 +278,26 @@ module CommandHandler =
               IsEvaded = false
             }
 
-        let! gameTime = rparams.gameTime
-
-        let visualEffects =
-          let mutable effects = ResizeArray()
-
-          // Add floating text for damage/miss
+        let visualEffects = [|
           if baseDamageResult.IsEvaded then
-            effects.Add(
-              VisualEffectChange.AddFloatingText {
-                Id = Guid.NewGuid() |> UMX.tag
-                Text = "Miss"
-                Position = action.targetComponents.Position
-                Color = FloatingTextColor.Evade
-                CreationTick = gameTime
-              }
-            )
-          else if baseDamageResult.Amount > 0 then
-            effects.Add(
-              VisualEffectChange.AddFloatingText {
-                Id = Guid.NewGuid() |> UMX.tag
-                Text = string baseDamageResult.Amount
-                Position = action.targetComponents.Position
-                Color =
-                  if baseDamageResult.IsCritical then
-                    FloatingTextColor.Critical
-                  else
-                    FloatingTextColor.Damage
-                CreationTick = gameTime
-              }
-            )
+            AddFloatingText {
+              Id = Guid.NewGuid() |> UMX.tag
+              Text = "Miss"
+              Position = action.targetComponents.Position
+              Color = Evade
+              CreationTick = gameTime
+            }
 
-          effects.ToArray()
+          else if baseDamageResult.Amount > 0 then
+            AddFloatingText {
+              Id = Guid.NewGuid() |> UMX.tag
+              Text = string baseDamageResult.Amount
+              Position = action.targetComponents.Position
+              Color = if baseDamageResult.IsCritical then Critical else Damage
+              CreationTick = gameTime
+            }
+        |]
+
 
         let finalResources =
           Resolution.applyDamage baseDamageResult.Amount action.targetComponents
@@ -357,7 +346,7 @@ module CommandHandler =
         else
           return {
             updates =
-              HashMap.ofList [
+              HashMap.ofSeq [
                 actorId, actorWithCooldown
                 targetId, targetAfterEffects
               ]
@@ -378,14 +367,12 @@ module CommandHandler =
       =
       adaptive {
         let! gameTime = rparams.gameTime
+        let resolutionId = %Guid.NewGuid()
         let mutable visualEffects = ResizeArray()
-        let resolutionId = Guid.NewGuid() |> UMX.tag
 
         // Schedule visual effects and pending resolutions
         action.abilityDefinition.ProjectileId
         |> ValueOption.iter(fun defId ->
-          let projectileDef = rparams.services.projectileStore.find defId
-
           let resolution = {
             Id = resolutionId
             ActorId = ractors.actor
@@ -476,42 +463,41 @@ module CommandHandler =
       }
 
   /// Resolves an ability command
-  let resolveAbility(abilityId: int<AbilityId>) : ResolverFn =
-    fun (rparams, ractors) -> adaptive {
-      let! validationResult = validateAction rparams ractors abilityId
+  let resolveAbility rparams abilityId ractors = adaptive {
+    let! validationResult = validateAction rparams ractors abilityId
 
-      match validationResult with
-      | Stunned
-      | Silenced
-      | IsPassive
-      | NotFound
-      | NotAlive
-      | InsufficientResource
-      | OnCooldown
-      | InvalidTarget
-      | MissingRequirements ->
-        return {
-          updates = HashMap.empty
-          additions = HashMap.empty
-          removals = Array.empty
-          gameTime = ValueNone
-          scenarioChanges = Array.empty
-          teleports = Array.empty
-          visualEffects = Array.empty
-        }
-      | ValidAction action ->
-        let hasVisualEffect =
-          action.abilityDefinition.ProjectileId.IsSome
-          || action.abilityDefinition.AoeId.IsSome
-          || action.abilityDefinition.ImpactId.IsSome
+    match validationResult with
+    | Stunned
+    | Silenced
+    | IsPassive
+    | NotFound
+    | NotAlive
+    | InsufficientResource
+    | OnCooldown
+    | InvalidTarget
+    | MissingRequirements ->
+      return {
+        updates = HashMap.empty
+        additions = HashMap.empty
+        removals = Array.empty
+        gameTime = ValueNone
+        scenarioChanges = Array.empty
+        teleports = Array.empty
+        visualEffects = Array.empty
+      }
+    | ValidAction action ->
+      let hasVisualEffect =
+        action.abilityDefinition.ProjectileId.IsSome
+        || action.abilityDefinition.AoeId.IsSome
+        || action.abilityDefinition.ImpactId.IsSome
 
-        if hasVisualEffect then
-          return!
-            AbilityResolution.resolveDeferred abilityId rparams ractors action
-        else
-          return!
-            AbilityResolution.resolveImmediate abilityId rparams ractors action
-    }
+      if hasVisualEffect then
+        return!
+          AbilityResolution.resolveDeferred abilityId rparams ractors action
+      else
+        return!
+          AbilityResolution.resolveImmediate abilityId rparams ractors action
+  }
 
   let resolveNavigate
     (action: NavigateAction)
@@ -519,19 +505,15 @@ module CommandHandler =
     : aval<StateChange> =
     adaptive {
       let! entity =
-        resolverParams.scenarioState.entities |> AMap.tryFind action.actor
+        ScenarioState.entityById action.actor resolverParams.scenarioState
 
       match entity with
       | Some e ->
         // Use entity-aware pathfinding to calculate the path
-        let entityRadius =
-          Pomo.Lib.Movement.Utils.radiusOfStage e.Identity.Stage
-
-        let! allEntities = resolverParams.scenarioState.entities |> AMap.toAVal
-        let entitiesArray = allEntities |> HashMap.toArrayV
+        let entityRadius = Movement.Utils.radiusOfStage e.Identity.Stage
 
         let updatedMovement =
-          Pomo.Lib.Movement.PathfindingCommands.setDestinationWithPathfinding
+          Movement.PathfindingCommands.setDestinationWithPathfinding
             resolverParams.scenarioState.scenario
             e.Position
             action.destination
@@ -541,7 +523,7 @@ module CommandHandler =
         let updatedEntity = { e with Movement = updatedMovement }
 
         return {
-          updates = HashMap.ofList [ action.actor, updatedEntity ]
+          updates = HashMap.ofSeq [ action.actor, updatedEntity ]
           additions = HashMap.empty
           removals = Array.empty
           gameTime = ValueNone
@@ -567,15 +549,14 @@ module CommandHandler =
     : aval<StateChange> =
     adaptive {
       let! entity =
-        resolverParams.scenarioState.entities |> AMap.tryFind action.actor
+        ScenarioState.entityById action.actor resolverParams.scenarioState
 
       match entity with
       | Some e ->
-        let entityRadius =
-          Pomo.Lib.Movement.Utils.radiusOfStage e.Identity.Stage
+        let entityRadius = Movement.Utils.radiusOfStage e.Identity.Stage
 
         let proposedPos =
-          Pomo.Lib.Movement.Update.advancePosition {
+          Movement.Update.advancePosition {
             Position = e.Position
             Velocity = action.velocity
             Elapsed = action.elapsed
@@ -583,12 +564,8 @@ module CommandHandler =
             EntityRadius = entityRadius
           }
 
-        let! allEntities = resolverParams.scenarioState.entities |> AMap.toAVal
-
-        let entitiesArray = allEntities |> HashMap.toArrayV
-
         let terrainClear =
-          Pomo.Lib.Collision.Query.canMoveTo
+          Collision.Query.canMoveTo
             proposedPos
             entityRadius
             resolverParams.scenarioState.scenario
@@ -597,7 +574,7 @@ module CommandHandler =
           let updatedEntity = { e with Position = proposedPos }
 
           return {
-            updates = HashMap.ofList [ action.actor, updatedEntity ]
+            updates = HashMap.ofSeq [ action.actor, updatedEntity ]
             additions = HashMap.empty
             removals = Array.empty
             gameTime = ValueNone
@@ -660,79 +637,86 @@ module CommandHandler =
           |> Option.defaultValue Array.empty
         | MultiTarget maxTargets -> action.targets |> Array.take maxTargets
 
+      let resolver = resolveAbility rparams action.abilityId
       // Process each target
       let stateChanges =
         actualTargets
         |> AList.ofArray
         |> AList.mapA(fun targetId ->
-          let ractors = {
+          resolver {
             actor = action.actor
             target = targetId
-          }
+          })
 
-          // Use unified resolver for all ability types
-          resolveAbility action.abilityId (rparams, ractors))
-
-      let! components =
+      return!
         stateChanges
         |> AList.fold
-          (fun acc result -> HashMap.union acc result.updates)
-          HashMap.empty
-
-      let! visualEffects =
-        stateChanges
-        |> AList.collect(fun result -> result.visualEffects |> AList.ofArray)
-        |> AList.toAVal
-
-      return {
-        updates = components
-        additions = HashMap.empty
-        removals = Array.empty
-        gameTime = ValueNone
-        scenarioChanges = Array.empty
-        teleports = Array.empty
-        visualEffects = visualEffects |> IndexList.toArray
-      }
+          (fun acc result -> {
+            acc with
+                updates = HashMap.union acc.updates result.updates
+                visualEffects =
+                  Array.append acc.visualEffects result.visualEffects
+          })
+          StateChange.empty
     }
+
+  [<Struct>]
+  type ProcessReplenishmentDeps = {
+    replenishments: ResourceReplenishment[]
+    length: int
+    entities: amap<Guid<EntityId>, EntityComponents>
+    derivedStats: amap<Guid<EntityId>, DerivedStats>
+  }
+
+  [<TailCall>]
+  let rec processReplenishments (deps: ref<ProcessReplenishmentDeps>) i acc = adaptive {
+    if i >= deps.Value.length then
+      return acc
+    else
+      let rep = deps.Value.replenishments[i]
+      let actorId = rep.Actor
+      let! actor = deps.Value.entities |> AMap.find actorId
+      let! stats = deps.Value.derivedStats |> AMap.find actorId
+
+      let updatedResources =
+        match rep.ResourceType with
+        | ResourceType.HP ->
+          let newHp = min stats.HP (actor.Resources.HP + rep.Amount)
+          { actor.Resources with HP = newHp }
+        | ResourceType.MP ->
+          let newMp = min stats.MP (actor.Resources.MP + rep.Amount)
+          { actor.Resources with MP = newMp }
+
+      let updatedActor = {
+        actor with
+            Resources = updatedResources
+      }
+
+      return!
+        processReplenishments
+          deps
+          (i + 1)
+          (HashMap.add actorId updatedActor acc)
+  }
 
   let private resolveReplenishResources
     (replenishments: ResourceReplenishment[])
     (rparams: ResolverParams)
     : aval<StateChange> =
     adaptive {
-      let! entities = rparams.scenarioState.entities |> AMap.toAVal
-      let! derivedStats = rparams.derivedStats |> AMap.toAVal
 
-      let updates =
-        replenishments
-        |> Array.fold
-          (fun acc (rep: ResourceReplenishment) ->
-            match HashMap.tryFindV rep.Actor entities with
-            | ValueSome actor ->
-              let stats = derivedStats.[rep.Actor]
+      let dependencies = {
+        replenishments = replenishments
+        length = replenishments.Length
+        entities = rparams.scenarioState.entities
+        derivedStats = rparams.derivedStats
+      }
 
-              let updatedResources =
-                match rep.ResourceType with
-                | ResourceType.HP ->
-                  let maxHp = stats.HP
-                  let newHp = min maxHp (actor.Resources.HP + rep.Amount)
-                  { actor.Resources with HP = newHp }
-                | ResourceType.MP ->
-                  let maxMp = stats.MP
-                  let newMp = min maxMp (actor.Resources.MP + rep.Amount)
-                  { actor.Resources with MP = newMp }
-
-              let updatedActor = {
-                actor with
-                    Resources = updatedResources
-              }
-
-              HashMap.add rep.Actor updatedActor acc
-            | ValueNone -> acc)
-          HashMap.empty
+      let! updatedEntities =
+        processReplenishments (ref dependencies) 0 HashMap.empty
 
       return {
-        updates = updates
+        updates = updatedEntities
         additions = HashMap.empty
         removals = Array.empty
         gameTime = ValueNone
@@ -745,7 +729,10 @@ module CommandHandler =
   let evaluate (state: GameState) (cmd: Command) : aval<StateChange> = adaptive {
     let! activeScenarioId = state.activeScenarioId
     let! scenarioState = state.scenarios |> AMap.find activeScenarioId
-    let! derivedStats = DerivedStats.getDerivedStats state
+
+    let derivedStats =
+      DerivedStats.getDerivedStatsInScenario state.services scenarioState
+
     let players = state.players
     let parties = state.parties
 
