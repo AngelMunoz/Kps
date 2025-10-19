@@ -505,7 +505,7 @@ module CommandHandler =
     : aval<StateChange> =
     adaptive {
       let! entity =
-        ScenarioState.entityById action.actor resolverParams.scenarioState
+        ScenarioState.getEntityById action.actor resolverParams.scenarioState
 
       match entity with
       | Some e ->
@@ -549,7 +549,7 @@ module CommandHandler =
     : aval<StateChange> =
     adaptive {
       let! entity =
-        ScenarioState.entityById action.actor resolverParams.scenarioState
+        ScenarioState.getEntityById action.actor resolverParams.scenarioState
 
       match entity with
       | Some e ->
@@ -730,8 +730,7 @@ module CommandHandler =
     let! activeScenarioId = state.activeScenarioId
     let! scenarioState = state.scenarios |> AMap.find activeScenarioId
 
-    let derivedStats =
-      DerivedStats.getDerivedStatsInScenario state.services scenarioState
+    let derivedStats = DerivedStats.byScenario state.services scenarioState
 
     let players = state.players
     let parties = state.parties

@@ -113,7 +113,7 @@ module GameState =
 
   let getEntity entityId (state: GameState) =
     adaptive {
-      let! scenario = Scenario.getActiveScenario state
+      let! scenario = Scenario.ActiveScenario state
       return! scenario.entities |> AMap.tryFind entityId
     }
     |> AVal.force
@@ -130,7 +130,7 @@ module GameState =
 
     let entitiesMap =
       adaptive {
-        let! scenario = Scenario.getActiveScenario state
+        let! scenario = Scenario.ActiveScenario state
         return! scenario.entities |> AMap.toAVal
       }
       |> AVal.force
@@ -208,7 +208,7 @@ module GameState =
 
     let entitiesMap =
       adaptive {
-        let! scenario = Scenario.getActiveScenario state
+        let! scenario = Scenario.ActiveScenario state
         return! scenario.entities |> AMap.toAVal
       }
       |> AVal.force
@@ -265,7 +265,7 @@ module GameState =
   /// Uses direct access to AbilityCooldowns and Abilities.
   let inline getReadyAbilities entityId (state: GameState) =
     adaptive {
-      let! scenario = Scenario.getActiveScenario state
+      let! scenario = Scenario.ActiveScenario state
       let! found = scenario.entities |> AMap.tryFind entityId
       let! gameTime = scenario.gameTime
 
@@ -282,7 +282,7 @@ module GameState =
   /// Forces evaluation of adaptive stats and returns snapshot.
   let inline getDerivedStatsSnapshot entityId (state: GameState) =
     adaptive {
-      let! stats = DerivedStats.getDerivedStats state
+      let! stats = DerivedStats.byGameState state
       return! stats |> AMap.tryFind entityId
     }
     |> AVal.force

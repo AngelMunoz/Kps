@@ -235,7 +235,7 @@ type PomoGame() as this =
     // Set initial positions for visibility (Phase 6.1) and give player a basic ability (Phase 6.2)
     // Add terrain objects and transitions for Phase 6.5 & 6.6 visualization
     transact(fun _ ->
-      let scenario = Scenario.getActiveScenario state |> AVal.force
+      let scenario = Scenario.ActiveScenario state |> AVal.force
       let p = scenario.entities[playerId]
       let fireballAbilityId = 2<AbilityId>
       let meleeAbilityId = 8<AbilityId>
@@ -417,7 +417,7 @@ type PomoGame() as this =
           zoom <- z
           prevScroll <- wheel
 
-        let scenario = Scenario.getActiveScenario state |> AVal.force
+        let scenario = Scenario.ActiveScenario state |> AVal.force
 
         let newVersion = computeTerrainVersion scenario.scenario
 
@@ -697,13 +697,13 @@ type PomoGame() as this =
 
       let hudOpt = if isNull hudFont then ValueNone else ValueSome hudFont
 
-      let scenario = Scenario.getActiveScenario state |> AVal.force
+      let scenario = Scenario.ActiveScenario state |> AVal.force
 
       let entities = scenario.entities |> AMap.force |> HashMap.toArrayV
 
       let derived =
         adaptive {
-          let! derived = DerivedStats.getDerivedStats state
+          let! derived = DerivedStats.byGameState state
           return! derived |> AMap.toAVal
         }
         |> AVal.force

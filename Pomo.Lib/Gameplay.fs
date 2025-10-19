@@ -3,6 +3,7 @@ namespace Pomo.Lib.Gameplay
 open System
 open FSharp.UMX
 open FSharp.Data.Adaptive
+open Pomo.Lib
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.Attributes
@@ -13,81 +14,16 @@ open Pomo.Lib.Domain.AggregatedEffects
 open Pomo.Lib.Scenario
 open Pomo.Lib.Domain.VisualEffects
 open Pomo.Lib.EffectApplication
-open Pomo.Lib.Movement
 
 module Scenario =
-  let getActiveScenario(state: GameState) = adaptive {
+  let ActiveScenario(state: GameState) = adaptive {
     let! scenarioId = state.activeScenarioId
     return state.scenarios[scenarioId]
   }
 
-
 module ScenarioState =
-  let inline entityById entityId (scenario: Scenario.ScenarioState) =
+  let inline getEntityById entityId (scenario: Scenario.ScenarioState) =
     scenario.entities |> AMap.tryFind entityId
-
-module Entity =
-  open ScenarioState
-
-  let Identity entityId (scenario: Scenario.ScenarioState) = adaptive {
-    let! entityOpt = entityById entityId scenario
-    return entityOpt |> Option.map _.Identity
-  }
-
-  let BaseStats entityId (scenario: Scenario.ScenarioState) = adaptive {
-    let! entityOpt = entityById entityId scenario
-    return entityOpt |> Option.map _.BaseStats
-  }
-
-  let Resources entityId (scenario: Scenario.ScenarioState) = adaptive {
-    let! entityOpt = entityById entityId scenario
-    return entityOpt |> Option.map _.Resources
-  }
-
-  let Position entityId (scenario: Scenario.ScenarioState) = adaptive {
-    let! entityOpt = entityById entityId scenario
-    return entityOpt |> Option.map _.Position
-  }
-
-  let Movement entityId (scenario: Scenario.ScenarioState) = adaptive {
-    let! entityOpt = entityById entityId scenario
-    return entityOpt |> Option.map _.Movement
-  }
-
-  let AbilityCooldowns entityId (scenario: Scenario.ScenarioState) = adaptive {
-    let! entityOpt = entityById entityId scenario
-    return entityOpt |> Option.map _.AbilityCooldowns
-  }
-
-  let Effects entityId (scenario: Scenario.ScenarioState) = adaptive {
-    let! entityOpt = entityById entityId scenario
-    return entityOpt |> Option.map _.Effects
-  }
-
-  let Factions entityId (scenario: Scenario.ScenarioState) = adaptive {
-    let! entityOpt = entityById entityId scenario
-    return entityOpt |> Option.map _.Factions
-  }
-
-  let Abilities entityId (scenario: Scenario.ScenarioState) = adaptive {
-    let! entityOpt = entityById entityId scenario
-    return entityOpt |> Option.map _.Abilities
-  }
-
-  let Equipment entityId (scenario: Scenario.ScenarioState) = adaptive {
-    let! entityOpt = entityById entityId scenario
-    return entityOpt |> Option.map _.Equipment
-  }
-
-  let PartyId entityId (scenario: Scenario.ScenarioState) = adaptive {
-    let! entityOpt = entityById entityId scenario
-
-    return
-      match entityOpt with
-      | Some entity -> entity.PartyId
-      | None -> ValueNone
-  }
-
 
 module DerivedStats =
 
@@ -252,8 +188,8 @@ module DerivedStats =
       return final
     }
 
-  let getDerivedStats(state: GameState) = adaptive {
-    let! scenario = Scenario.getActiveScenario state
+  let inline byGameState(state: GameState) = adaptive {
+    let! scenario = Scenario.ActiveScenario state
 
     return
       scenario.entities
@@ -266,7 +202,7 @@ module DerivedStats =
           c.Equipment)
   }
 
-  let getDerivedStatsInScenario
+  let inline byScenario
     (services: Services.EngineServices)
     (state: Scenario.ScenarioState)
     =
@@ -292,7 +228,7 @@ module DerivedStats =
       entity.Equipment
 
 module Projectile =
-  let updateProjectiles
+  let resolve
     (state: GameState)
     (scenario: Scenario.ScenarioState)
     (entities: amap<Guid<EntityId>, EntityComponents>)
@@ -317,8 +253,7 @@ module Projectile =
         | Some target ->
           let def = state.services.projectileStore.find proj.DefinitionId
 
-          let targetRadius =
-            Pomo.Lib.Movement.Utils.radiusOfStage target.Identity.Stage
+          let targetRadius = Movement.Utils.radiusOfStage target.Identity.Stage
 
           let dx = target.Position.X - proj.CurrentPosition.X
           let dy = target.Position.Y - proj.CurrentPosition.Y
@@ -444,7 +379,7 @@ module Projectile =
           }
     })
 
-  let getNonProjectileResolutions
+  let resolveNonProjectile
     (state: GameState)
     (scenario: Scenario.ScenarioState)
     (entities: amap<Guid<EntityId>, EntityComponents>)
@@ -579,7 +514,7 @@ module GameState =
           CenterX = 0f
           CenterY = 0f
         }
-        |> Update.withPath time scenario currentEntityId currentEntity
+        |> Movement.Update.withPath time scenario currentEntityId currentEntity
 
       let! derivedStatsForEntity =
         movedComponents |> DerivedStats.byEntity effectStore formulaStore
@@ -620,7 +555,7 @@ module GameState =
       )
 
     let! projectileStateChanges =
-      Projectile.updateProjectiles state scenario entities time newTime
+      Projectile.resolve state scenario entities time newTime
       |> AMap.reduce(
         AdaptiveReduction.fold StateChange.empty (fun acc change -> {
           acc with
@@ -631,7 +566,7 @@ module GameState =
       )
 
     let! nonProjectileResolutionChanges =
-      Projectile.getNonProjectileResolutions state scenario entities newTime
+      Projectile.resolveNonProjectile state scenario entities newTime
       |> AMap.reduce(
         AdaptiveReduction.fold StateChange.empty (fun acc change -> {
           acc with
