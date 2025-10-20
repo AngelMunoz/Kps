@@ -6,6 +6,13 @@ open Pomo.Lib.Domain.Abilities
 open Pomo.Lib.Domain.Effects
 open Pomo.Lib.Domain.Visuals
 open Pomo.Lib.Domain.Scenario
+open FSharp.UMX
+open FSharp.Data.Adaptive
+open Pomo.Lib.Domain.Attributes
+open Pomo.Lib.Domain.State
+open Pomo.Lib.Scenario
+open Pomo.Lib.Domain.Services
+
 
 module ProjectileStore =
   let definitions: Map<int<ProjectileId>, ProjectileDefinition> =
@@ -984,19 +991,73 @@ module EquipmentStore =
       }
     ]
 
-open System
-open FSharp.UMX
-open FSharp.Data.Adaptive
-open Pomo.Lib.Domain
-open Pomo.Lib.Domain.Components
-open Pomo.Lib.Domain.Attributes
-open Pomo.Lib.Domain.Effects
-open Pomo.Lib.Effects
-open Pomo.Lib.Domain.State
-open Pomo.Lib.Domain.AggregatedEffects
-open Pomo.Lib.Scenario
-open Pomo.Lib.Gameplay
-open Pomo.Lib.Domain.Services
+module AudioStore =
+
+  let definitions: Map<int<AudioClipId>, Audio.AudioClip> =
+    Map.ofList [
+      1<AudioClipId>,
+      {
+        Id = 1<AudioClipId>
+        Name = "Shy But Deadly 8 Bit"
+        ContentPath = "Audio/bg_temp.mp3"
+        Category = Audio.AudioCategory.Music
+        Volume = 0.3f
+        Pitch = 1.0f
+        Loop = true
+      }
+      2<AudioClipId>,
+      {
+        Id = 2<AudioClipId>
+        Name = "Skill Activation"
+        ContentPath = "Audio/SkillActivation.wav"
+        Category = Audio.AudioCategory.Ability
+        Volume = 0.8f
+        Pitch = 1.0f
+        Loop = false
+      }
+      3<AudioClipId>,
+      {
+        Id = 3<AudioClipId>
+        Name = "Fire Blip"
+        ContentPath = "Audio/FireBlip.wav"
+        Category = Audio.AudioCategory.Ability
+        Volume = 0.7f
+        Pitch = 1.0f
+        Loop = false
+      }
+      4<AudioClipId>,
+      {
+        Id = 4<AudioClipId>
+        Name = "Damage Received"
+        ContentPath = "Audio/DamageReceived.wav"
+        Category = Audio.AudioCategory.Impact
+        Volume = 0.6f
+        Pitch = 1.0f
+        Loop = false
+      }
+      5<AudioClipId>,
+      {
+        Id = 5<AudioClipId>
+        Name = "Missed Hit"
+        ContentPath = "Audio/MissedHit.wav"
+        Category = Audio.AudioCategory.Impact
+        Volume = 0.5f
+        Pitch = 1.0f
+        Loop = false
+      }
+    ]
+
+  let triggerMap: Map<Audio.AudioTrigger, int<AudioClipId>[]> =
+    Map.ofList [
+      Audio.AudioTrigger.AbilityCast 2<AbilityId>,
+      [| 2<AudioClipId>; 3<AudioClipId> |]
+      Audio.AudioTrigger.DamageTaken false, [| 5<AudioClipId> |]
+      Audio.AudioTrigger.DamageTaken true, [| 4<AudioClipId> |]
+    ]
+
+  let scenarioMusicMap: Map<string, int<AudioClipId>> =
+    Map.ofList [ "Test Scenario", 1<AudioClipId> ]
+
 
 module GameState =
   let create'
@@ -1024,6 +1085,8 @@ module GameState =
         BoundsHeight = 2000f
       }
       |> ScenarioState.create id
+
+    let scenarios = cmap [ initialScenarioId, initialScenarioState ]
 
     create'
       {
@@ -1086,11 +1149,36 @@ module GameState =
               member _.find impactId =
                 ImpactStore.definitions |> Map.find impactId
           }
+        audioStore =
+          { new IAudioStore with
+              member _.tryFind clipId =
+                AudioStore.definitions
+                |> Map.tryFind clipId
+                |> ValueOption.ofOption
+
+              member _.find clipId =
+                AudioStore.definitions |> Map.find clipId
+
+              member _.findByTrigger trigger =
+                AudioStore.triggerMap
+                |> Map.tryFind trigger
+                |> Option.defaultValue Array.empty
+
+              member _.findMusicForScenario scenarioId =
+                let scenario =
+                  scenarios.Value
+                  |> HashMap.tryFindV scenarioId
+                  |> ValueOption.map _.scenario
+
+                scenario
+                |> ValueOption.bind(fun s ->
+                  AudioStore.scenarioMusicMap
+                  |> Map.tryFind s.Name
+                  |> ValueOption.ofOption)
+          }
         rng = fun () -> System.Random().NextDouble()
       }
-      (initialScenarioId, cmap [ initialScenarioId, initialScenarioState ])
-
-
+      (initialScenarioId, scenarios)
 
 module ScenarioDefinitions =
   let createTownScenario(id: Guid<ScenarioId>) : Scenario = {
@@ -1124,7 +1212,8 @@ module ScenarioDefinitions =
         {
           Id = %Guid.NewGuid()
           Position = { X = 400f; Y = 300f }
-          CollisionGeometry = Circle({ X = 400f; Y = 300f }, 25f)
+          CollisionGeometry =
+            CollisionGeometry.Circle({ X = 400f; Y = 300f }, 25f)
           TerrainType = TerrainType.Water
           DepthLayer = 0.4f
           SpriteId = ValueSome "fountain"
@@ -1182,7 +1271,8 @@ module ScenarioDefinitions =
           {
             Id = %Guid.NewGuid()
             Position = { X = 600f; Y = 500f }
-            CollisionGeometry = Circle({ X = 600f; Y = 500f }, 60f)
+            CollisionGeometry =
+              CollisionGeometry.Circle({ X = 600f; Y = 500f }, 60f)
             TerrainType = TerrainType.Water
             DepthLayer = 0.3f
             SpriteId = ValueSome "swamp"
@@ -1191,7 +1281,8 @@ module ScenarioDefinitions =
           {
             Id = %Guid.NewGuid()
             Position = { X = 800f; Y = 300f }
-            CollisionGeometry = Circle({ X = 800f; Y = 300f }, 40f)
+            CollisionGeometry =
+              CollisionGeometry.Circle({ X = 800f; Y = 300f }, 40f)
             TerrainType = Hazard
             DepthLayer = 0.5f
             SpriteId = ValueSome "poison_plants"
@@ -1254,7 +1345,8 @@ module ScenarioDefinitions =
           {
             Id = %Guid.NewGuid()
             Position = { X = 400f; Y = 300f }
-            CollisionGeometry = Circle({ X = 400f; Y = 300f }, 35f)
+            CollisionGeometry =
+              CollisionGeometry.Circle({ X = 400f; Y = 300f }, 35f)
             TerrainType = Hazard
             DepthLayer = 0.4f
             SpriteId = ValueSome "lava_pit"

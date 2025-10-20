@@ -75,4 +75,5 @@ module StateChange =
     scenarioChanges = Array.empty
     teleports = Array.empty
     visualEffects = Array.empty
+    audioChanges = Array.empty
   }

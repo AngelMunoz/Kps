@@ -119,6 +119,22 @@ type PomoGame() as this =
 
     LocalizationManager.DefaultCultureCode |> LocalizationManager.SetCulture
 
+    let initialScenarioId = %Guid.NewGuid()
+
+    let initialScenarioState =
+      {
+        Id = initialScenarioId
+        Name = "Test Scenario"
+        BoundsWidth = 2000f
+        BoundsHeight = 2000f
+      }
+      |> ScenarioState.create(fun sc -> {
+        sc with
+            scenario.EngagementMode = EngagementMode.AlwaysOn
+      })
+
+    let scenarios = cmap [ initialScenarioId, initialScenarioState ]
+
     let services = {
       effectStore =
         { new IEffectStore with
@@ -177,27 +193,37 @@ type PomoGame() as this =
             member _.find impactId =
               ImpactStore.definitions |> Map.find impactId
         }
+      audioStore =
+        { new IAudioStore with
+            member _.tryFind clipId =
+              AudioStore.definitions
+              |> Map.tryFind clipId
+              |> ValueOption.ofOption
+
+            member _.find clipId =
+              AudioStore.definitions |> Map.find clipId
+
+            member _.findByTrigger trigger =
+              AudioStore.triggerMap
+              |> Map.tryFind trigger
+              |> Option.defaultValue Array.empty
+
+            member _.findMusicForScenario scenarioId =
+              let scenario =
+                scenarios.Value
+                |> HashMap.tryFindV scenarioId
+                |> ValueOption.map _.scenario
+
+              scenario
+              |> ValueOption.bind(fun s ->
+                AudioStore.scenarioMusicMap
+                |> Map.tryFind s.Name
+                |> ValueOption.ofOption)
+        }
       rng = fun () -> Random.Shared.NextDouble()
     }
 
-    let initialScenarioId = %Guid.NewGuid()
-
-    let initialScenarioState =
-      {
-        Id = initialScenarioId
-        Name = "Test Scenario"
-        BoundsWidth = 2000f
-        BoundsHeight = 2000f
-      }
-      |> ScenarioState.create(fun sc -> {
-        sc with
-            scenario.EngagementMode = EngagementMode.AlwaysOn
-      })
-
-    let state =
-      GameState.create'
-        services
-        (initialScenarioId, cmap [ initialScenarioId, initialScenarioState ])
+    let state = GameState.create' services (initialScenarioId, scenarios)
 
     let playerProfession = { Family = Magic; Stage = First }
 
@@ -335,7 +361,9 @@ type PomoGame() as this =
 
       // Update the scenario in the game state
       let activeScenarioId = state.activeScenarioId |> AVal.force
-      state.scenarios.[activeScenarioId] <- updatedScenarioState)
+      state.scenarios[activeScenarioId] <- updatedScenarioState
+
+      AudioSystem.updateScenarioMusic services.audioStore activeScenarioId)
 
     gameState <- ValueSome state
 
@@ -397,9 +425,18 @@ type PomoGame() as this =
       match gameState with
       | ValueNone -> base.Update(gameTime)
       | ValueSome state ->
-        gameTime.ElapsedGameTime
-        |> GameState.tick state
-        |> GameState.forceAndApply state
+        let stateChange =
+          gameTime.ElapsedGameTime |> GameState.tick state |> AVal.force
+
+        let scenario = Scenario.ActiveScenario state |> AVal.force
+
+        AudioSystem.processAudioChanges
+          state.services.audioStore
+          scenario
+          stateChange.audioChanges
+
+        GameState.apply state stateChange
+        AudioSystem.update()
 
         let wheel = Mouse.GetState().ScrollWheelValue
         let delta = wheel - prevScroll
@@ -486,8 +523,15 @@ type PomoGame() as this =
                   destination = { X = clickWorld.X; Y = clickWorld.Y }
                 }
 
-              CommandHandler.evaluate state moveCmd
-              |> GameState.forceAndApply state
+              let stateChange =
+                CommandHandler.evaluate state moveCmd |> AVal.force
+
+              AudioSystem.processAudioChanges
+                state.services.audioStore
+                scenario
+                stateChange.audioChanges
+
+              GameState.apply state stateChange
 
               let playerComp = scenario.entities[playerId]
 
@@ -556,8 +600,20 @@ type PomoGame() as this =
           | InputManager.InputMode.AbilityTargeting abilityId ->
             match found with
             | ValueSome targetId ->
-              GameState.activateAbility playerId abilityId [| targetId |] state
-              |> GameState.forceAndApply state
+              let stateChange =
+                GameState.activateAbility
+                  playerId
+                  abilityId
+                  [| targetId |]
+                  state
+                |> AVal.force
+
+              AudioSystem.processAudioChanges
+                state.services.audioStore
+                scenario
+                stateChange.audioChanges
+
+              GameState.apply state stateChange
 
               Console.WriteLine(
                 $"[Ability] Activated {abilityId} on {targetId}"
@@ -639,8 +695,15 @@ type PomoGame() as this =
               }
             |]
 
-          CommandHandler.evaluate state replenishCmd
-          |> GameState.forceAndApply state
+          let stateChange =
+            CommandHandler.evaluate state replenishCmd |> AVal.force
+
+          AudioSystem.processAudioChanges
+            state.services.audioStore
+            scenario
+            stateChange.audioChanges
+
+          GameState.apply state stateChange
 
           Console.WriteLine("[Debug] Player MP replenished.")
 
@@ -668,7 +731,14 @@ type PomoGame() as this =
               elapsed = gameTime.ElapsedGameTime.TotalSeconds |> float32
             }
 
-          CommandHandler.evaluate state moveCmd |> GameState.forceAndApply state
+          let stateChange = CommandHandler.evaluate state moveCmd |> AVal.force
+
+          AudioSystem.processAudioChanges
+            state.services.audioStore
+            scenario
+            stateChange.audioChanges
+
+          GameState.apply state stateChange
 
     match selected with
     | ValueSome entityId when not(uiState.SelectedEntity = ValueSome entityId) ->
