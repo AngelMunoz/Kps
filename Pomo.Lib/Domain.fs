@@ -41,6 +41,12 @@ type FloatingTextId
 [<Measure>]
 type PendingResolutionId
 
+[<Measure>]
+type AudioClipId
+
+[<Measure>]
+type AudioEventId
+
 module Visuals =
   [<Struct>]
   type Shape =
@@ -584,44 +590,68 @@ module Rules =
     | ReplenishResources of replenishEntries: ResourceReplenishment[]
 
 
-module Services =
-  open Abilities
-  open Effects
-  open Visuals
 
-  type IAbilityStore =
-    abstract member tryFind: int<AbilityId> -> AbilityKind voption
-    abstract member find: int<AbilityId> -> AbilityKind
+module Audio =
 
-  type IEffectStore =
-    abstract member tryFind: int<EffectId> -> EffectDefinition voption
-    abstract member find: int<EffectId> -> EffectDefinition
+  [<Struct>]
+  type AudioCategory =
+    | Ability
+    | Impact
+    | Ambient
+    | UI
+    | Movement
+    | Music
 
-  type IFormulaStore =
-    abstract member tryFind: int<FormulaId> -> FormulaDefinition voption
-    abstract member find: int<FormulaId> -> FormulaDefinition
-
-  type IProjectileStore =
-    abstract member tryFind: int<ProjectileId> -> ProjectileDefinition voption
-    abstract member find: int<ProjectileId> -> ProjectileDefinition
-
-  type IAoeStore =
-    abstract member tryFind: int<AoeId> -> AoeDefinition voption
-    abstract member find: int<AoeId> -> AoeDefinition
-
-  type IImpactStore =
-    abstract member tryFind: int<ImpactId> -> ImpactDefinition voption
-    abstract member find: int<ImpactId> -> ImpactDefinition
-
-  type EngineServices = {
-    abilityStore: IAbilityStore
-    effectStore: IEffectStore
-    formulaStore: IFormulaStore
-    projectileStore: IProjectileStore
-    aoeStore: IAoeStore
-    impactStore: IImpactStore
-    rng: unit -> float
+  [<Struct>]
+  type AudioClip = {
+    Id: int<AudioClipId>
+    Name: string
+    ContentPath: string
+    Category: AudioCategory
+    Volume: float32
+    Pitch: float32
+    Loop: bool
   }
+
+  [<Struct>]
+  type SpatialInfo = {
+    Position: Position
+    MaxDistance: float32
+    Rolloff: float32
+  }
+
+
+  [<Struct>]
+  type AudioTrigger =
+    | AbilityCast of abilityId: int<AbilityId>
+    | AbilityImpact of abilityId: int<AbilityId>
+    | ProjectileTravel of projectileId: int<ProjectileId>
+    | EffectApplied of effectId: int<EffectId>
+    | DamageTaken of isCritical: bool
+    | MissedHit
+    | EntityDeath
+    | Movement of speed: float32
+    | UIClick of elementName: string
+    | AmbienLoop of scenarioId: Guid<ScenarioId>
+
+
+  type AudioEvent = {
+    Id: Guid<AudioEventId>
+    ClipId: int<AudioClipId>
+    Trigger: AudioTrigger
+    SpatialInfo: SpatialInfo voption
+    CreationTick: TimeSpan
+    EntityId: Guid<EntityId> voption
+  }
+
+  [<Struct>]
+  type AudioChange =
+    | PlayAudio of audioEvent: AudioEvent
+    | StopAudio of audioEventId: Guid<AudioEventId>
+    | UpdateAudioPosition of
+      audioEventId: Guid<AudioEventId> *
+      position: Position
+
 
 module VisualEffects =
   open Visuals
@@ -730,6 +760,52 @@ module Scenario =
     BoundsHeight: float32
   }
 
+module Services =
+  open Abilities
+  open Effects
+  open Visuals
+
+  type IAbilityStore =
+    abstract member tryFind: int<AbilityId> -> AbilityKind voption
+    abstract member find: int<AbilityId> -> AbilityKind
+
+  type IEffectStore =
+    abstract member tryFind: int<EffectId> -> EffectDefinition voption
+    abstract member find: int<EffectId> -> EffectDefinition
+
+  type IFormulaStore =
+    abstract member tryFind: int<FormulaId> -> FormulaDefinition voption
+    abstract member find: int<FormulaId> -> FormulaDefinition
+
+  type IProjectileStore =
+    abstract member tryFind: int<ProjectileId> -> ProjectileDefinition voption
+    abstract member find: int<ProjectileId> -> ProjectileDefinition
+
+  type IAoeStore =
+    abstract member tryFind: int<AoeId> -> AoeDefinition voption
+    abstract member find: int<AoeId> -> AoeDefinition
+
+  type IImpactStore =
+    abstract member tryFind: int<ImpactId> -> ImpactDefinition voption
+    abstract member find: int<ImpactId> -> ImpactDefinition
+
+  type IAudioStore =
+    abstract member tryFind: int<AudioClipId> -> Audio.AudioClip voption
+    abstract member find: int<AudioClipId> -> Audio.AudioClip
+    abstract member findByTrigger: Audio.AudioTrigger -> int<AudioClipId>[]
+    abstract member findMusicForScenario: Guid<ScenarioId> -> int<AudioClipId> voption
+
+  type EngineServices = {
+    abilityStore: IAbilityStore
+    effectStore: IEffectStore
+    formulaStore: IFormulaStore
+    projectileStore: IProjectileStore
+    aoeStore: IAoeStore
+    impactStore: IImpactStore
+    audioStore: IAudioStore
+    rng: unit -> float
+  }
+
 module State =
   open Components
   open VisualEffects
@@ -775,4 +851,5 @@ module State =
     scenarioChanges: ScenarioChange[]
     teleports: TeleportChange[]
     visualEffects: VisualEffectChange[]
+    audioChanges: Audio.AudioChange[]
   }

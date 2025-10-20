@@ -1,10 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
-
   <ItemGroup>
     <Compile Include="Domain.fs" />
     <Compile Include="DomainExtensions.fs" />
@@ -17,16 +15,15 @@
     <Compile Include="ScenarioTransitions.fs" />
     <Compile Include="Movement.fs" />
     <Compile Include="EffectApplication.fs" />
+    <Compile Include="Audio.fs" />
     <Compile Include="Gameplay.fs" />
     <Compile Include="BattleManager.fs" />
     <Compile Include="CommandHandler.fs" />
     <Compile Include="GameStateOperations.fs" />
     <Compile Include="Content.fs" />
   </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="FSharp.Data.Adaptive" Version="1.2.25" />
     <PackageReference Include="FSharp.UMX" Version="1.1.0" />
   </ItemGroup>
-
 </Project>

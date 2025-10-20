@@ -335,27 +335,19 @@ module CommandHandler =
           }
 
           return {
-            updates = HashMap.single actorId merged
-            additions = HashMap.empty
-            removals = Array.empty
-            gameTime = ValueNone
-            scenarioChanges = Array.empty
-            teleports = Array.empty
-            visualEffects = visualEffects
+            StateChange.empty with
+                updates = HashMap.single actorId merged
+                visualEffects = visualEffects
           }
         else
           return {
-            updates =
-              HashMap.ofSeq [
-                actorId, actorWithCooldown
-                targetId, targetAfterEffects
-              ]
-            additions = HashMap.empty
-            removals = Array.empty
-            gameTime = ValueNone
-            scenarioChanges = Array.empty
-            teleports = Array.empty
-            visualEffects = visualEffects
+            StateChange.empty with
+                updates =
+                  HashMap.ofSeq [
+                    actorId, actorWithCooldown
+                    targetId, targetAfterEffects
+                  ]
+                visualEffects = visualEffects
           }
       }
 
@@ -369,6 +361,17 @@ module CommandHandler =
         let! gameTime = rparams.gameTime
         let resolutionId = %Guid.NewGuid()
         let mutable visualEffects = ResizeArray()
+        let mutable audioChanges = ResizeArray()
+
+        let castCues =
+          Audio.Cues.createAbilityCastCue
+            rparams.services.audioStore
+            abilityId
+            ractors.actor
+            action.actorComponents.Position
+            gameTime
+
+        audioChanges.AddRange(castCues)
 
         // Schedule visual effects and pending resolutions
         action.abilityDefinition.ProjectileId
@@ -452,13 +455,10 @@ module CommandHandler =
             action.abilityDefinition
 
         return {
-          updates = HashMap.single ractors.actor actorWithCooldown
-          additions = HashMap.empty
-          removals = Array.empty
-          gameTime = ValueNone
-          scenarioChanges = Array.empty
-          teleports = Array.empty
-          visualEffects = visualEffects.ToArray()
+          StateChange.empty with
+              updates = HashMap.single ractors.actor actorWithCooldown
+              visualEffects = visualEffects.ToArray()
+              audioChanges = audioChanges.ToArray()
         }
       }
 
@@ -475,16 +475,7 @@ module CommandHandler =
     | InsufficientResource
     | OnCooldown
     | InvalidTarget
-    | MissingRequirements ->
-      return {
-        updates = HashMap.empty
-        additions = HashMap.empty
-        removals = Array.empty
-        gameTime = ValueNone
-        scenarioChanges = Array.empty
-        teleports = Array.empty
-        visualEffects = Array.empty
-      }
+    | MissingRequirements -> return StateChange.empty
     | ValidAction action ->
       let hasVisualEffect =
         action.abilityDefinition.ProjectileId.IsSome
@@ -523,24 +514,10 @@ module CommandHandler =
         let updatedEntity = { e with Movement = updatedMovement }
 
         return {
-          updates = HashMap.ofSeq [ action.actor, updatedEntity ]
-          additions = HashMap.empty
-          removals = Array.empty
-          gameTime = ValueNone
-          scenarioChanges = Array.empty
-          teleports = Array.empty
-          visualEffects = Array.empty
+          StateChange.empty with
+              updates = HashMap.ofSeq [ action.actor, updatedEntity ]
         }
-      | None ->
-        return {
-          updates = HashMap.empty
-          additions = HashMap.empty
-          removals = Array.empty
-          gameTime = ValueNone
-          scenarioChanges = Array.empty
-          teleports = Array.empty
-          visualEffects = Array.empty
-        }
+      | None -> return StateChange.empty
     }
 
   let resolveAdvancePosition
@@ -574,34 +551,12 @@ module CommandHandler =
           let updatedEntity = { e with Position = proposedPos }
 
           return {
-            updates = HashMap.ofSeq [ action.actor, updatedEntity ]
-            additions = HashMap.empty
-            removals = Array.empty
-            gameTime = ValueNone
-            scenarioChanges = Array.empty
-            teleports = Array.empty
-            visualEffects = Array.empty
+            StateChange.empty with
+                updates = HashMap.ofSeq [ action.actor, updatedEntity ]
           }
         else
-          return {
-            updates = HashMap.empty
-            additions = HashMap.empty
-            removals = Array.empty
-            gameTime = ValueNone
-            scenarioChanges = Array.empty
-            teleports = Array.empty
-            visualEffects = Array.empty
-          }
-      | None ->
-        return {
-          updates = HashMap.empty
-          additions = HashMap.empty
-          removals = Array.empty
-          gameTime = ValueNone
-          scenarioChanges = Array.empty
-          teleports = Array.empty
-          visualEffects = Array.empty
-        }
+          return StateChange.empty
+      | None -> return StateChange.empty
     }
 
   let resolveUseAbility
@@ -615,15 +570,7 @@ module CommandHandler =
       | ValueNone
       | ValueSome(Passive _) ->
         // Passive abilities cannot be invoked
-        return {
-          updates = HashMap.empty
-          additions = HashMap.empty
-          removals = Array.empty
-          gameTime = ValueNone
-          scenarioChanges = Array.empty
-          teleports = Array.empty
-          visualEffects = Array.empty
-        }
+        return StateChange.empty
       | ValueSome(Active abilityDef) ->
       // Determine actual targets based on ability targeting constraints
       let actualTargets =
@@ -656,6 +603,8 @@ module CommandHandler =
                 updates = HashMap.union acc.updates result.updates
                 visualEffects =
                   Array.append acc.visualEffects result.visualEffects
+                audioChanges =
+                  Array.append acc.audioChanges result.audioChanges
           })
           StateChange.empty
     }
@@ -716,13 +665,8 @@ module CommandHandler =
         processReplenishments (ref dependencies) 0 HashMap.empty
 
       return {
-        updates = updatedEntities
-        additions = HashMap.empty
-        removals = Array.empty
-        gameTime = ValueNone
-        scenarioChanges = Array.empty
-        teleports = Array.empty
-        visualEffects = Array.empty
+        StateChange.empty with
+            updates = updatedEntities
       }
     }
 
@@ -764,42 +708,23 @@ module CommandHandler =
           Duel.cancel canceller otherPlayer scenarioState
 
       return {
-        updates = HashMap.empty
-        additions = HashMap.empty
-        removals = Array.empty
-        gameTime = ValueNone
-        scenarioChanges = scenarioChanges
-        teleports = Array.empty
-        visualEffects = Array.empty
+        StateChange.empty with
+            scenarioChanges = scenarioChanges
       }
     | RemoveEntities entityIds ->
       return {
-        updates = HashMap.empty
-        additions = HashMap.empty
-        removals = entityIds |> Seq.toArray
-        gameTime = ValueNone
-        scenarioChanges = Array.empty
-        teleports = Array.empty
-        visualEffects = Array.empty
+        StateChange.empty with
+            removals = entityIds |> Seq.toArray
       }
     | AddEntities entitiesToAdd ->
       return {
-        updates = HashMap.empty
-        additions = entitiesToAdd
-        removals = Array.empty
-        gameTime = ValueNone
-        scenarioChanges = Array.empty
-        teleports = Array.empty
-        visualEffects = Array.empty
+        StateChange.empty with
+            additions = entitiesToAdd
       }
+
     | Teleport tp ->
       return {
-        updates = HashMap.empty
-        additions = HashMap.empty
-        removals = Array.empty
-        gameTime = ValueNone
-        scenarioChanges = Array.empty
-        teleports = [| tp |]
-        visualEffects = Array.empty
+        StateChange.empty with
+            teleports = [| tp |]
       }
   }

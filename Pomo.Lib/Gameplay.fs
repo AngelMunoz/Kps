@@ -314,11 +314,23 @@ module Projectile =
                   targetAfterDamage
 
               let visualEffects = ResizeArray()
+              let audioChanges = ResizeArray()
+
               visualEffects.Add(RemoveProjectile projId)
 
               visualEffects.Add(
                 RemovePendingResolution proj.PendingResolutionId
               )
+
+              let impactCues =
+                Audio.Cues.createAbilityImpactCue
+                  state.services.audioStore
+                  resolution.AbilityId
+                  proj.TargetId
+                  target.Position
+                  newTime
+
+              audioChanges.AddRange(impactCues)
 
               if damageResult.IsEvaded then
                 visualEffects.Add(
@@ -330,6 +342,28 @@ module Projectile =
                     CreationTick = newTime
                   }
                 )
+
+                let cues =
+                  state.services.audioStore.findByTrigger
+                    Audio.AudioTrigger.MissedHit
+
+                cues
+                |> Array.map(fun clipId ->
+                  Audio.PlayAudio {
+                    Id = %Guid.NewGuid()
+                    ClipId = clipId
+                    Trigger = Audio.AudioTrigger.MissedHit
+                    SpatialInfo =
+                      ValueSome {
+                        Position = target.Position
+                        MaxDistance = 500f
+                        Rolloff = 1f
+                      }
+                    CreationTick = newTime
+                    EntityId = ValueSome proj.TargetId
+                  })
+                |> audioChanges.AddRange
+
               elif damageResult.Amount > 0 then
                 visualEffects.Add(
                   AddFloatingText {
@@ -345,10 +379,33 @@ module Projectile =
                   }
                 )
 
+                let damageCue =
+                  Audio.AudioTrigger.DamageTaken damageResult.IsCritical
+
+                let cues = state.services.audioStore.findByTrigger damageCue
+
+                cues
+                |> Array.map(fun clipId ->
+                  Audio.PlayAudio {
+                    Id = %Guid.NewGuid()
+                    ClipId = clipId
+                    Trigger = damageCue
+                    SpatialInfo =
+                      ValueSome {
+                        Position = target.Position
+                        MaxDistance = 500f
+                        Rolloff = 1f
+                      }
+                    CreationTick = newTime
+                    EntityId = ValueSome proj.TargetId
+                  })
+                |> audioChanges.AddRange
+
               return {
                 StateChange.empty with
                     updates = HashMap.single proj.TargetId targetAfterEffects
                     visualEffects = visualEffects.ToArray()
+                    audioChanges = audioChanges.ToArray()
               }
             | _ -> return StateChange.empty
           else
@@ -562,6 +619,7 @@ module GameState =
               updates = HashMap.union acc.updates change.updates
               visualEffects =
                 Array.append acc.visualEffects change.visualEffects
+              audioChanges = Array.append acc.audioChanges change.audioChanges
         })
       )
 
@@ -573,6 +631,7 @@ module GameState =
               updates = HashMap.union acc.updates change.updates
               visualEffects =
                 Array.append acc.visualEffects change.visualEffects
+              audioChanges = Array.append acc.audioChanges change.audioChanges
         })
       )
 
@@ -649,14 +708,18 @@ module GameState =
             acc)
       )
 
+    let audioChanges =
+      Array.concat [|
+        projectileStateChanges.audioChanges
+        nonProjectileResolutionChanges.audioChanges
+      |]
+
     return {
-      updates = finalUpdates
-      additions = HashMap.empty
-      removals = Array.empty
-      gameTime = ValueSome newTime
-      scenarioChanges = Array.empty
-      teleports = Array.empty
-      visualEffects = visualEffectChanges
+      StateChange.empty with
+          updates = finalUpdates
+          visualEffects = visualEffectChanges
+          audioChanges = audioChanges
+          gameTime = ValueSome newTime
     }
   }
 

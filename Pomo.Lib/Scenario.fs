@@ -75,14 +75,10 @@ module ScenarioManager =
     (entityId: Guid<EntityId>)
     (entityComponents: EntityComponents)
     : StateChange =
+
     {
-      updates = HashMap.empty
-      additions = HashMap.single entityId entityComponents
-      removals = [||]
-      gameTime = ValueNone
-      scenarioChanges = Array.empty
-      teleports = Array.empty
-      visualEffects = Array.empty
+      StateChange.empty with
+          additions = HashMap.single entityId entityComponents
     }
 
   let removeEntityFromScenario
@@ -90,13 +86,8 @@ module ScenarioManager =
     (entityId: Guid<EntityId>)
     : StateChange =
     {
-      updates = HashMap.empty
-      additions = HashMap.empty
-      removals = [| entityId |]
-      gameTime = ValueNone
-      scenarioChanges = Array.empty
-      teleports = Array.empty
-      visualEffects = Array.empty
+      StateChange.empty with
+          removals = [| entityId |]
     }
 
   let listScenarios(gameState: GameStateScenarios) =

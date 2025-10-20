@@ -91,24 +91,14 @@ module GameState =
     }
 
     {
-      updates = HashMap.empty
-      additions = HashMap.ofList [ newId, configure newEntity ]
-      removals = Array.empty
-      gameTime = ValueNone
-      scenarioChanges = Array.empty
-      teleports = Array.empty
-      visualEffects = Array.empty
+      StateChange.empty with
+          additions = HashMap.ofList [ newId, configure newEntity ]
     }
 
   /// Removes an entity from the game state.
   let removeEntity entityId = {
-    updates = HashMap.empty
-    additions = HashMap.empty
-    removals = [| entityId |]
-    gameTime = ValueNone
-    scenarioChanges = Array.empty
-    teleports = Array.empty
-    visualEffects = Array.empty
+    StateChange.empty with
+        removals = [| entityId |]
   }
 
   let getEntity entityId (state: GameState) =
@@ -162,13 +152,8 @@ module GameState =
         }
 
         Ok {
-          updates = HashMap.ofList [ entityId, updatedComponents ]
-          additions = HashMap.empty
-          removals = Array.empty
-          gameTime = ValueNone
-          scenarioChanges = Array.empty
-          teleports = Array.empty
-          visualEffects = Array.empty
+          StateChange.empty with
+              updates = HashMap.ofList [ entityId, updatedComponents ]
         }
 
   /// Removes equipment from the specified slot.
@@ -192,13 +177,8 @@ module GameState =
 
 
       Ok {
-        updates = HashMap.ofList [ entityId, updatedComponents ]
-        additions = HashMap.empty
-        removals = Array.empty
-        gameTime = ValueNone
-        scenarioChanges = Array.empty
-        teleports = Array.empty
-        visualEffects = Array.empty
+        StateChange.empty with
+            updates = HashMap.ofList [ entityId, updatedComponents ]
       }
 
 
@@ -236,13 +216,8 @@ module GameState =
       }
 
       Ok {
-        updates = HashMap.ofList [ entityId, updatedComponents ]
-        additions = HashMap.empty
-        removals = Array.empty
-        gameTime = ValueNone
-        scenarioChanges = Array.empty
-        teleports = Array.empty
-        visualEffects = Array.empty
+        StateChange.empty with
+            updates = HashMap.ofList [ entityId, updatedComponents ]
       }
 
   let activateAbility
