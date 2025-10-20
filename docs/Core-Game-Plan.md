@@ -1,4 +1,4 @@
-# Core Game Plan - MonoGame Integration & Gameplay Systems
+﻿# Core Game Plan - MonoGame Integration & Gameplay Systems
 
 **Status**: 🚧 **PHASE 6.9 IN PROGRESS** - Implemented deferred resolution system for abilities. Projectiles now dynamically track targets and apply effects on collision, synchronizing visual feedback with gameplay impact.
 
@@ -1131,7 +1131,7 @@ All of the above remains valid; new EngagementMode and BattleInstance mechanics 
 - [x] Damage number system
 - [x] Ability visual effects (basic)
 - [x] Status effect indicators
-- [ ] Sound effects (optional)
+- [x] Sound effects (optional)
 - [ ] UI animations and polish
 
 **Testing Requirements**:
