@@ -9,14 +9,18 @@ open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.Effects
+open Pomo.Lib.Domain.State
 open Pomo.Lib.Content
 open Pomo.Lib.Rules
 open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Tests.TestHelpers
 open Pomo.Lib.Scenario
 open Pomo.Lib.Content
+open Pomo.Lib.Gameplay
+open Pomo.Lib.Operations
 
 module private Phase3Helpers =
+  open Pomo.Lib.Domain.Scenario
 
   let create(rng: unit -> float) =
     let initialScenarioId = %Guid.NewGuid()
@@ -66,6 +70,52 @@ module private Phase3Helpers =
               member _.find formulaId =
                 FormulaStore.definitions |> Map.find formulaId
           }
+        projectileStore =
+          { new Services.IProjectileStore with
+              member _.tryFind projectileId =
+                ProjectileStore.definitions
+                |> Map.tryFind projectileId
+                |> ValueOption.ofOption
+
+              member _.find projectileId =
+                ProjectileStore.definitions |> Map.find projectileId
+          }
+        aoeStore =
+          { new Services.IAoeStore with
+              member _.tryFind aoeId =
+                AoeStore.definitions
+                |> Map.tryFind aoeId
+                |> ValueOption.ofOption
+
+              member _.find aoeId = AoeStore.definitions |> Map.find aoeId
+          }
+        impactStore =
+          { new Services.IImpactStore with
+              member _.tryFind impactId =
+                ImpactStore.definitions
+                |> Map.tryFind impactId
+                |> ValueOption.ofOption
+
+              member _.find impactId =
+                ImpactStore.definitions |> Map.find impactId
+          }
+        audioStore =
+          { new Services.IAudioStore with
+              member _.tryFind clipId =
+                AudioStore.definitions
+                |> Map.tryFind clipId
+                |> ValueOption.ofOption
+
+              member _.find clipId =
+                AudioStore.definitions |> Map.find clipId
+
+              member _.findByTrigger trigger =
+                AudioStore.triggerMap
+                |> Map.tryFind trigger
+                |> Option.defaultValue Array.empty
+
+              member _.findMusicForScenario scenarioId = ValueNone
+          }
         rng = rng
       }
       (initialScenarioId, cmap [ (initialScenarioId, initialScenarioState) ])
@@ -73,7 +123,7 @@ module private Phase3Helpers =
   let baseStats = {
     Power = 12
     Magic = 4
-    Sense = 50 // High LK to guarantee hits
+    Sense = 50
     Charm = 10
   }
 
@@ -83,12 +133,14 @@ module private Phase3Helpers =
     hp
     mp
     (abilities: int<AbilityId> list)
-    (effects: (int<EffectId> * int * int64<Tick>) list)
+    (effects: (int<EffectId> * int * TimeSpan) list)
     (factions: Classification.Faction seq)
     =
-    let cooldowns: HashMap<int<AbilityId>, int64<Tick>> =
+    let cooldowns: HashMap<int<AbilityId>, TimeSpan> =
       abilities
-      |> List.fold (fun acc a -> acc |> HashMap.add a 0L<Tick>) HashMap.empty
+      |> List.fold
+        (fun acc a -> acc |> HashMap.add a TimeSpan.Zero)
+        HashMap.empty
 
     let activeEffects: HashMap<int<EffectId>, ActiveEffect> =
       effects
@@ -98,7 +150,7 @@ module private Phase3Helpers =
             EffectId = effectId
             SourceId = id
             RemainingTicks = remaining
-            NextTickIn = 0L<Tick>
+            NextTickIn = TimeSpan.Zero
             Stacks = stacks
             Definition = EffectStore.definitions[effectId]
           }
@@ -132,37 +184,30 @@ module private Phase3Helpers =
     }
 
   let addEntity
-    (state: Gameplay.GameState)
+    (state: State.GameState)
     (id: Guid<EntityId>)
     (all: EntityComponents)
     =
     let scenario = getActiveScenario state
     transact(fun _ -> scenario.entities.Add(id, all) |> ignore)
 
-  let derivedOf (state: Gameplay.GameState) (id: Guid<EntityId>) =
+  let derivedOf (state: State.GameState) (id: Guid<EntityId>) =
     getDerivedStat state id
 
 open Phase3Helpers
 
-// T1 Shield absorption (basic) -------------------------------------------------
-
-
-
-// T2 Stun prevents all actions -----------------------------------------------
-
 type ``Phase3 - Stun``() =
   [<Fact>]
   member _.``T2 Stun prevents all actions``() =
-    // Arrange
     let state = create(fun () -> 0.5)
     let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 1<AbilityId>
-    let stunEffectId = 100<EffectId> // Stun
+    let stunEffectId = 100<EffectId>
 
     let attacker =
       makeEntity attackerId baseStats 100 30 [ melee ] [
-        (stunEffectId, 1, 10000L<Tick>)
+        (stunEffectId, 1, TimeSpan.FromSeconds(10.0))
       ] [ Classification.Player ]
 
     let target =
@@ -174,19 +219,16 @@ type ``Phase3 - Stun``() =
     let initialTargetHp = (getEntity state targetId).Resources.HP
     let initialAttackerMp = (getEntity state attackerId).Resources.MP
 
-    // Act
-    let action =
-      UseAbility {
-        actor = attackerId
-        targets = [| targetId |]
-        abilityId = melee
-      }
+    let action = {
+      actor = attackerId
+      target = EntityTargets [| targetId |]
+      abilityId = melee
+    }
 
-    let delta = Resolution.evaluate state action
+    let delta = CommandHandler.evaluate state (UseAbility action)
     let change = delta |> AVal.force
-    Gameplay.GameState.apply state change
+    GameState.apply state change
 
-    // Assert
     let finalTargetHp = (getEntity state targetId).Resources.HP
     Assert.Equal<int>(initialTargetHp, finalTargetHp)
 
@@ -196,18 +238,17 @@ type ``Phase3 - Stun``() =
     let cooldown =
       (getEntity state attackerId).AbilityCooldowns |> HashMap.find melee
 
-    Assert.Equal(0L<Tick>, cooldown)
+    Assert.Equal(TimeSpan.Zero, cooldown)
 
 type ``Phase3 - Silence``() =
   [<Fact>]
   member _.``T3 Silence blocks MP abilities``() =
-    // Arrange
     let state = create(fun () -> 0.5)
     let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let melee = 8<AbilityId> // Basic Melee Attack
-    let silence = 9<AbilityId> // Silence Spell
-    let meleeWithCost = 1<AbilityId> // Melee with MP cost
+    let melee = 8<AbilityId>
+    let silence = 9<AbilityId>
+    let meleeWithCost = 1<AbilityId>
 
     let attacker =
       makeEntity attackerId baseStats 100 30 [ silence ] [] [
@@ -225,23 +266,19 @@ type ``Phase3 - Silence``() =
     let initialTargetHp = (getEntity state targetId).Resources.HP
     let initialAttackerMp = (getEntity state attackerId).Resources.MP
 
-    // Act 1: Attempt to cast a spell (should fail)
-    let spellAction =
-      UseAbility {
-        actor = attackerId
-        targets = [| targetId |]
-        abilityId = silence
-      }
+    let spellAction = {
+      actor = attackerId
+      target = EntityTargets [| targetId |]
+      abilityId = silence
+    }
 
-    let spellDelta = Resolution.evaluate state spellAction
+    let spellDelta = CommandHandler.evaluate state (UseAbility spellAction)
     let spellChange = spellDelta |> AVal.force
-    Gameplay.GameState.apply state spellChange
+    GameState.apply state spellChange
 
-    // Assert 1
     let targetHpAfterSpell = (getEntity state targetId).Resources.HP
     Assert.Equal<int>(initialTargetHp, targetHpAfterSpell)
 
-    // Silence spell should cost MP
     let attackerMpAfterSpell = (getEntity state attackerId).Resources.MP
 
     let silenceSpellCost =
@@ -253,7 +290,6 @@ type ``Phase3 - Silence``() =
 
     Assert.Equal(expectedMpAfterSpell, attackerMpAfterSpell)
 
-    // Check that silence effect was applied to target
     let targetEffects = (getEntity state targetId).Effects
 
     let hasSilenceEffect =
@@ -261,17 +297,14 @@ type ``Phase3 - Silence``() =
 
     Assert.True(hasSilenceEffect, "Target should have silence effect")
 
-    // Tick the game to process effects
-    let advance = Gameplay.GameState.tick state 100L<Tick> |> AVal.force
-    Gameplay.GameState.apply state advance
+    let advance = GameState.tick state (TimeSpan.FromSeconds(0.1)) |> AVal.force
+    GameState.apply state advance
 
-    // Act 2: Perform a melee with mp cost attack
     let initialHpAttackerBeforeTargetMeele =
       (getEntity state attackerId).Resources.HP
 
     let targetMpBeforeAttack = (getEntity state targetId).Resources.MP
 
-    // Check target has silence effect before attempting MP attack
     let targetEffectsBeforeMpAttack = (getEntity state targetId).Effects
 
     let hasSilenceBeforeMpAttack =
@@ -283,63 +316,52 @@ type ``Phase3 - Silence``() =
       "Target should still have silence effect before MP attack"
     )
 
-    let meleeAction =
-      // The target returns the attack to the attacker
-      UseAbility {
-        actor = targetId
-        targets = [| attackerId |]
-        abilityId = meleeWithCost
-      }
+    let meleeAction = {
+      actor = targetId
+      target = EntityTargets [| attackerId |]
+      abilityId = meleeWithCost
+    }
 
-    let meleeDelta = Resolution.evaluate state meleeAction
+    let meleeDelta = CommandHandler.evaluate state (UseAbility meleeAction)
     let meleeChange = meleeDelta |> AVal.force
-    Gameplay.GameState.apply state meleeChange
+    GameState.apply state meleeChange
 
-    // Assert 2
     let attackerHpAfterTargetMelee = (getEntity state attackerId).Resources.HP
     let targetMpAfterAttack = (getEntity state targetId).Resources.MP
 
-    // target is silenced, so melee should not hit
     Assert.Equal<int>(
       attackerHpAfterTargetMelee,
       initialHpAttackerBeforeTargetMeele
     )
 
-    // target is silenced, no mp should be spent
     Assert.Equal(targetMpBeforeAttack, targetMpAfterAttack)
 
+    let meleeWithNoCostAction = {
+      actor = targetId
+      target = EntityTargets [| attackerId |]
+      abilityId = melee
+    }
 
-    // Mele with MP is silenced, target will try to return attack with melee with no MP Cost
+    let meleeWithCostDelta =
+      CommandHandler.evaluate state (UseAbility meleeWithNoCostAction)
 
-    let meleeWithNoCostAction =
-      // The target returns the attack to the attacker
-      UseAbility {
-        actor = targetId
-        targets = [| attackerId |]
-        abilityId = melee
-      }
-
-    let meleeWithCostDelta = Resolution.evaluate state meleeWithNoCostAction
     let meleeWithCostChange = meleeWithCostDelta |> AVal.force
-    Gameplay.GameState.apply state meleeWithCostChange
+    GameState.apply state meleeWithCostChange
 
     let attackerHpAfterTargetMeleeWithNoCost =
       (getEntity state attackerId).Resources.HP
 
     Assert.Equal<int>(70, attackerHpAfterTargetMeleeWithNoCost)
 
-// T4 Taunt redirection -------------------------------------------------------
-
 type ``Phase3 - Taunt``() =
   [<Fact>]
   member _.``T4 Taunt redirection forces target to taunter``() =
-    // Arrange
     let state = create(fun () -> 0.1)
     let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
     let intendedTargetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let taunterId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 1<AbilityId>
-    let tauntEffectId = 103<EffectId> // Taunt
+    let tauntEffectId = 103<EffectId>
 
     let tauntBaseStats = {
       Power = 10
@@ -365,12 +387,11 @@ type ``Phase3 - Taunt``() =
     addEntity state intendedTargetId intendedTarget
     addEntity state taunterId taunter
 
-    // Apply taunt to the attacker from the taunter
     let tauntEffect = {
       EffectId = tauntEffectId
       SourceId = taunterId
-      RemainingTicks = 10000L<Tick>
-      NextTickIn = 0L<Tick>
+      RemainingTicks = TimeSpan.FromSeconds(10.0)
+      NextTickIn = TimeSpan.Zero
       Stacks = 1
       Definition = EffectStore.definitions[tauntEffectId]
     }
@@ -387,19 +408,16 @@ type ``Phase3 - Taunt``() =
 
     let initialTaunterHp = (getEntity state taunterId).Resources.HP
 
-    // Act
-    let action =
-      UseAbility {
-        actor = attackerId
-        targets = [| intendedTargetId |]
-        abilityId = melee
-      }
+    let action = {
+      actor = attackerId
+      target = EntityTargets [| intendedTargetId |]
+      abilityId = melee
+    }
 
-    let delta = Resolution.evaluate state action
+    let delta = CommandHandler.evaluate state (UseAbility action)
     let change = delta |> AVal.force
-    Gameplay.GameState.apply state change
+    GameState.apply state change
 
-    // Assert
     let finalIntendedTargetHp = (getEntity state intendedTargetId).Resources.HP
     Assert.Equal<int>(initialIntendedTargetHp, finalIntendedTargetHp)
 
@@ -410,17 +428,14 @@ type ``Phase3 - Taunt``() =
       "Taunter should have taken damage"
     )
 
-// T5 Effect stacking: NoStack ------------------------------------------------
-
 type ``Phase3 - Effect Stacking``() =
   [<Fact>]
   member _.``T5 NoStack ignores second application``() =
-    // Arrange
     let state = create(fun () -> 0.5)
     let casterId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let spellId = 3<AbilityId> // A spell that applies a NoStack effect
-    let noStackEffectId = 104<EffectId> // Assuming this is a NoStack effect
+    let spellId = 3<AbilityId>
+    let noStackEffectId = 104<EffectId>
 
     let caster =
       makeEntity casterId baseStats 100 100 [ spellId ] [] [
@@ -435,19 +450,18 @@ type ``Phase3 - Effect Stacking``() =
 
     let applySpell() =
       let delta =
-        Resolution.evaluate
+        CommandHandler.evaluate
           state
           (UseAbility {
             actor = casterId
-            targets = [| targetId |]
+            target = EntityTargets [| targetId |]
             abilityId = spellId
           })
 
       let change = delta |> AVal.force
-      Gameplay.GameState.apply state change
+      GameState.apply state change
 
-    // Act
-    applySpell() // First application
+    applySpell()
     let effectsAfterFirst = (getEntity state targetId).Effects
     let firstEffectOpt = effectsAfterFirst |> HashMap.tryFind noStackEffectId
 
@@ -457,11 +471,10 @@ type ``Phase3 - Effect Stacking``() =
     )
 
     let firstEffect = firstEffectOpt.Value
-    let advance = Gameplay.GameState.tick state 1000L<Tick> |> AVal.force
-    Gameplay.GameState.apply state advance // Advance time slightly
-    applySpell() // Second application
+    let advance = GameState.tick state (TimeSpan.FromSeconds(1.0)) |> AVal.force
+    GameState.apply state advance
+    applySpell()
     let effectsAfterSecond = (getEntity state targetId).Effects
-    // Assert
     Assert.Equal(1, (effectsAfterFirst |> HashMap.toSeq |> Seq.length))
     Assert.Equal(1, (effectsAfterSecond |> HashMap.toSeq |> Seq.length))
     let secondEffectOpt = effectsAfterSecond |> HashMap.tryFind noStackEffectId
@@ -472,20 +485,18 @@ type ``Phase3 - Effect Stacking``() =
     )
 
     let secondEffect = secondEffectOpt.Value
-    let remaining = firstEffect.RemainingTicks - 1000L<Tick>
+    let remaining = firstEffect.RemainingTicks - TimeSpan.FromSeconds(1.0)
     let secondRemaining = secondEffect.RemainingTicks
     Assert.Equal(remaining, secondRemaining)
     Assert.Equal(1, secondEffect.Stacks)
 
-  // T6 Effect stacking: RefreshDuration --------------------------------------
   [<Fact>]
   member _.``T6 RefreshDuration resets timer, stack count unchanged``() =
-    // Arrange
     let state = create(fun () -> 0.5)
     let casterId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let spellId = 4<AbilityId> // A spell that applies a RefreshDuration effect
-    let refreshEffectId = 1<EffectId> // Minor Strength Buff
+    let spellId = 4<AbilityId>
+    let refreshEffectId = 1<EffectId>
 
     let caster =
       makeEntity casterId baseStats 100 100 [ spellId ] [] [
@@ -500,19 +511,18 @@ type ``Phase3 - Effect Stacking``() =
 
     let applySpell() =
       let delta =
-        Resolution.evaluate
+        CommandHandler.evaluate
           state
           (UseAbility {
             actor = casterId
-            targets = [| targetId |]
+            target = EntityTargets [| targetId |]
             abilityId = spellId
           })
 
       let change = delta |> AVal.force
-      Gameplay.GameState.apply state change
+      GameState.apply state change
 
-    // Act
-    applySpell() // First application
+    applySpell()
     let effectsAfterFirst = (getEntity state targetId).Effects
 
     let firstEffect =
@@ -520,15 +530,14 @@ type ``Phase3 - Effect Stacking``() =
       |> HashMap.tryFindV refreshEffectId
       |> ValueOption.toOption
 
-    // Skip test if effect wasn't applied (due to hit/miss)
     match firstEffect with
-    | None -> () // Test passes - effect wasn't applied due to miss
+    | None -> ()
     | Some firstEffect ->
 
-    let advance = Gameplay.GameState.tick state 1000L<Tick> |> AVal.force
-    Gameplay.GameState.apply state advance // Advance time
+    let advance = GameState.tick state (TimeSpan.FromSeconds(1.0)) |> AVal.force
+    GameState.apply state advance
 
-    applySpell() // Second application (should refresh)
+    applySpell()
     let effectsAfterSecond = (getEntity state targetId).Effects
 
     let secondEffect =
@@ -537,9 +546,8 @@ type ``Phase3 - Effect Stacking``() =
       |> ValueOption.toOption
 
     match secondEffect with
-    | None -> () // Effect wasn't applied in second cast either
+    | None -> ()
     | Some secondEffect ->
-      // Assert
       let effectDef = EffectStore.definitions[refreshEffectId]
 
       let expectedDuration =
@@ -549,27 +557,23 @@ type ``Phase3 - Effect Stacking``() =
 
       Assert.Equal(1, (effectsAfterFirst |> HashMap.toSeq |> Seq.length))
       Assert.Equal(1, (effectsAfterSecond |> HashMap.toSeq |> Seq.length))
-      Assert.Equal(1, secondEffect.Stacks) // Stacks should not change
+      Assert.Equal(1, secondEffect.Stacks)
 
-      // The duration should be reset to the full value
       Assert.True(
-        secondEffect.RemainingTicks > firstEffect.RemainingTicks - 1000L<Tick>,
+        secondEffect.RemainingTicks > firstEffect.RemainingTicks
+                                      - TimeSpan.FromSeconds(1.0),
         "Duration should be refreshed"
       )
 
       Assert.Equal(expectedDuration, secondEffect.RemainingTicks)
 
-
-
-  // T8 DoT ticking applies periodic damage -----------------------------------
   [<Fact>]
   member _.``T8 DoT ticking applies periodic damage and expires``() =
-    // Arrange
     let state = create(fun () -> 0.5)
     let casterId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let spellId = 6<AbilityId> // Poison Spell
-    let _ = 105<EffectId> // Poison
+    let spellId = 6<AbilityId>
+    let _ = 105<EffectId>
 
     let caster =
       makeEntity casterId baseStats 100 100 [ spellId ] [] [
@@ -584,28 +588,25 @@ type ``Phase3 - Effect Stacking``() =
 
     let applySpell() =
       let delta =
-        Resolution.evaluate
+        CommandHandler.evaluate
           state
           (UseAbility {
             actor = casterId
-            targets = [| targetId |]
+            target = EntityTargets [| targetId |]
             abilityId = spellId
           })
 
       let change = delta |> AVal.force
-      Gameplay.GameState.apply state change
+      GameState.apply state change
 
     let hp() = (getEntity state targetId).Resources.HP
     let _ = hp()
 
-    // Act
     applySpell()
     let hpAfterApply = hp()
-    // Skip initial damage check due to hit/miss mechanics - focus on DoT
 
-    // Tick forward to trigger DoT
-    let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.apply state advance // 1st tick
+    let advance = GameState.tick state (TimeSpan.FromSeconds(2.0)) |> AVal.force
+    GameState.apply state advance
     let hpAfterTick1 = hp()
 
     Assert.True(
@@ -613,34 +614,31 @@ type ``Phase3 - Effect Stacking``() =
       "DoT should reduce HP on first tick"
     )
 
-    let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.apply state advance // 2nd tick
+    let advance = GameState.tick state (TimeSpan.FromSeconds(2.0)) |> AVal.force
+    GameState.apply state advance
     let hpAfterTick2 = hp()
     Assert.True(hpAfterTick2 < hpAfterTick1, "DoT should continue reducing HP")
 
-    let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.apply state advance // 3rd tick
+    let advance = GameState.tick state (TimeSpan.FromSeconds(2.0)) |> AVal.force
+    GameState.apply state advance
     let hpAfterTick3 = hp()
     Assert.True(hpAfterTick3 < hpAfterTick2, "DoT should continue reducing HP")
 
-    let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.apply state advance // 4th tick
+    let advance = GameState.tick state (TimeSpan.FromSeconds(2.0)) |> AVal.force
+    GameState.apply state advance
     let hpAfterTick4 = hp()
     Assert.True(hpAfterTick4 < hpAfterTick3, "DoT should continue reducing HP")
 
-    // Effect should have expired now (8000L<ticks> total duration)
     let effects = (getEntity state targetId).Effects
     Assert.True(HashMap.isEmpty effects)
 
-  // T9 HoT ticking applies periodic healing ------------------------------------
   [<Fact>]
   member _.``T9 HoT ticking applies periodic healing and expires``() =
-    // Arrange
     let state = create(fun () -> 0.5)
     let casterId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let spellId = 7<AbilityId> // Regen Spell
-    let _ = 106<EffectId> // Regeneration
+    let spellId = 7<AbilityId>
+    let _ = 106<EffectId>
 
     let caster =
       makeEntity casterId baseStats 100 100 [ spellId ] [] [
@@ -648,70 +646,61 @@ type ``Phase3 - Effect Stacking``() =
       ]
 
     let target =
-      makeEntity targetId baseStats 50 100 [] [] [ Classification.Enemy ] // Start with 50 HP
+      makeEntity targetId baseStats 50 100 [] [] [ Classification.Enemy ]
 
     addEntity state casterId caster
     addEntity state targetId target
 
     let applySpell() =
       let delta =
-        Resolution.evaluate
+        CommandHandler.evaluate
           state
           (UseAbility {
             actor = casterId
-            targets = [| targetId |]
+            target = EntityTargets [| targetId |]
             abilityId = spellId
           })
 
       let change = delta |> AVal.force
-      Gameplay.GameState.apply state change
+      GameState.apply state change
 
     let hp() = (getEntity state targetId).Resources.HP
     let initialHp = hp()
 
-    // Act
     applySpell()
     let hpAfterApply = hp()
-    // Regen spell has no FormulaId, so no initial damage
     Assert.Equal<int>(initialHp, hpAfterApply)
 
-    // Tick forward to trigger HoT
-    let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.apply state advance // 1st tick
+    let advance = GameState.tick state (TimeSpan.FromSeconds(2.0)) |> AVal.force
+    GameState.apply state advance
     let hpAfterTick1 = hp()
     Assert.Equal(initialHp + 5, hpAfterTick1)
 
-    let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.apply state advance // 2nd tick
+    let advance = GameState.tick state (TimeSpan.FromSeconds(2.0)) |> AVal.force
+    GameState.apply state advance
     let hpAfterTick2 = hp()
     Assert.Equal(initialHp + 10, hpAfterTick2)
 
-    let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.apply state advance // 3rd tick
+    let advance = GameState.tick state (TimeSpan.FromSeconds(2.0)) |> AVal.force
+    GameState.apply state advance
     let hpAfterTick3 = hp()
     Assert.Equal(initialHp + 15, hpAfterTick3)
 
-    let advance = Gameplay.GameState.tick state 2000L<Tick> |> AVal.force
-    Gameplay.GameState.apply state advance // 4th tick
+    let advance = GameState.tick state (TimeSpan.FromSeconds(2.0)) |> AVal.force
+    GameState.apply state advance
     let hpAfterTick4 = hp()
     Assert.Equal(initialHp + 20, hpAfterTick4)
 
-    // Effect should have expired now (8000L<ticks> total duration)
     let effects = (getEntity state targetId).Effects
     Assert.True(HashMap.isEmpty effects)
 
-// T10 Shield partial depletion across multiple hits (spillover to HP) -----------
-
-
-// T11 Deterministic RNG yields identical damage sequence ------------------
 type ``Phase3 - Determinism``() =
   [<Fact>]
   member _.``T11 Deterministic RNG yields identical damage sequence with fixed seed``
     ()
     =
-    // Arrange: Create two identical game states with the same RNG seed
-    let rng1 = fun () -> 0.3 // Fixed value
-    let rng2 = fun () -> 0.3 // Same fixed value
+    let rng1 = fun () -> 0.3
+    let rng2 = fun () -> 0.3
 
     let state1 = create rng1
     let state2 = create rng2
@@ -743,31 +732,33 @@ type ``Phase3 - Determinism``() =
 
     let performAttack state =
       let delta =
-        Resolution.evaluate
+        CommandHandler.evaluate
           state
           (UseAbility {
             actor = attackerId
-            targets = [| targetId |]
+            target = EntityTargets [| targetId |]
             abilityId = melee
           })
 
       let change = delta |> AVal.force
-      Gameplay.GameState.apply state change
+      GameState.apply state change
 
-    // Act: Perform the same sequence of actions on both states
     performAttack state1
     performAttack state2
 
-    // Assert: Both states should have identical results
     let target1Hp = (getEntity state1 targetId).Resources.HP
     let target2Hp = (getEntity state2 targetId).Resources.HP
     Assert.Equal<int>(target1Hp, target2Hp)
 
-    // Perform second round after cooldown
-    let advance1 = Gameplay.GameState.tick state1 2500L<Tick> |> AVal.force
-    Gameplay.GameState.apply state1 advance1
-    let advance2 = Gameplay.GameState.tick state2 2500L<Tick> |> AVal.force
-    Gameplay.GameState.apply state2 advance2
+    let advance1 =
+      GameState.tick state1 (TimeSpan.FromSeconds(2.5)) |> AVal.force
+
+    GameState.apply state1 advance1
+
+    let advance2 =
+      GameState.tick state2 (TimeSpan.FromSeconds(2.5)) |> AVal.force
+
+    GameState.apply state2 advance2
 
     performAttack state1
     performAttack state2
@@ -776,13 +767,11 @@ type ``Phase3 - Determinism``() =
     let target2HpAfter2 = (getEntity state2 targetId).Resources.HP
     Assert.Equal<int>(target1HpAfter2, target2HpAfter2)
 
-// T12 Cooldown-ready abilities set includes ability after cooldown elapses -----
 type ``Phase3 - Cooldown Management``() =
   [<Fact>]
   member _.``T12 Cooldown-ready abilities set includes ability after cooldown elapses``
     ()
     =
-    // Arrange
     let state = create(fun () -> 0.5)
     let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
@@ -800,101 +789,62 @@ type ``Phase3 - Cooldown Management``() =
     addEntity state attackerId attacker
     addEntity state targetId target
 
-    // Act & Assert: Check initial readiness (all abilities should be ready)
     let readyAbilitiesInitial =
-      Gameplay.Projections.aReadyAbilities
-        (getEntities state)
-        (getGameTime state)
-      |> AVal.force
+      Operations.GameState.getReadyAbilities attackerId state
 
-    let attackerAbilitiesInitial =
-      readyAbilitiesInitial |> HashMap.toSeq |> Seq.map fst |> Set.ofSeq
+    Assert.True(readyAbilitiesInitial |> HashSet.contains melee)
+    Assert.True(readyAbilitiesInitial |> HashSet.contains spell)
 
-    Assert.True(attackerAbilitiesInitial |> Set.contains melee)
-    Assert.True(attackerAbilitiesInitial |> Set.contains spell)
-
-    // Use melee ability (puts it on cooldown)
     let meleeDelta =
-      Resolution.evaluate
+      CommandHandler.evaluate
         state
         (UseAbility {
           actor = attackerId
-          targets = [| targetId |]
+          target = EntityTargets [| targetId |]
           abilityId = melee
         })
 
     let meleeChange = meleeDelta |> AVal.force
-    Gameplay.GameState.apply state meleeChange
+    GameState.apply state meleeChange
 
-    // Check that melee is no longer ready, but spell still is
     let readyAfterMelee =
-      Gameplay.Projections.aReadyAbilities
-        (getEntities state)
-        (getGameTime state)
-      |> AVal.force
+      Operations.GameState.getReadyAbilities attackerId state
 
-    let attackerAbilitiesAfterMelee =
-      readyAfterMelee |> HashMap.toSeq |> Seq.map fst |> Set.ofSeq
+    Assert.False(readyAfterMelee |> HashSet.contains melee)
+    Assert.True(readyAfterMelee |> HashSet.contains spell)
 
-    Assert.False(attackerAbilitiesAfterMelee |> Set.contains melee)
-    Assert.True(attackerAbilitiesAfterMelee |> Set.contains spell)
+    let advance = GameState.tick state (TimeSpan.FromSeconds(2.1)) |> AVal.force
+    GameState.apply state advance
 
-    // Advance time past melee cooldown (melee has 2000L<ticks> cooldown)
-    let advance = Gameplay.GameState.tick state 2100L<Tick> |> AVal.force
-    Gameplay.GameState.apply state advance
-
-    // Check that melee is ready again
     let readyAfterCooldown =
-      Gameplay.Projections.aReadyAbilities
-        (getEntities state)
-        (getGameTime state)
-      |> AVal.force
+      Operations.GameState.getReadyAbilities attackerId state
 
-    let attackerAbilitiesAfterCooldown =
-      readyAfterCooldown |> HashMap.toSeq |> Seq.map fst |> Set.ofSeq
+    Assert.True(readyAfterCooldown |> HashSet.contains melee)
+    Assert.True(readyAfterCooldown |> HashSet.contains spell)
 
-    Assert.True(attackerAbilitiesAfterCooldown |> Set.contains melee)
-    Assert.True(attackerAbilitiesAfterCooldown |> Set.contains spell)
-
-    // Use spell ability (puts it on cooldown - spell has 5000L<ticks> cooldown)
     let spellDelta =
-      Resolution.evaluate
+      CommandHandler.evaluate
         state
         (UseAbility {
           actor = attackerId
-          targets = [| targetId |]
+          target = EntityTargets [| targetId |]
           abilityId = spell
         })
 
     let spellChange = spellDelta |> AVal.force
-    Gameplay.GameState.apply state spellChange
+    GameState.apply state spellChange
 
-    // Check that spell is no longer ready, but melee still is
     let readyAfterSpell =
-      Gameplay.Projections.aReadyAbilities
-        (getEntities state)
-        (getGameTime state)
-      |> AVal.force
+      Operations.GameState.getReadyAbilities attackerId state
 
-    let attackerAbilitiesAfterSpell =
-      readyAfterSpell |> HashMap.toSeq |> Seq.map fst |> Set.ofSeq
+    Assert.True(readyAfterSpell |> HashSet.contains melee)
+    Assert.False(readyAfterSpell |> HashSet.contains spell)
 
-    Assert.True(attackerAbilitiesAfterSpell |> Set.contains melee)
-    Assert.False(attackerAbilitiesAfterSpell |> Set.contains spell)
+    let advance = GameState.tick state (TimeSpan.FromSeconds(5.1)) |> AVal.force
+    GameState.apply state advance
 
-    // Advance time past spell cooldown
-    let advance = Gameplay.GameState.tick state 5100L<Tick> |> AVal.force
-    Gameplay.GameState.apply state advance
-
-    // Check that both abilities are ready again
     let readyAfterBothCooldowns =
-      Gameplay.Projections.aReadyAbilities
-        (getEntities state)
-        (getGameTime state)
-      |> AVal.force
+      Operations.GameState.getReadyAbilities attackerId state
 
-    let attackerAbilitiesAfterBoth =
-      readyAfterBothCooldowns |> HashMap.toSeq |> Seq.map fst |> Set.ofSeq
-
-    Assert.True(attackerAbilitiesAfterBoth |> Set.contains melee)
-    Assert.True(attackerAbilitiesAfterBoth |> Set.contains spell)
+    Assert.True(readyAfterBothCooldowns |> HashSet.contains melee)
+    Assert.True(readyAfterBothCooldowns |> HashSet.contains spell)

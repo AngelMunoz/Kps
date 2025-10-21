@@ -1,4 +1,4 @@
-﻿namespace Pomo.Lib.Tests
+namespace Pomo.Lib.Tests
 
 open Xunit
 open System
@@ -17,7 +17,7 @@ open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Rules
 open Pomo.Lib.Content
 open Pomo.Lib.Scenario
-
+open Pomo.Lib.EffectApplication
 // --------------------------------------------------
 // Generators
 // --------------------------------------------------
@@ -45,7 +45,7 @@ module private Generators =
 // Helpers
 // --------------------------------------------------
 module private InternalHelpers =
-
+  open Pomo.Lib.Domain.Scenario
 
   let create(rng: unit -> float) =
     let initialScenarioId = %Guid.NewGuid()
@@ -95,6 +95,53 @@ module private InternalHelpers =
               member _.find formulaId =
                 FormulaStore.definitions |> Map.find formulaId
           }
+
+        projectileStore =
+          { new Services.IProjectileStore with
+              member _.tryFind projectileId =
+                ProjectileStore.definitions
+                |> Map.tryFind projectileId
+                |> ValueOption.ofOption
+
+              member _.find projectileId =
+                ProjectileStore.definitions |> Map.find projectileId
+          }
+        aoeStore =
+          { new Services.IAoeStore with
+              member _.tryFind aoeId =
+                AoeStore.definitions
+                |> Map.tryFind aoeId
+                |> ValueOption.ofOption
+
+              member _.find aoeId = AoeStore.definitions |> Map.find aoeId
+          }
+        impactStore =
+          { new Services.IImpactStore with
+              member _.tryFind impactId =
+                ImpactStore.definitions
+                |> Map.tryFind impactId
+                |> ValueOption.ofOption
+
+              member _.find impactId =
+                ImpactStore.definitions |> Map.find impactId
+          }
+        audioStore =
+          { new Services.IAudioStore with
+              member _.tryFind clipId =
+                AudioStore.definitions
+                |> Map.tryFind clipId
+                |> ValueOption.ofOption
+
+              member _.find clipId =
+                AudioStore.definitions |> Map.find clipId
+
+              member _.findByTrigger trigger =
+                AudioStore.triggerMap
+                |> Map.tryFind trigger
+                |> Option.defaultValue Array.empty
+
+              member _.findMusicForScenario scenarioId = ValueNone
+          }
         rng = rng
       }
       (initialScenarioId, cmap [ (initialScenarioId, initialScenarioState) ])
@@ -108,7 +155,7 @@ module private InternalHelpers =
     (abilities: int<AbilityId> list)
     : EntityComponents =
     let cooldowns =
-      abilities |> List.map(fun a -> a, 0L<Tick>) |> HashMap.ofList
+      abilities |> List.map(fun a -> a, TimeSpan.Zero) |> HashMap.ofList
 
     {
       Factions = HashSet.ofSeq faction
@@ -216,8 +263,8 @@ type ``Action Resolution``() =
     let dynamicEffect: Effects.ActiveEffect = {
       EffectId = 300<EffectId>
       SourceId = playerId
-      RemainingTicks = 15000L<Tick>
-      NextTickIn = 15000L<Tick>
+      RemainingTicks = TimeSpan.FromSeconds(15.0)
+      NextTickIn = TimeSpan.FromSeconds(15.0)
       Stacks = 1
       Definition = state.services.effectStore.find 300<EffectId>
     }
@@ -256,8 +303,8 @@ type ``Action Resolution``() =
     let stackingEffect: Effects.ActiveEffect = {
       EffectId = 102<EffectId>
       SourceId = playerId
-      RemainingTicks = 30000L<Tick>
-      NextTickIn = 30000L<Tick>
+      RemainingTicks = TimeSpan.FromSeconds(30.0)
+      NextTickIn = TimeSpan.FromSeconds(30.0)
       Stacks = 3 // Simulate 3 stacks applied
       Definition = state.services.effectStore.find 102<EffectId>
     }
@@ -294,8 +341,8 @@ type ``Action Resolution``() =
     let dynamicEffect: Effects.ActiveEffect = {
       EffectId = 301<EffectId>
       SourceId = playerId
-      RemainingTicks = 15000L<Tick>
-      NextTickIn = 15000L<Tick>
+      RemainingTicks = TimeSpan.FromSeconds(15.0)
+      NextTickIn = TimeSpan.FromSeconds(15.0)
       Stacks = 1
       Definition = state.services.effectStore.find 301<EffectId>
     }
@@ -332,8 +379,8 @@ type ``Action Resolution``() =
     let apEffect: Effects.ActiveEffect = {
       EffectId = 300<EffectId>
       SourceId = playerId
-      RemainingTicks = 15000L<Tick>
-      NextTickIn = 15000L<Tick>
+      RemainingTicks = TimeSpan.FromSeconds(15.0)
+      NextTickIn = TimeSpan.FromSeconds(15.0)
       Stacks = 1
       Definition = state.services.effectStore.find 300<EffectId>
     }
@@ -341,8 +388,8 @@ type ``Action Resolution``() =
     let maEffect: Effects.ActiveEffect = {
       EffectId = 301<EffectId>
       SourceId = playerId
-      RemainingTicks = 15000L<Tick>
-      NextTickIn = 15000L<Tick>
+      RemainingTicks = TimeSpan.FromSeconds(15.0)
+      NextTickIn = TimeSpan.FromSeconds(15.0)
       Stacks = 1
       Definition = state.services.effectStore.find 301<EffectId>
     }
@@ -506,11 +553,11 @@ type ``Action Resolution``() =
     let action1 =
       (UseAbility {
         actor = actorId
-        targets = [| actorId |] // Self-targeting
+        target = EntityTargets [| actorId |] // Self-targeting
         abilityId = buffSpell
       })
 
-    let delta1 = Resolution.evaluate state action1
+    let delta1 = CommandHandler.evaluate state action1
     let change1 = delta1 |> AVal.force
     GameState.apply state change1
 
@@ -521,11 +568,11 @@ type ``Action Resolution``() =
     let action2 =
       (UseAbility {
         actor = actorId
-        targets = [| actorId |] // Self-targeting
+        target = EntityTargets [| actorId |] // Self-targeting
         abilityId = buffSpell
       })
 
-    let delta2 = Resolution.evaluate state action2
+    let delta2 = CommandHandler.evaluate state action2
     let change2 = delta2 |> AVal.force
     GameState.apply state change2
 
@@ -556,7 +603,7 @@ type ``Action Resolution``() =
     let action =
       (UseAbility {
         actor = actorId
-        targets = [| actorId |] // Self-targeting
+        target = EntityTargets [| actorId |] // Self-targeting
         abilityId = buffSpell
       })
 
@@ -578,7 +625,7 @@ type ``Action Resolution``() =
       | Some cd -> $"Cooldown: {cd}"
       | None -> "No cooldown entry"
 
-    let delta = Resolution.evaluate state action
+    let delta = CommandHandler.evaluate state action
     let change = delta |> AVal.force
 
     // Check if action failed - if no updates, the action didn't execute
@@ -611,10 +658,10 @@ type ``Action Resolution``() =
     if not cooldownExists then
       failwith $"ERROR: Cooldown key {buffSpell} not found in cooldowns map"
 
-    if cooldown <= 0L<Tick> then
+    if cooldown <= TimeSpan.Zero then
       failwith $"ERROR: Cooldown value {cooldown} is not > 0, expected > 0"
 
-    Assert.True(cooldown > 0L<Tick>)
+    Assert.True(cooldown > TimeSpan.Zero)
     Assert.Equal(expectedCooldown, cooldown)
 
   [<Fact>]
@@ -641,11 +688,11 @@ type ``Action Resolution``() =
     let action1 =
       (UseAbility {
         actor = actorId
-        targets = [| actorId |] // Self-targeting
+        target = EntityTargets [| actorId |] // Self-targeting
         abilityId = buffSpell
       })
 
-    let delta1 = Resolution.evaluate state action1
+    let delta1 = CommandHandler.evaluate state action1
     let change1 = delta1 |> AVal.force
     GameState.apply state change1
 
@@ -654,18 +701,21 @@ type ``Action Resolution``() =
       | Abilities.Active def -> def.Cooldown
       | _ -> failwith "Expected active ability"
     // Advance time past the cooldown
-    let advance = GameState.tick state (cooldown + 1L<Tick>) |> AVal.force
+    let advance =
+      GameState.tick state (cooldown + TimeSpan.FromMilliseconds(1.0))
+      |> AVal.force
+
     GameState.apply state advance
 
     // Second use, should succeed now
     let action2 =
       (UseAbility {
         actor = actorId
-        targets = [| actorId |] // Self-targeting
+        target = EntityTargets [| actorId |] // Self-targeting
         abilityId = buffSpell
       })
 
-    let delta2 = Resolution.evaluate state action2
+    let delta2 = CommandHandler.evaluate state action2
     let change2 = delta2 |> AVal.force
     GameState.apply state change2
 
@@ -738,8 +788,8 @@ type ``Combat Mechanics Properties``() =
     let dynamicEffect: Effects.ActiveEffect = {
       EffectId = 300<EffectId>
       SourceId = playerId
-      RemainingTicks = 15000L<Tick>
-      NextTickIn = 15000L<Tick>
+      RemainingTicks = TimeSpan.FromSeconds(15.0)
+      NextTickIn = TimeSpan.FromSeconds(15.0)
       Stacks = 1
       Definition = state.services.effectStore.find 300<EffectId>
     }
@@ -779,8 +829,8 @@ type ``Combat Mechanics Properties``() =
     let dynamicEffect: Effects.ActiveEffect = {
       EffectId = 300<EffectId>
       SourceId = playerId
-      RemainingTicks = 15000L<Tick>
-      NextTickIn = 15000L<Tick>
+      RemainingTicks = TimeSpan.FromSeconds(15.0)
+      NextTickIn = TimeSpan.FromSeconds(15.0)
       Stacks = 1
       Definition = state.services.effectStore.find 300<EffectId>
     }
@@ -819,8 +869,8 @@ type ``Combat Mechanics Properties``() =
     let stackingEffect: Effects.ActiveEffect = {
       EffectId = 102<EffectId>
       SourceId = playerId
-      RemainingTicks = 30000L<Tick>
-      NextTickIn = 30000L<Tick>
+      RemainingTicks = TimeSpan.FromSeconds(30.0)
+      NextTickIn = TimeSpan.FromSeconds(30.0)
       Stacks = 2 // Two stacks applied
       Definition = state.services.effectStore.find 102<EffectId>
     }
@@ -858,8 +908,8 @@ type ``Combat Mechanics Properties``() =
     let dynamicEffect: Effects.ActiveEffect = {
       EffectId = 301<EffectId>
       SourceId = playerId
-      RemainingTicks = 15000L<Tick>
-      NextTickIn = 15000L<Tick>
+      RemainingTicks = TimeSpan.FromSeconds(15.0)
+      NextTickIn = TimeSpan.FromSeconds(15.0)
       Stacks = 1
       Definition = state.services.effectStore.find 301<EffectId>
     }
@@ -900,8 +950,8 @@ type ``Combat Mechanics Properties``() =
     let apEffect: Effects.ActiveEffect = {
       EffectId = 300<EffectId>
       SourceId = playerId
-      RemainingTicks = 15000L<Tick>
-      NextTickIn = 15000L<Tick>
+      RemainingTicks = TimeSpan.FromSeconds(15.0)
+      NextTickIn = TimeSpan.FromSeconds(15.0)
       Stacks = 1
       Definition = state.services.effectStore.find 300<EffectId>
     }
@@ -909,8 +959,8 @@ type ``Combat Mechanics Properties``() =
     let maEffect: Effects.ActiveEffect = {
       EffectId = 301<EffectId>
       SourceId = playerId
-      RemainingTicks = 15000L<Tick>
-      NextTickIn = 15000L<Tick>
+      RemainingTicks = TimeSpan.FromSeconds(15.0)
+      NextTickIn = TimeSpan.FromSeconds(15.0)
       Stacks = 1
       Definition = state.services.effectStore.find 301<EffectId>
     }
@@ -1026,8 +1076,8 @@ type ``Combat Mechanics Properties``() =
 
     let scenario = getActiveScenario state
 
-    let rparams: Resolution.ResolverParams = {
-      derivedStats = GameState.getDerivedStats state |> AVal.force
+    let rparams: CommandHandler.ResolverParams = {
+      derivedStats = DerivedStats.byGameState state |> AVal.force
       gameTime = scenario.gameTime
       scenarioState = scenario
       players = state.players

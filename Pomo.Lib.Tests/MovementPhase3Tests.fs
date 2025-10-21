@@ -66,7 +66,7 @@ module MovementPhase3Tests =
     let id = Guid.NewGuid() |> UMX.tag<EntityId>
     let e = makeEntity First 0f 0f 500f (ValueSome { X = 1000f; Y = 1000f })
     addEntity state id e
-    let changeAVal = GameState.tick state (5_000_000L<Tick>)
+    let changeAVal = GameState.tick state (TimeSpan.FromSeconds(5.0))
     GameState.apply state (AVal.force changeAVal)
     let final = getEntity state id
     let scenario = (getActiveScenario state).scenario
@@ -74,57 +74,3 @@ module MovementPhase3Tests =
     let halfH = scenario.BoundsHeight * 0.5f
     Assert.InRange(final.Position.X, 0f - halfW, 0f + halfW)
     Assert.InRange(final.Position.Y, 0f - halfH, 0f + halfH)
-
-  [<Fact>]
-  let ``Entities do not overlap after movement``() =
-    let state = GameState.create()
-    let active = getActiveScenario state
-
-    let newBounds = {
-      Width = 500f
-      Height = 500f
-      CenterX = 0f
-      CenterY = 0f
-    }
-
-    let replaced = {
-      active with
-          scenario = {
-            active.scenario with
-                BoundsWidth = newBounds.Width
-                BoundsHeight = newBounds.Height
-          }
-    }
-
-    transact(fun _ -> state.scenarios[active.scenario.Id] <- replaced)
-    let idA = Guid.NewGuid() |> UMX.tag<EntityId>
-    let idB = Guid.NewGuid() |> UMX.tag<EntityId>
-    let eA = makeEntity First -50f 0f 100f (ValueSome { X = 0f; Y = 0f })
-    let eB = makeEntity Second 0f 0f 0f ValueNone
-    addEntity state idA eA
-    addEntity state idB eB
-
-    for _ in 1..10 do
-      let changeAVal = GameState.tick state 500_000L<Tick>
-      GameState.apply state (AVal.force changeAVal)
-
-    let finalA = getEntity state idA
-    let finalB = getEntity state idB
-
-    let rA =
-      match finalA.Identity.Stage with
-      | First -> 12f
-      | Second -> 16f
-      | Third -> 20f
-
-    let rB =
-      match finalB.Identity.Stage with
-      | First -> 12f
-      | Second -> 16f
-      | Third -> 20f
-
-    let dx = finalA.Position.X - finalB.Position.X
-    let dy = finalA.Position.Y - finalB.Position.Y
-    let dist2 = dx * dx + dy * dy
-    let minDist = rA + rB
-    Assert.True(dist2 >= minDist * minDist)

@@ -12,21 +12,21 @@ open System
 type ``Pathfinding Tests``() =
 
   let createTestScenario() =
-    let scenario = {
+    let scenario: Scenario.Scenario = {
       Id = %Guid.NewGuid()
       Name = "Test Pathfinding Scenario"
       BoundsWidth = 400f
       BoundsHeight = 400f
       BattleEnabled = false
-      CombatType = PvE
-      EngagementMode = AlwaysOn
+      CombatType = ScenarioCombatType.PvE
+      EngagementMode = EngagementMode.AlwaysOn
       TerrainObjects =
         IndexList.ofList [
           {
             Id = %Guid.NewGuid()
             Position = { X = 200f; Y = 150f }
             CollisionGeometry = Circle({ X = 200f; Y = 150f }, 30f)
-            TerrainType = Blocked
+            TerrainType = TerrainType.Blocked
             DepthLayer = 0.5f
             SpriteId = ValueSome "wall"
           }
@@ -42,7 +42,7 @@ type ``Pathfinding Tests``() =
                   { X = 80f; Y = 270f }
                 |]
               )
-            TerrainType = Water
+            TerrainType = TerrainType.Water
             DepthLayer = 0.3f
             SpriteId = ValueSome "water"
           }
@@ -57,13 +57,7 @@ type ``Pathfinding Tests``() =
   member _.``Grid creation works correctly``() =
     let scenario = createTestScenario()
 
-    let grid =
-      Grid.createWithEntities
-        scenario
-        32f
-        16f
-        [||]
-        (Guid.Empty |> UMX.tag<EntityId>)
+    let grid = Grid.createGrid scenario 32f 16f
 
     Assert.Equal(13, grid.Width) // ceil(400/32) = 13
     Assert.Equal(13, grid.Height)
@@ -75,13 +69,7 @@ type ``Pathfinding Tests``() =
   member _.``World to grid conversion works correctly``() =
     let scenario = createTestScenario()
 
-    let grid =
-      Grid.createWithEntities
-        scenario
-        32f
-        16f
-        [||]
-        (Guid.Empty |> UMX.tag<EntityId>)
+    let grid = Grid.createGrid scenario 32f 16f
 
     let struct (gridX, gridY) = Grid.worldToGrid grid { X = 100f; Y = 100f }
 
@@ -92,13 +80,7 @@ type ``Pathfinding Tests``() =
   member _.``Grid to world conversion works correctly``() =
     let scenario = createTestScenario()
 
-    let grid =
-      Grid.createWithEntities
-        scenario
-        32f
-        16f
-        [||]
-        (Guid.Empty |> UMX.tag<EntityId>)
+    let grid = Grid.createGrid scenario 32f 16f
 
     let worldPos = Grid.gridToWorld grid 3 3
 
@@ -109,13 +91,7 @@ type ``Pathfinding Tests``() =
   member _.``Grid cells detect blocked terrain correctly``() =
     let scenario = createTestScenario()
 
-    let grid =
-      Grid.createWithEntities
-        scenario
-        32f
-        16f
-        [||]
-        (Guid.Empty |> UMX.tag<EntityId>)
+    let grid = Grid.createGrid scenario 32f 16f
 
     // The blocked circle at (200, 150) with radius 30 should affect nearby cells
     let struct (blockedX, blockedY) =
@@ -129,13 +105,7 @@ type ``Pathfinding Tests``() =
   member _.``Grid cells detect water terrain with higher cost``() =
     let scenario = createTestScenario()
 
-    let grid =
-      Grid.createWithEntities
-        scenario
-        32f
-        16f
-        [||]
-        (Guid.Empty |> UMX.tag<EntityId>)
+    let grid = Grid.createGrid scenario 32f 16f
 
     // The water area at (100, 250) should have higher cost
     let struct (waterX, waterY) = Grid.worldToGrid grid { X = 100f; Y = 250f }
@@ -148,13 +118,7 @@ type ``Pathfinding Tests``() =
   member _.``AStar finds path around obstacles``() =
     let scenario = createTestScenario()
 
-    let grid =
-      Grid.createWithEntities
-        scenario
-        32f
-        16f
-        [||]
-        (Guid.Empty |> UMX.tag<EntityId>)
+    let grid = Grid.createGrid scenario 32f 16f
 
     let start = { X = 50f; Y = 50f }
     let goal = { X = 350f; Y = 350f }
@@ -200,13 +164,7 @@ type ``Pathfinding Tests``() =
             ]
     }
 
-    let grid =
-      Grid.createWithEntities
-        scenario
-        32f
-        16f
-        [||]
-        (Guid.Empty |> UMX.tag<EntityId>)
+    let grid = Grid.createGrid scenario 32f 16f
 
     let start = { X = 50f; Y = 50f }
     let goal = { X = 350f; Y = 350f }

@@ -6,6 +6,8 @@ open FSharp.Data.Adaptive
 open Pomo.Lib.Gameplay
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Components
+open Pomo.Lib.Domain.State
+open Pomo.Lib.Domain.Scenario
 
 module TestHelpers =
 
@@ -38,11 +40,11 @@ module TestHelpers =
     transact(fun _ -> scenario.entities.Add(id, components) |> ignore)
 
   let getDerivedStats(state: GameState) =
-    GameState.getDerivedStats state |> AVal.force |> AMap.force
+    DerivedStats.byGameState state |> AVal.force |> AMap.force
 
   let getDerivedStat (state: GameState) (id: Guid<EntityId>) =
     let derivedStats = getDerivedStats state
-    derivedStats[id]
+    derivedStats |> HashMap.find id
 
 [<AutoOpen>]
 module Tuple =

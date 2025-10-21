@@ -12,6 +12,7 @@ open Pomo.Lib.Scenario
 open Pomo.Lib.Tests.TestHelpers
 open System
 open Pomo.Lib.Content
+open Pomo.Lib.Domain.Scenario
 
 type ``Scenario Management Tests``() =
 
@@ -95,7 +96,7 @@ type ``Scenario Management Tests``() =
   member _.``Can retrieve scenario state from game state``() =
     let state = GameState.create()
 
-    let scenarios = {
+    let scenarios: GameStateScenarios = {
       scenarios = state.scenarios
       activeScenarioId = state.activeScenarioId
     }

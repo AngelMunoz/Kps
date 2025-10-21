@@ -7,6 +7,7 @@ open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.State
 open Pomo.Lib.Scenario
+open Pomo.Lib.Domain.Scenario
 open Pomo.Lib.BattleManager
 open Pomo.Lib.Tests.TestHelpers
 
@@ -58,7 +59,8 @@ type ``Party Duel Tests``() =
         ScenarioCombatType.PvP
 
     let changes =
-      PartyDuel.request requesterPartyId accepterPartyId scenarioState |> AVal.force
+      PartyDuel.request requesterPartyId accepterPartyId scenarioState
+      |> AVal.force
 
     Assert.Equal(1, changes.Length)
 
@@ -68,26 +70,36 @@ type ``Party Duel Tests``() =
     )
 
   [<Fact>]
-  member _.``Accept party duel in structured PvP scenario creates battle instance``() =
+  member _.``Accept party duel in structured PvP scenario creates battle instance``
+    ()
+    =
     let scenarioState =
       PartyDuelTestHelpers.createScenarioState
         EngagementMode.Structured
         ScenarioCombatType.PvP
 
-    transact (fun _ ->
-      scenarioState.pendingPartyDuels.Add(requesterPartyId, accepterPartyId) |> ignore
-      scenarioState.parties.Add(requesterPartyId, requesterParty) |> ignore
-      scenarioState.parties.Add(accepterPartyId, accepterParty) |> ignore
-    )
+    transact(fun _ ->
+      scenarioState.pendingPartyDuels.Add(requesterPartyId, accepterPartyId)
+      |> ignore
 
-    let changes = PartyDuel.accept accepterPartyId requesterPartyId scenarioState |> AVal.force
+      scenarioState.parties.Add(requesterPartyId, requesterParty) |> ignore
+      scenarioState.parties.Add(accepterPartyId, accepterParty) |> ignore)
+
+    let changes =
+      PartyDuel.accept accepterPartyId requesterPartyId scenarioState
+      |> AVal.force
+
     Assert.Equal(2, changes.Length)
-    Assert.Equal(ScenarioChange.RemovePendingPartyDuel(requesterPartyId), changes[0])
+
+    Assert.Equal(
+      ScenarioChange.RemovePendingPartyDuel(requesterPartyId),
+      changes[0]
+    )
 
     match changes.[1] with
     | ScenarioChange.AddBattleInstance inst ->
-        Assert.True(inst.Participants.Contains requesterId)
-        Assert.True(inst.Participants.Contains accepterId)
+      Assert.True(inst.Participants.Contains requesterId)
+      Assert.True(inst.Participants.Contains accepterId)
     | _ -> Assert.Fail("Expected AddBattleInstance")
 
   [<Fact>]
@@ -97,13 +109,20 @@ type ``Party Duel Tests``() =
         EngagementMode.Structured
         ScenarioCombatType.PvP
 
-    transact (fun _ ->
-      scenarioState.pendingPartyDuels.Add(requesterPartyId, accepterPartyId) |> ignore
-    )
+    transact(fun _ ->
+      scenarioState.pendingPartyDuels.Add(requesterPartyId, accepterPartyId)
+      |> ignore)
 
-    let changes = PartyDuel.cancel requesterPartyId accepterPartyId scenarioState |> AVal.force
+    let changes =
+      PartyDuel.cancel requesterPartyId accepterPartyId scenarioState
+      |> AVal.force
+
     Assert.Equal(1, changes.Length)
-    Assert.Equal(ScenarioChange.RemovePendingPartyDuel(requesterPartyId), changes[0])
+
+    Assert.Equal(
+      ScenarioChange.RemovePendingPartyDuel(requesterPartyId),
+      changes[0]
+    )
 
   [<Fact>]
   member _.``Cancel party duel by accepter``() =
@@ -112,10 +131,17 @@ type ``Party Duel Tests``() =
         EngagementMode.Structured
         ScenarioCombatType.PvP
 
-    transact (fun _ ->
-      scenarioState.pendingPartyDuels.Add(requesterPartyId, accepterPartyId) |> ignore
-    )
+    transact(fun _ ->
+      scenarioState.pendingPartyDuels.Add(requesterPartyId, accepterPartyId)
+      |> ignore)
 
-    let changes = PartyDuel.cancel accepterPartyId requesterPartyId scenarioState |> AVal.force
+    let changes =
+      PartyDuel.cancel accepterPartyId requesterPartyId scenarioState
+      |> AVal.force
+
     Assert.Equal(1, changes.Length)
-    Assert.Equal(ScenarioChange.RemovePendingPartyDuel(requesterPartyId), changes[0])
+
+    Assert.Equal(
+      ScenarioChange.RemovePendingPartyDuel(requesterPartyId),
+      changes[0]
+    )

@@ -8,6 +8,7 @@ open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.Classification
 open Pomo.Lib.Domain
 open Pomo.Lib.Scenario
+open Pomo.Lib.Domain.Scenario
 open Pomo.Lib.ScenarioTransitions
 open Pomo.Lib.Tests.TestHelpers
 open Pomo.Lib.Content

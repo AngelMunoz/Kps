@@ -18,6 +18,7 @@ open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Rules
 open Pomo.Lib.Content
 open Pomo.Lib.Scenario
+open Pomo.Lib.Domain.Scenario
 open Pomo.Lib.Battle
 
 module private EngagementTestHelpers =
@@ -71,6 +72,52 @@ module private EngagementTestHelpers =
 
               member _.find formulaId =
                 FormulaStore.definitions |> Map.find formulaId
+          }
+        projectileStore =
+          { new Services.IProjectileStore with
+              member _.tryFind projectileId =
+                ProjectileStore.definitions
+                |> Map.tryFind projectileId
+                |> ValueOption.ofOption
+
+              member _.find projectileId =
+                ProjectileStore.definitions |> Map.find projectileId
+          }
+        aoeStore =
+          { new Services.IAoeStore with
+              member _.tryFind aoeId =
+                AoeStore.definitions
+                |> Map.tryFind aoeId
+                |> ValueOption.ofOption
+
+              member _.find aoeId = AoeStore.definitions |> Map.find aoeId
+          }
+        impactStore =
+          { new Services.IImpactStore with
+              member _.tryFind impactId =
+                ImpactStore.definitions
+                |> Map.tryFind impactId
+                |> ValueOption.ofOption
+
+              member _.find impactId =
+                ImpactStore.definitions |> Map.find impactId
+          }
+        audioStore =
+          { new Services.IAudioStore with
+              member _.tryFind clipId =
+                AudioStore.definitions
+                |> Map.tryFind clipId
+                |> ValueOption.ofOption
+
+              member _.find clipId =
+                AudioStore.definitions |> Map.find clipId
+
+              member _.findByTrigger trigger =
+                AudioStore.triggerMap
+                |> Map.tryFind trigger
+                |> Option.defaultValue Array.empty
+
+              member _.findMusicForScenario scenarioId = ValueNone
           }
         rng = fun () -> 0.5
       }
@@ -158,7 +205,7 @@ type ``Engagement Targeting Rules``() =
     let battleInstance: BattleInstance = {
       Id = %Guid.NewGuid()
       Participants = HashSet.ofList [ actorId; targetId ]
-      StartTick = 0L<Tick>
+      StartTick = TimeSpan.Zero
     }
 
     let scenario = getActiveScenario state
@@ -203,24 +250,30 @@ type ``Engagement Targeting Rules``() =
       Id = 1<AbilityId>
       Name = "Attack"
       Intent = AbilityIntent.Offensive
-      Cooldown = 0L<Tick>
+      Cooldown = TimeSpan.Zero
       Cost = ValueNone
       Targeting = TargetType.SingleEnemy
       FormulaId = ValueNone
       Effects = [||]
       Requirements = [||]
+      ProjectileId = ValueNone
+      AoeId = ValueNone
+      ImpactId = ValueNone
     }
 
     let supportAbility = {
       Id = 2<AbilityId>
       Name = "Heal"
       Intent = AbilityIntent.Support
-      Cooldown = 0L<Tick>
+      Cooldown = TimeSpan.Zero
       Cost = ValueNone
       Targeting = TargetType.SingleAlly
       FormulaId = ValueNone
       Effects = [||]
       Requirements = [||]
+      ProjectileId = ValueNone
+      AoeId = ValueNone
+      ImpactId = ValueNone
     }
 
     let canUseOffensive =

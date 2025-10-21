@@ -8,6 +8,7 @@ open Pomo.Lib.Domain
 open Pomo.Lib.Domain.State
 open Pomo.Lib.Scenario
 open Pomo.Lib.BattleManager
+open Pomo.Lib.Domain.Scenario
 
 
 module private BattleManagerTestHelpers =
@@ -74,7 +75,7 @@ type ``Battle Instance Lifecycle``() =
         {
           Id = battleInstanceId
           Participants = HashSet.ofList [ actorId; targetId ]
-          StartTick = 0L<Tick>
+          StartTick = TimeSpan.Zero
         }
       )
       |> ignore)
@@ -131,7 +132,7 @@ type ``Battle Instance Lifecycle``() =
         {
           Id = battleInstanceId
           Participants = HashSet.ofList [ actorId; targetId; thirdPersonId ]
-          StartTick = 0L<Tick>
+          StartTick = TimeSpan.Zero
         }
       )
       |> ignore)
@@ -165,7 +166,7 @@ type ``Battle Instance Lifecycle``() =
         {
           Id = battleInstanceId
           Participants = HashSet.ofList [ actorId; targetId ]
-          StartTick = 0L<Tick>
+          StartTick = TimeSpan.Zero
         }
       )
       |> ignore)

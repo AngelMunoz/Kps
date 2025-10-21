@@ -8,6 +8,7 @@ open Pomo.Lib.Gameplay
 open Pomo.Lib.Scenario
 open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Domain.State
+open Pomo.Lib.Domain.Scenario
 open Pomo.Lib.Content
 
 module TeleportTests =
@@ -18,7 +19,7 @@ module TeleportTests =
     let servicesState = GameState.create()
 
     // Create second scenario
-    let secondId = %System.Guid.NewGuid()
+    let secondId: Guid<ScenarioId> = %System.Guid.NewGuid()
 
     let secondScenarioState =
       {
@@ -65,7 +66,7 @@ module TeleportTests =
     let command = Teleport tp
 
     let teleportChange =
-      Pomo.Lib.Rules.Resolution.evaluate servicesState command |> AVal.force
+      Pomo.Lib.Rules.CommandHandler.evaluate servicesState command |> AVal.force
 
     GameState.apply servicesState teleportChange
 
@@ -122,7 +123,7 @@ module TeleportTests =
     let command = Teleport tp
 
     let teleportChange =
-      Pomo.Lib.Rules.Resolution.evaluate servicesState command |> AVal.force
+      Pomo.Lib.Rules.CommandHandler.evaluate servicesState command |> AVal.force
 
     GameState.apply servicesState teleportChange
 
