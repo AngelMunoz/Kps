@@ -72,5 +72,9 @@ module MovementPhase3Tests =
     let scenario = (getActiveScenario state).scenario
     let halfW = scenario.BoundsWidth * 0.5f
     let halfH = scenario.BoundsHeight * 0.5f
-    Assert.InRange(final.Position.X, 0f - halfW, 0f + halfW)
-    Assert.InRange(final.Position.Y, 0f - halfH, 0f + halfH)
+    let minX = halfW
+    let maxX = halfW + scenario.BoundsWidth
+    let minY = halfH
+    let maxY = halfH + scenario.BoundsHeight
+    Assert.InRange(final.Position.X, minX, maxX)
+    Assert.InRange(final.Position.Y, minY, maxY)

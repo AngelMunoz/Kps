@@ -1,6 +1,7 @@
 [<AutoOpen>]
 module Pomo.Lib.Domain.Extensions
 
+open FSharp.UMX
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
 
@@ -76,4 +77,20 @@ module StateChange =
     teleports = Array.empty
     visualEffects = Array.empty
     audioChanges = Array.empty
+  }
+
+
+module Scenario =
+
+  let empty: Scenario.Scenario = {
+    Id = System.Guid.Empty |> UMX.tag<ScenarioId>
+    Name = System.String.Empty
+    BoundsWidth = 0f
+    BoundsHeight = 0f
+    BattleEnabled = false
+    CombatType = PvE
+    EngagementMode = Peaceful
+    TerrainObjects = IndexList.empty
+    VisualLayers = Array.empty
+    Transitions = Array.empty
   }

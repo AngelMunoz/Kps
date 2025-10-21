@@ -26,16 +26,15 @@ module private Phase3Helpers =
     let initialScenarioId = %Guid.NewGuid()
 
     let initialScenarioState =
-      {
-        Id = initialScenarioId
-        Name = "Test Scenario"
-        BoundsWidth = 2000f
-        BoundsHeight = 2000f
+      ScenarioState.create {
+        Scenario.empty with
+            Id = initialScenarioId
+            Name = "Test Scenario"
+            BoundsWidth = 2000f
+            BoundsHeight = 2000f
+            EngagementMode = AlwaysOn
+            BattleEnabled = true
       }
-      |> ScenarioState.create(fun sc -> {
-        sc with
-            scenario.EngagementMode = EngagementMode.AlwaysOn
-      })
 
 
     GameState.create'
