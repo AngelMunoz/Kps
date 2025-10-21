@@ -406,11 +406,12 @@ module RenderSystem =
 
   let private drawTargetingIndicator
     (sb: SpriteBatch)
+    (pixel: Texture2D)
     (inputMode: InputManager.InputMode)
     (mouseWorldPos: Vector2)
     =
     match inputMode with
-    | InputManager.InputMode.AbilityTargeting _ ->
+    | InputManager.InputMode.AbilityTargeting(_, InputManager.TargetingMode.EntityTargeting) ->
       let radius = 16f
       let w = radius * 2f
       let h = radius * 2f
@@ -420,6 +421,12 @@ module RenderSystem =
 
       if not(isNull mediumCircle) then
         sb.Draw(mediumCircle, Vector2(x, y), indicatorColor)
+    | InputManager.InputMode.AbilityTargeting(_, InputManager.TargetingMode.GroundTargeting radius) ->
+      let diameter = int(radius * 2f)
+      let x = int(mouseWorldPos.X - radius)
+      let y = int(mouseWorldPos.Y - radius)
+      let indicatorColor = Color(255, 165, 0, 80)
+      sb.Draw(pixel, Rectangle(x, y, diameter, diameter), indicatorColor)
     | _ -> ()
 
   [<Struct>]
@@ -515,5 +522,5 @@ module RenderSystem =
     drawAoes sb pixel ctx.Aoes ctx.Services
     drawImpacts sb pixel ctx.Impacts ctx.Services ctx.GameTime
 
-  let drawInputPhase sb (ctx: InputContext) =
-    drawTargetingIndicator sb ctx.InputMode ctx.MouseWorldPos
+  let drawInputPhase sb pixel (ctx: InputContext) =
+    drawTargetingIndicator sb pixel ctx.InputMode ctx.MouseWorldPos

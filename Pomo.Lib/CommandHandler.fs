@@ -572,9 +572,46 @@ module CommandHandler =
       | ValueSome(Active abilityDef) ->
 
       match action.target with
-      | AbilityTarget.PositionTarget _ ->
-        // Position-based targeting not yet implemented
-        return StateChange.empty
+      | AbilityTarget.PositionTarget targetPos ->
+        match abilityDef.Targeting with
+        | GroundTarget radius ->
+          let! gameTime = rparams.gameTime
+          let resolutionId = %Guid.NewGuid()
+          let mutable visualEffects = ResizeArray()
+          
+          let! actor = rparams.scenarioState.entities |> AMap.find action.actor
+          
+          abilityDef.ProjectileId
+          |> ValueOption.iter(fun defId ->
+            let resolution = {
+              Id = resolutionId
+              ActorId = action.actor
+              Target = PositionResolution targetPos
+              AbilityId = action.abilityId
+              TriggerTick = gameTime + TimeSpan.FromSeconds(5.0)
+            }
+            
+            visualEffects.Add(AddPendingResolution resolution)
+            
+            visualEffects.Add(
+              AddProjectile {
+                Id = Guid.NewGuid() |> UMX.tag
+                DefinitionId = defId
+                CurrentPosition = actor.Position
+                Target = PositionTarget targetPos
+                CreationTick = gameTime
+                PendingResolutionId = resolutionId
+              }
+            ))
+          let! actorWithCost = Resolution.applyResourceCost abilityDef.Cost actor 0
+          let actorWithCooldown = Resolution.updateCooldowns actorWithCost action.abilityId gameTime abilityDef
+          
+          return {
+            StateChange.empty with
+                updates = HashMap.single action.actor actorWithCooldown
+                visualEffects = visualEffects.ToArray()
+          }
+        | _ -> return StateChange.empty
       | EntityTargets targets ->
 
       let actualTargets =

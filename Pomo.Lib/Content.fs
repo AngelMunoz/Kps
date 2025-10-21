@@ -565,6 +565,21 @@ module AbilityStore =
         AoeId = ValueNone
         ImpactId = ValueNone
       }
+      102<AbilityId>,
+      {
+        Id = 102<AbilityId>
+        Name = "Arrow Shot"
+        Intent = AbilityIntent.Offensive
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
+        Cooldown = TimeSpan.FromMilliseconds(3000.0)
+        Targeting = GroundTarget 32.0f
+        FormulaId = ValueSome 1<FormulaId>
+        Effects = Array.empty
+        Requirements = Array.empty
+        ProjectileId = ValueSome 3<ProjectileId>
+        AoeId = ValueNone
+        ImpactId = ValueSome 1<ImpactId>
+      }
     ]
 
   let passiveDefinitions: Map<int<AbilityId>, PassiveAbilityDefinition> =

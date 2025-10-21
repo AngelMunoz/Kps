@@ -597,7 +597,7 @@ type PomoGame() as this =
             match selected with
             | ValueSome sid -> Console.WriteLine($"[Input] Selected {sid}")
             | ValueNone -> Console.WriteLine("[Input] Selection cleared")
-          | InputManager.InputMode.AbilityTargeting abilityId ->
+          | InputManager.InputMode.AbilityTargeting(abilityId, _) ->
             match found with
             | ValueSome targetId ->
               let stateChange =
@@ -629,7 +629,7 @@ type PomoGame() as this =
         let key1 = Keyboard.GetState().IsKeyDown(Keys.D1)
 
         if key1 && not prevKey1Down then
-          inputMode <- InputManager.InputMode.AbilityTargeting 2<AbilityId>
+          inputMode <- InputManager.InputMode.AbilityTargeting(2<AbilityId>, InputManager.TargetingMode.EntityTargeting)
 
           Console.WriteLine(
             "[Input] Entered ability targeting mode for Fireball (ability 2)."
@@ -843,7 +843,7 @@ type PomoGame() as this =
       RenderSystem.drawNavigation spriteBatch pixel navCtx
       RenderSystem.drawEntitiesPhase spriteBatch pixel entityCtx
       RenderSystem.drawEffectsPhase spriteBatch pixel effectsCtx
-      RenderSystem.drawInputPhase spriteBatch inputCtx
+      RenderSystem.drawInputPhase spriteBatch pixel inputCtx
       spriteBatch.End()
 
       hudOpt

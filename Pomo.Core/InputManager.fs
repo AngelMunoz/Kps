@@ -7,9 +7,14 @@ open Pomo.Lib.Domain
 
 module InputManager =
   [<Struct>]
+  type TargetingMode =
+    | EntityTargeting
+    | GroundTargeting of radius: float32
+
+  [<Struct>]
   type InputMode =
     | Normal
-    | AbilityTargeting of abilityId: int<AbilityId>
+    | AbilityTargeting of abilityId: int<AbilityId> * mode: TargetingMode
 
   type PlayerInputState = {
     MoveDirection: Vector2

@@ -236,6 +236,22 @@ module GameState =
     let command = UseAbility action
     CommandHandler.evaluate state command
 
+  let activateAbilityAtPosition
+    entityId
+    (abilityId: int<AbilityId>)
+    (position: Position)
+    (state: GameState)
+    : aval<StateChange> =
+
+    let action = {
+      actor = entityId
+      target = PositionTarget position
+      abilityId = abilityId
+    }
+
+    let command = UseAbility action
+    CommandHandler.evaluate state command
+
   /// Returns abilities not on cooldown for an entity.
   /// Uses direct access to AbilityCooldowns and Abilities.
   let inline getReadyAbilities entityId (state: GameState) =

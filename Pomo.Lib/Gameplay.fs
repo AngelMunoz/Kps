@@ -248,7 +248,102 @@ module Projectile =
         }
       else
         match proj.Target with
-        | PositionTarget _ -> return StateChange.empty
+        | PositionTarget targetPos ->
+          let def = state.services.projectileStore.find proj.DefinitionId
+          let dx = targetPos.X - proj.CurrentPosition.X
+          let dy = targetPos.Y - proj.CurrentPosition.Y
+          let dist = sqrt(dx * dx + dy * dy)
+
+
+
+          if dist < 5f then
+            let impactRadius = def.ImpactRadius |> ValueOption.defaultValue 0f
+
+            let entitiesInZone =
+              entities
+              |> AMap.filterA(fun _ e -> adaptive {
+                let dx = e.Position.X - targetPos.X
+                let dy = e.Position.Y - targetPos.Y
+                let dist = sqrt(dx * dx + dy * dy)
+                return dist <= impactRadius
+              })
+
+            let! isEmpty = AMap.isEmpty entitiesInZone
+
+            if isEmpty then
+              let cues =
+                state.services.audioStore.findByTrigger
+                  Audio.AudioTrigger.MissedHit
+
+              return {
+                StateChange.empty with
+                    visualEffects = [|
+                      RemoveProjectile projId
+                      RemovePendingResolution proj.PendingResolutionId
+                      AddFloatingText {
+                        Id = Guid.NewGuid() |> UMX.tag
+                        Text = "Miss"
+                        Position = targetPos
+                        Color = FloatingTextColor.Evade
+                        CreationTick = newTime
+                      }
+                    |]
+                    audioChanges =
+                      cues
+                      |> Array.map(fun clipId ->
+                        Audio.PlayAudio {
+                          Id = %Guid.NewGuid()
+                          ClipId = clipId
+                          Trigger = Audio.AudioTrigger.MissedHit
+                          SpatialInfo =
+                            ValueSome {
+                              Position = targetPos
+                              MaxDistance = 500f
+                              Rolloff = 1f
+                            }
+                          CreationTick = newTime
+                          EntityId = ValueNone
+                        })
+              }
+            else
+              return StateChange.empty
+          else
+            let dirX = dx / dist
+            let dirY = dy / dist
+            let moveDist = def.Speed * float32 time.TotalSeconds
+
+            let newPos = {
+              X = proj.CurrentPosition.X + dirX * moveDist
+              Y = proj.CurrentPosition.Y + dirY * moveDist
+            }
+
+            match def.CollisionMode with
+            | Visuals.CollisionMode.BlockedByTerrain ->
+              let canMove =
+                Collision.Query.canMoveTo newPos 5f scenario.scenario
+
+              if not canMove then
+                return {
+                  StateChange.empty with
+                      visualEffects = [|
+                        RemoveProjectile projId
+                        RemovePendingResolution proj.PendingResolutionId
+                      |]
+                }
+              else
+                return {
+                  StateChange.empty with
+                      visualEffects = [|
+                        UpdateProjectile { proj with CurrentPosition = newPos }
+                      |]
+                }
+            | Visuals.CollisionMode.IgnoreTerrain ->
+              return {
+                StateChange.empty with
+                    visualEffects = [|
+                      UpdateProjectile { proj with CurrentPosition = newPos }
+                    |]
+              }
         | EntityTarget targetId ->
 
         let! targetOpt = entities |> AMap.tryFind targetId
@@ -457,11 +552,11 @@ module Projectile =
     |> AMap.mapA(fun _ res -> adaptive {
       // Handle AoE/Impact resolutions here as before
       let! actor = entities |> AMap.find res.ActorId
-      
+
       match res.Target with
       | PositionResolution _ -> return StateChange.empty
       | EntityResolution targetId ->
-      
+
       let! target = entities |> AMap.find targetId
 
       let! actorStats =
