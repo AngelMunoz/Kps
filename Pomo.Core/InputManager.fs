@@ -25,6 +25,34 @@ module InputManager =
 
   type ClickThrottleState = { mutable ThrottleTimer: TimeSpan }
 
+  type InputState = {
+    PrevMouseDown: bool
+    PrevRightMouseDown: bool
+    PrevKey1Down: bool
+    PrevKey2Down: bool
+    PrevKey3Down: bool
+    PrevKey4Down: bool
+    PrevKey5Down: bool
+    PrevKeyVDown: bool
+    PrevKeyEDown: bool
+    PrevKeyADown: bool
+    PrevKeyRDown: bool
+  }
+
+  let createInputState() = {
+    PrevMouseDown = false
+    PrevRightMouseDown = false
+    PrevKey1Down = false
+    PrevKey2Down = false
+    PrevKey3Down = false
+    PrevKey4Down = false
+    PrevKey5Down = false
+    PrevKeyVDown = false
+    PrevKeyEDown = false
+    PrevKeyADown = false
+    PrevKeyRDown = false
+  }
+
   let createInitialState() = {
     MoveDirection = Vector2.Zero
     Velocity = Vector2.Zero

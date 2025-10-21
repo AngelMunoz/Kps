@@ -7,6 +7,7 @@
     <Compile Include="Localization/LocalizationManager.fs" />
     <Compile Include="LibExtensions.fs" />
     <Compile Include="InputManager.fs" />
+    <Compile Include="CameraSystem.fs" />
     <Compile Include="RenderSystem.fs" />
     <Compile Include="UISystem.fs" />
     <Compile Include="AudioSystem.fs" />

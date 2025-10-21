@@ -1,6 +1,7 @@
 namespace Pomo.Core
 
 open System
+open System.Diagnostics
 open System.Collections.Generic
 open System.Globalization
 
@@ -35,22 +36,13 @@ type PomoGame() as this =
   let mutable spriteBatch: SpriteBatch = null
   let mutable pixel: Texture2D = null
   let mutable hudFont: SpriteFont = null
-  let mutable zoom: single = 1.0f
-  let mutable prevScroll: int = 0
-  let mutable cameraPos: Vector2 = Vector2.Zero
+  let mutable camera: CameraSystem.CameraState = CameraSystem.createCamera()
   let mutable selected: Guid<EntityId> voption = ValueNone
-  let mutable prevMouseDown: bool = false
-  let mutable prevRightMouseDown: bool = false
-  let mutable prevKey1Down: bool = false
+
+  let mutable inputState: InputManager.InputState =
+    InputManager.createInputState()
+
   let mutable showPathfindingGrid: bool = false
-  let mutable prevKey2Down: bool = false
-  let mutable prevKey3Down: bool = false
-  let mutable prevKey4Down: bool = false
-  let mutable prevKey5Down: bool = false
-  let mutable prevKeyVDown: bool = false
-  let mutable prevKeyEDown: bool = false
-  let mutable prevKeyADown: bool = false
-  let mutable prevKeyRDown: bool = false
   let mutable currentPath: Position[] = Array.empty
   let mutable pathPreview: PathPreview.PathSegment[] = Array.empty
   let mutable uiState: UISystem.UIState = UISystem.createUIState()
@@ -139,7 +131,7 @@ type PomoGame() as this =
 
     gameState <- ValueSome state
 
-    Console.WriteLine("Game initialized")
+    Debug.WriteLine("Game initialized")
 
 
   override this.LoadContent() =
@@ -148,7 +140,7 @@ type PomoGame() as this =
     pixel <- new Texture2D(this.GraphicsDevice, 1, 1)
     pixel.SetData<Color>([| Color.White |])
     hudFont <- this.Content.Load<SpriteFont>("Fonts/Hud")
-    prevScroll <- Mouse.GetState().ScrollWheelValue
+    camera <- CameraSystem.createCamera()
     RenderSystem.init this.GraphicsDevice
     AudioSystem.load this.Content
 
@@ -178,21 +170,7 @@ type PomoGame() as this =
         GameState.apply state stateChange
         AudioSystem.update()
 
-        let wheel = Mouse.GetState().ScrollWheelValue
-        let delta = wheel - prevScroll
-
-        if delta <> 0 then
-          let dz = float32 delta * 0.001f
-          let mutable z = zoom + dz
-
-          if z < 0.5f then
-            z <- 0.5f
-
-          if z > 2.0f then
-            z <- 2.0f
-
-          zoom <- z
-          prevScroll <- wheel
+        camera <- CameraSystem.updateZoom camera
 
         let scenario = Scenario.ActiveScenario state |> AVal.force
 
@@ -220,7 +198,7 @@ type PomoGame() as this =
         // Process any detected transitions
         detectedTransitions
         |> HashMap.iter(fun entityId trigger ->
-          Console.WriteLine(
+          Debug.WriteLine(
             $"[Transition] Entity {entityId} triggered transition to scenario {trigger.ToScenarioId}"
           )
         // For now, just log the transition - full transition execution would require
@@ -228,17 +206,13 @@ type PomoGame() as this =
         )
 
         match scenario.entities |> AMap.force |> HashMap.tryFindV playerId with
-        | ValueSome comp -> cameraPos <- Position.toVector2 comp.Position
+        | ValueSome comp ->
+          camera <-
+            CameraSystem.setPosition (Position.toVector2 comp.Position) camera
         | ValueNone -> ()
 
-        let vp = this.GraphicsDevice.Viewport
-        let halfW = float32 vp.Width / 2.0f
-        let halfH = float32 vp.Height / 2.0f
-
         let view =
-          Matrix.CreateTranslation(-cameraPos.X, -cameraPos.Y, 0f)
-          * Matrix.CreateScale(zoom)
-          * Matrix.CreateTranslation(halfW, halfH, 0f)
+          CameraSystem.createViewMatrix camera this.GraphicsDevice.Viewport
 
         let mouseScreen = InputManager.getMousePosition()
         let world = InputManager.screenToWorld mouseScreen view
@@ -248,10 +222,9 @@ type PomoGame() as this =
 
         InputManager.updateThrottle clickThrottle gameTime.ElapsedGameTime
 
-        if rightMouseDown && not prevRightMouseDown then
+        if rightMouseDown && not inputState.PrevRightMouseDown then
           if inputMode <> InputManager.InputMode.Normal then
             inputMode <- InputManager.InputMode.Normal
-            Console.WriteLine("[Input] Canceled ability targeting mode.")
           else
             match
               InputManager.tryThrottleClick clickThrottle (ValueSome world)
@@ -300,16 +273,19 @@ type PomoGame() as this =
                     fullPath
                     entityRadius
 
-                Console.WriteLine(
+                Debug.WriteLine(
                   $"[Pathfinding] Preview generated for {fullPath.Length} points"
                 )
             | ValueNone -> ()
 
-        prevRightMouseDown <- rightMouseDown
+        inputState <- {
+          inputState with
+              PrevRightMouseDown = rightMouseDown
+        }
 
         let mouseDown = InputManager.isLeftClickPressed()
 
-        if (mouseDown && not prevMouseDown) then
+        if (mouseDown && not inputState.PrevMouseDown) then
           let entities = scenario.entities |> AMap.force |> HashMap.toArrayV
 
           let inline radiusOfStage s =
@@ -335,8 +311,8 @@ type PomoGame() as this =
             selected <- found
 
             match selected with
-            | ValueSome sid -> Console.WriteLine($"[Input] Selected {sid}")
-            | ValueNone -> Console.WriteLine("[Input] Selection cleared")
+            | ValueSome sid -> Debug.WriteLine($"[Input] Selected {sid}")
+            | ValueNone -> Debug.WriteLine("[Input] Selection cleared")
           | InputManager.InputMode.AbilityTargeting(abilityId,
                                                     InputManager.TargetingMode.EntityTargeting) ->
             match found with
@@ -356,13 +332,11 @@ type PomoGame() as this =
 
               GameState.apply state stateChange
 
-              Console.WriteLine(
-                $"[Ability] Activated {abilityId} on {targetId}"
-              )
-            | ValueNone -> Console.WriteLine("[Ability] No target selected.")
+              Debug.WriteLine($"[Ability] Activated {abilityId} on {targetId}")
+            | ValueNone -> Debug.WriteLine("[Ability] No target selected.")
 
             inputMode <- InputManager.InputMode.Normal
-            Console.WriteLine("[Input] Reverted to normal input mode.")
+            Debug.WriteLine("[Input] Reverted to normal input mode.")
           | InputManager.InputMode.AbilityTargeting(abilityId,
                                                     InputManager.TargetingMode.GroundTargeting _) ->
             let targetPos = { X = world.X; Y = world.Y }
@@ -382,123 +356,126 @@ type PomoGame() as this =
 
             GameState.apply state stateChange
 
-            Console.WriteLine(
+            Debug.WriteLine(
               $"[Ability] Activated {abilityId} at position ({targetPos.X}, {targetPos.Y})"
             )
 
             inputMode <- InputManager.InputMode.Normal
-            Console.WriteLine("[Input] Reverted to normal input mode.")
+            Debug.WriteLine("[Input] Reverted to normal input mode.")
 
 
-        prevMouseDown <- mouseDown
+        inputState <- {
+          inputState with
+              PrevMouseDown = mouseDown
+        }
 
         let key1 = Keyboard.GetState().IsKeyDown(Keys.D1)
 
-        if key1 && not prevKey1Down then
+        if key1 && not inputState.PrevKey1Down then
           inputMode <-
             InputManager.InputMode.AbilityTargeting(
               2<AbilityId>,
               InputManager.TargetingMode.EntityTargeting
             )
 
-          Console.WriteLine(
+          Debug.WriteLine(
             "[Input] Entered ability targeting mode for Fireball (ability 2)."
           )
 
-        prevKey1Down <- key1
+        inputState <- { inputState with PrevKey1Down = key1 }
 
         let key3 = Keyboard.GetState().IsKeyDown(Keys.D3)
 
-        if key3 && not prevKey3Down then
+        if key3 && not inputState.PrevKey3Down then
           inputMode <-
             InputManager.InputMode.AbilityTargeting(
               102<AbilityId>,
               InputManager.TargetingMode.GroundTargeting 32.0f
             )
 
-          Console.WriteLine(
+          Debug.WriteLine(
             "[Input] Entered ground targeting mode for Arrow Shot (ability 102)."
           )
 
-        prevKey3Down <- key3
+        inputState <- { inputState with PrevKey3Down = key3 }
 
         let key4 = Keyboard.GetState().IsKeyDown(Keys.D4)
 
-        if key4 && not prevKey4Down then
+        if key4 && not inputState.PrevKey4Down then
           inputMode <-
             InputManager.InputMode.AbilityTargeting(
               103<AbilityId>,
               InputManager.TargetingMode.GroundTargeting 64.0f
             )
 
-          Console.WriteLine(
+          Debug.WriteLine(
             "[Input] Entered ground targeting mode for Meteor Shower (ability 103)."
           )
 
-        prevKey4Down <- key4
+        inputState <- { inputState with PrevKey4Down = key4 }
 
         let key5 = Keyboard.GetState().IsKeyDown(Keys.D5)
 
-        if key5 && not prevKey5Down then
+        if key5 && not inputState.PrevKey5Down then
           inputMode <-
             InputManager.InputMode.AbilityTargeting(
               104<AbilityId>,
               InputManager.TargetingMode.GroundTargeting 32.0f
             )
 
-          Console.WriteLine(
+          Debug.WriteLine(
             "[Input] Entered ground targeting mode for Magic Arrow (ability 104)."
           )
 
-        prevKey5Down <- key5
+        inputState <- { inputState with PrevKey5Down = key5 }
 
         let keyF2 = Keyboard.GetState().IsKeyDown(Keys.F2)
 
-        if keyF2 && not prevKey2Down then
+        if keyF2 && not inputState.PrevKey2Down then
           showPathfindingGrid <- not showPathfindingGrid
 
-          Console.WriteLine(
+          Debug.WriteLine(
             $"[Debug] showPathfindingGrid toggled: {showPathfindingGrid}"
           )
 
-        prevKey2Down <- keyF2
+        inputState <- { inputState with PrevKey2Down = keyF2 }
 
         let keyV = Keyboard.GetState().IsKeyDown(Keys.V)
 
-        if keyV && not prevKeyVDown then
+        if keyV && not inputState.PrevKeyVDown then
           uiState <- UISystem.togglePanel UISystem.CharacterSheet uiState
 
-          Console.WriteLine(
+          Debug.WriteLine(
             $"[UI] Character sheet toggled: {uiState.ActivePanels |> HashSet.contains UISystem.CharacterSheet}"
           )
 
-        prevKeyVDown <- keyV
+        inputState <- { inputState with PrevKeyVDown = keyV }
 
         let keyE = Keyboard.GetState().IsKeyDown(Keys.E)
 
-        if keyE && not prevKeyEDown then
+        if keyE && not inputState.PrevKeyEDown then
           uiState <- UISystem.togglePanel UISystem.EquipmentView uiState
 
-          Console.WriteLine(
+          Debug.WriteLine(
             $"[UI] Equipment view toggled: {uiState.ActivePanels |> HashSet.contains UISystem.EquipmentView}"
           )
 
-        prevKeyEDown <- keyE
+        inputState <- { inputState with PrevKeyEDown = keyE }
 
         let keyA = Keyboard.GetState().IsKeyDown(Keys.A)
 
-        if keyA && not prevKeyADown then
+        if keyA && not inputState.PrevKeyADown then
           uiState <- UISystem.togglePanel UISystem.AbilityList uiState
 
-          Console.WriteLine(
+          Debug.WriteLine(
             $"[UI] Ability list toggled: {uiState.ActivePanels |> HashSet.contains UISystem.AbilityList}"
           )
 
-        prevKeyADown <- keyA
+        inputState <- { inputState with PrevKeyADown = keyA }
 
         let keyR = Keyboard.GetState().IsKeyDown(Keys.R)
 
-        if keyR && not prevKeyRDown then
+        if keyR && not inputState.PrevKeyRDown then
 
           let replenishCmd =
             Rules.ReplenishResources [|
@@ -519,9 +496,7 @@ type PomoGame() as this =
 
           GameState.apply state stateChange
 
-          Console.WriteLine("[Debug] Player MP replenished.")
-
-        prevKeyRDown <- keyR
+        inputState <- { inputState with PrevKeyRDown = keyR }
 
         let keyboardState = Keyboard.GetState()
         let enemyEntity = scenario.entities |> AMap.find enemyId |> AVal.force
@@ -570,14 +545,8 @@ type PomoGame() as this =
 
     match gameState with
     | ValueSome state when not(isNull spriteBatch) && not(isNull pixel) ->
-      let vp = this.GraphicsDevice.Viewport
-      let halfW = float32 vp.Width / 2.0f
-      let halfH = float32 vp.Height / 2.0f
-
       let view =
-        Matrix.CreateTranslation(-cameraPos.X, -cameraPos.Y, 0f)
-        * Matrix.CreateScale(zoom)
-        * Matrix.CreateTranslation(halfW, halfH, 0f)
+        CameraSystem.createViewMatrix camera this.GraphicsDevice.Viewport
 
       let hudOpt = if isNull hudFont then ValueNone else ValueSome hudFont
 
