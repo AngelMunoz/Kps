@@ -21,6 +21,19 @@ module Scenario =
     return state.scenarios[scenarioId]
   }
 
+  [<Struct>]
+  type DrawingContext = {
+    Scenario: Scenario.Scenario
+    Entities: HashMap<Guid<EntityId>, EntityComponents>
+    FloatingTexts: VisualEffects.FloatingText[]
+    Projectiles: VisualEffects.ActiveProjectile[]
+    Aoes: VisualEffects.ActiveAoe[]
+    Impacts: VisualEffects.ActiveImpact[]
+    GameTime: TimeSpan
+    DerivedStats: HashMap<Guid<EntityId>, DerivedStats>
+  }
+
+
 module ScenarioState =
   let inline getEntityById entityId (scenario: Scenario.ScenarioState) =
     scenario.entities |> AMap.tryFind entityId
@@ -1009,3 +1022,31 @@ module GameState =
           | ValueNone -> ()
 
       ())
+
+  let GetDrawingContext
+    services
+    (scenarioState: Scenario.ScenarioState aval)
+    : Scenario.DrawingContext aval =
+    adaptive {
+      let! scenarioState = scenarioState
+      let! gameTime = scenarioState.gameTime
+      and! entities = scenarioState.entities |> AMap.toAVal
+      and! floatingTexts = scenarioState.floatingTexts |> AMap.toAVal
+      and! projectiles = scenarioState.projectiles |> AMap.toAVal
+      and! aoes = scenarioState.aoes |> AMap.toAVal
+      and! impacts = scenarioState.impacts |> AMap.toAVal
+
+      let! derivedStats =
+        DerivedStats.byScenario services scenarioState |> AMap.toAVal
+
+      return {
+        Scenario = scenarioState.scenario
+        Entities = entities
+        FloatingTexts = floatingTexts |> HashMap.toValueArray
+        Projectiles = projectiles |> HashMap.toValueArray
+        Aoes = aoes |> HashMap.toValueArray
+        Impacts = impacts |> HashMap.toValueArray
+        GameTime = gameTime
+        DerivedStats = derivedStats
+      }
+    }

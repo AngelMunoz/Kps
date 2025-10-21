@@ -14,6 +14,8 @@ open Pomo.Lib.Domain.Inventory
 open Pomo.Lib.Operations
 
 module UISystem =
+  open Pomo.Lib.Gameplay.Scenario
+
   [<Struct>]
   type UIPanel =
     | CharacterSheet
@@ -97,7 +99,8 @@ module UISystem =
     (pixel: Texture2D)
     (font: SpriteFont)
     (entityId: Guid<EntityId>)
-    (state: GameState)
+    (entities: HashMap<Guid<EntityId>, EntityComponents>)
+    (derivedStats: HashMap<Guid<EntityId>, DerivedStats>)
     (x: int)
     (y: int)
     =
@@ -107,9 +110,9 @@ module UISystem =
 
     drawPanel sb pixel font x y width height "Character Sheet"
 
-    match GameState.getEntity entityId state with
-    | Some entity ->
-      let stats = GameState.getDerivedStatsSnapshot entityId state
+    match entities |> HashMap.tryFindV entityId with
+    | ValueSome entity ->
+      let stats = derivedStats |> HashMap.tryFindV entityId
       let startY = float32 y + 40f
       let lineHeight = 20f
       let leftX = float32 x + 10f
@@ -181,7 +184,7 @@ module UISystem =
         $"{entity.BaseStats.Charm}"
 
       match stats with
-      | Some derivedStats ->
+      | ValueSome derivedStats ->
         drawStatLine
           sb
           font
@@ -190,13 +193,7 @@ module UISystem =
           "Derived Stats:"
           ""
 
-        drawStatLine
-          sb
-          font
-          leftX
-          (startY + 12f * lineHeight)
-          "Power:"
-          ""
+        drawStatLine sb font leftX (startY + 12f * lineHeight) "Power:" ""
 
         drawStatLine
           sb
@@ -222,13 +219,7 @@ module UISystem =
           "  DX:"
           $"{derivedStats.DX}"
 
-        drawStatLine
-          sb
-          font
-          leftX
-          (startY + 16f * lineHeight)
-          "Magic:"
-          ""
+        drawStatLine sb font leftX (startY + 16f * lineHeight) "Magic:" ""
 
         drawStatLine
           sb
@@ -254,13 +245,7 @@ module UISystem =
           "  MD:"
           $"{derivedStats.MD}"
 
-        drawStatLine
-          sb
-          font
-          leftX
-          (startY + 20f * lineHeight)
-          "Sense:"
-          ""
+        drawStatLine sb font leftX (startY + 20f * lineHeight) "Sense:" ""
 
         drawStatLine
           sb
@@ -286,13 +271,7 @@ module UISystem =
           "  LK:"
           $"{derivedStats.LK}"
 
-        drawStatLine
-          sb
-          font
-          leftX
-          (startY + 24f * lineHeight)
-          "Charm:"
-          ""
+        drawStatLine sb font leftX (startY + 24f * lineHeight) "Charm:" ""
 
         drawStatLine
           sb
@@ -374,9 +353,9 @@ module UISystem =
                 $"{pct:F0}%%"
 
               lineOffset <- lineOffset + 1f
-      | None -> ()
+      | ValueNone -> ()
 
-    | None ->
+    | ValueNone ->
       drawStatLine
         sb
         font
@@ -390,7 +369,7 @@ module UISystem =
     (pixel: Texture2D)
     (font: SpriteFont)
     (entityId: Guid<EntityId>)
-    (state: GameState)
+    (entities: HashMap<Guid<EntityId>, EntityComponents>)
     (x: int)
     (y: int)
     =
@@ -400,8 +379,8 @@ module UISystem =
 
     drawPanel sb pixel font x y width height "Equipment"
 
-    match GameState.getEntity entityId state with
-    | Some entity ->
+    match entities |> HashMap.tryFindV entityId with
+    | ValueSome entity ->
       let startY = float32 y + 40f
       let lineHeight = 20f
       let leftX = float32 x + 10f
@@ -417,7 +396,7 @@ module UISystem =
           drawStatLine sb font leftX slotY $"{slot}:" equipment.Name
         | ValueNone -> drawStatLine sb font leftX slotY $"{slot}:" "(Empty)"
 
-    | None ->
+    | ValueNone ->
       drawStatLine
         sb
         font
@@ -431,7 +410,8 @@ module UISystem =
     (pixel: Texture2D)
     (font: SpriteFont)
     (entityId: Guid<EntityId>)
-    (state: GameState)
+    (entities: HashMap<Guid<EntityId>, EntityComponents>)
+    (gameTime: TimeSpan)
     (x: int)
     (y: int)
     =
@@ -441,14 +421,18 @@ module UISystem =
 
     drawPanel sb pixel font x y width height "Abilities"
 
-    match GameState.getEntity entityId state with
-    | Some entity ->
+    match entities |> HashMap.tryFindV entityId with
+    | ValueSome entity ->
       let startY = float32 y + 40f
       let lineHeight = 18f
       let leftX = float32 x + 10f
 
       let abilities = entity.Abilities |> HashSet.toArray
-      let readyAbilities = GameState.getReadyAbilities entityId state
+
+      let readyAbilities =
+        entity.AbilityCooldowns
+        |> HashMap.filter(fun _ readyTick -> readyTick <= gameTime)
+        |> HashMap.keys
 
       for i in 0 .. min (abilities.Length - 1) 12 do
         let abilityId = abilities.[i]
@@ -465,7 +449,7 @@ module UISystem =
           color
         )
 
-    | None ->
+    | ValueNone ->
       drawStatLine
         sb
         font
@@ -479,7 +463,7 @@ module UISystem =
     (pixel: Texture2D)
     (font: SpriteFont)
     (uiState: UIState)
-    (state: GameState)
+    (drawCtx: DrawingContext)
     (viewport: Viewport)
     =
 
@@ -497,9 +481,28 @@ module UISystem =
         let y = 50
 
         match panel with
-        | CharacterSheet -> drawCharacterSheet sb pixel font entityId state x y
-        | EquipmentView -> drawEquipmentView sb pixel font entityId state x y
-        | AbilityList -> drawAbilityList sb pixel font entityId state x y
+        | CharacterSheet ->
+          drawCharacterSheet
+            sb
+            pixel
+            font
+            entityId
+            drawCtx.Entities
+            drawCtx.DerivedStats
+            x
+            y
+        | EquipmentView ->
+          drawEquipmentView sb pixel font entityId drawCtx.Entities x y
+        | AbilityList ->
+          drawAbilityList
+            sb
+            pixel
+            font
+            entityId
+            drawCtx.Entities
+            drawCtx.GameTime
+            x
+            y
 
       sb.End()
 

@@ -167,100 +167,34 @@ type PomoGame() as this =
         let world = InputManager.screenToWorld mouseScreen view
         mouseWorldPos <- world
 
-        let rightMouseDown = InputManager.isRightClickPressed()
+        let inputResult =
+          InputHandlerSystem.handleAllInput
+            state
+            playerId
+            scenario
+            world
+            gameTime
+            inputState
+            uiState
+            keybindingConfig
+            inputMode
+            selected
+            showPathfindingGrid
+            currentPath
+            pathPreview
+            clickThrottle
 
-        InputManager.updateThrottle clickThrottle gameTime.ElapsedGameTime
+        inputState <- inputResult.InputState
+        uiState <- inputResult.UIState
+        keybindingConfig <- inputResult.KeybindingConfig
+        selected <- inputResult.Selected
+        showPathfindingGrid <- inputResult.ShowPathfindingGrid
+        currentPath <- inputResult.CurrentPath
+        pathPreview <- inputResult.PathPreview
 
-        if rightMouseDown && not inputState.PrevRightMouseDown then
-          if inputMode <> InputManager.InputMode.Normal then
-            inputMode <- InputManager.InputMode.Normal
-          else
-            match
-              InputManager.tryThrottleClick clickThrottle (ValueSome world)
-            with
-            | ValueSome clickWorld ->
-              let navResult =
-                InputHandlerSystem.handleRightClick
-                  state
-                  playerId
-                  clickWorld
-                  scenario
-
-              currentPath <- navResult.CurrentPath
-              pathPreview <- navResult.PathPreview
-            | ValueNone -> ()
-
-        inputState <- {
-          inputState with
-              PrevRightMouseDown = rightMouseDown
-        }
-
-        let mouseDown = InputManager.isLeftClickPressed()
-
-        if mouseDown && not inputState.PrevMouseDown then
-          let clickResult =
-            InputHandlerSystem.handleLeftClick
-              state
-              playerId
-              world
-              scenario
-              inputMode
-
-          match clickResult with
-          | InputHandlerSystem.EntitySelected entityId ->
-            selected <- ValueSome entityId
-          | InputHandlerSystem.SelectionCleared -> selected <- ValueNone
-          | InputHandlerSystem.AbilityActivatedOnEntity _
-          | InputHandlerSystem.AbilityActivatedAtPosition _ ->
-            inputMode <- InputManager.InputMode.Normal
-            Debug.WriteLine("[Input] Reverted to normal input mode.")
-          | InputHandlerSystem.AbilityTargetMissed ->
-            inputMode <- InputManager.InputMode.Normal
-            Debug.WriteLine("[Input] Reverted to normal input mode.")
-          | InputHandlerSystem.NoAction -> ()
-
-
-        inputState <- {
-          inputState with
-              PrevMouseDown = mouseDown
-        }
+        inputResult.InputMode |> ValueOption.iter(fun mode -> inputMode <- mode)
 
         let keyboardState = Keyboard.GetState()
-
-        let struct (toggleGrid, newInputState2, newUIState) =
-          InputHandlerSystem.handleUIKeys keyboardState inputState uiState
-
-        inputState <- newInputState2
-        uiState <- newUIState
-
-        if toggleGrid then
-          showPathfindingGrid <- not showPathfindingGrid
-
-        inputState <-
-          InputHandlerSystem.handleDebugKeys
-            state
-            playerId
-            scenario
-            keyboardState
-            inputState
-
-        let struct (newInputState3, newKeybindingConfig, keybindingResult) =
-          InputHandlerSystem.handleKeybindingInput
-            state
-            playerId
-            scenario
-            keyboardState
-            inputState
-            keybindingConfig
-
-        inputState <- newInputState3
-        keybindingConfig <- newKeybindingConfig
-
-        match keybindingResult with
-        | KeybindingSystem.EnterAbilityTargeting(abilityId, targetingMode) ->
-          inputMode <-
-            InputManager.InputMode.AbilityTargeting(abilityId, targetingMode)
-        | _ -> ()
 
         let enemyEntity = scenario.entities |> AMap.find enemyId |> AVal.force
         let baseSpeed = enemyEntity.Movement.Speed
@@ -303,7 +237,6 @@ type PomoGame() as this =
 
 
   override this.Draw(gameTime) =
-
     base.GraphicsDevice.Clear(Color.CornflowerBlue)
 
     match gameState with
@@ -311,35 +244,13 @@ type PomoGame() as this =
       let view =
         CameraSystem.createViewMatrix camera this.GraphicsDevice.Viewport
 
-      let hudOpt = if isNull hudFont then ValueNone else ValueSome hudFont
-
-      let scenario = Scenario.ActiveScenario state |> AVal.force
-
-      let entities = scenario.entities |> AMap.force |> HashMap.toArrayV
-
-      let derived =
-        adaptive {
-          let! derived = DerivedStats.byGameState state
-          return! derived |> AMap.toAVal
-        }
+      let drawCtx =
+        state
+        |> Scenario.ActiveScenario
+        |> GameState.GetDrawingContext state.services
         |> AVal.force
 
-      let bounds = {
-        Width = scenario.scenario.BoundsWidth
-        Height = scenario.scenario.BoundsHeight
-        CenterX = scenario.scenario.BoundsWidth * 0.5f
-        CenterY = scenario.scenario.BoundsHeight * 0.5f
-      }
-
-      let floatingTexts =
-        scenario.floatingTexts |> AMap.force |> HashMap.toValueArray
-
-      let projectiles =
-        scenario.projectiles |> AMap.force |> HashMap.toValueArray
-
-      let aoes = scenario.aoes |> AMap.force |> HashMap.toValueArray
-      let impacts = scenario.impacts |> AMap.force |> HashMap.toValueArray
-      let gameTime = scenario.gameTime |> AVal.force
+      let hudOpt = if isNull hudFont then ValueNone else ValueSome hudFont
 
       spriteBatch.Begin(
         SpriteSortMode.Deferred,
@@ -351,45 +262,46 @@ type PomoGame() as this =
         view
       )
 
-      let worldCtx = {
-        Pomo.Core.RenderSystem.WorldContext.Bounds = bounds
-        Pomo.Core.RenderSystem.WorldContext.TerrainScenario = scenario.scenario
+      RenderSystem.drawWorld spriteBatch pixel {
+        RenderSystem.WorldContext.Bounds = {
+          Width = drawCtx.Scenario.BoundsWidth
+          Height = drawCtx.Scenario.BoundsHeight
+          CenterX = drawCtx.Scenario.BoundsWidth * 0.5f
+          CenterY = drawCtx.Scenario.BoundsHeight * 0.5f
+        }
+        RenderSystem.WorldContext.TerrainScenario = drawCtx.Scenario
       }
 
-      let navCtx = {
-        Pomo.Core.RenderSystem.NavigationContext.ShowGrid = showPathfindingGrid
-        Pomo.Core.RenderSystem.NavigationContext.PathPreview = pathPreview
-        Pomo.Core.RenderSystem.NavigationContext.CurrentPath = currentPath
-        Pomo.Core.RenderSystem.NavigationContext.Grid = navigationDebugGrid
+      RenderSystem.drawNavigation spriteBatch pixel {
+        RenderSystem.NavigationContext.ShowGrid = showPathfindingGrid
+        RenderSystem.NavigationContext.PathPreview = pathPreview
+        RenderSystem.NavigationContext.CurrentPath = currentPath
+        RenderSystem.NavigationContext.Grid = navigationDebugGrid
       }
 
-      let entityCtx = {
-        Pomo.Core.RenderSystem.EntityContext.Entities = entities
-        Pomo.Core.RenderSystem.EntityContext.Derived = derived
-        Pomo.Core.RenderSystem.EntityContext.Selected = selected
-        Pomo.Core.RenderSystem.EntityContext.Hud = hudOpt
+      RenderSystem.drawEntitiesPhase spriteBatch pixel {
+        RenderSystem.EntityContext.Entities =
+          drawCtx.Entities |> HashMap.toArrayV
+        RenderSystem.EntityContext.Derived = drawCtx.DerivedStats
+        RenderSystem.EntityContext.Selected = selected
+        RenderSystem.EntityContext.Hud = hudOpt
       }
 
-      let effectsCtx = {
-        Pomo.Core.RenderSystem.EffectsContext.FloatingTexts = floatingTexts
-        Pomo.Core.RenderSystem.EffectsContext.Projectiles = projectiles
-        Pomo.Core.RenderSystem.EffectsContext.Aoes = aoes
-        Pomo.Core.RenderSystem.EffectsContext.Impacts = impacts
-        Pomo.Core.RenderSystem.EffectsContext.GameTime = gameTime
-        Pomo.Core.RenderSystem.EffectsContext.Services = state.services
-        Pomo.Core.RenderSystem.EffectsContext.Hud = hudOpt
+      RenderSystem.drawEffectsPhase spriteBatch pixel {
+        RenderSystem.EffectsContext.FloatingTexts = drawCtx.FloatingTexts
+        RenderSystem.EffectsContext.Projectiles = drawCtx.Projectiles
+        RenderSystem.EffectsContext.Aoes = drawCtx.Aoes
+        RenderSystem.EffectsContext.Impacts = drawCtx.Impacts
+        RenderSystem.EffectsContext.GameTime = drawCtx.GameTime
+        RenderSystem.EffectsContext.Services = state.services
+        RenderSystem.EffectsContext.Hud = hudOpt
       }
 
-      let inputCtx = {
-        Pomo.Core.RenderSystem.InputContext.InputMode = inputMode
-        Pomo.Core.RenderSystem.InputContext.MouseWorldPos = mouseWorldPos
+      RenderSystem.drawInputPhase spriteBatch pixel {
+        RenderSystem.InputContext.InputMode = inputMode
+        RenderSystem.InputContext.MouseWorldPos = mouseWorldPos
       }
 
-      RenderSystem.drawWorld spriteBatch pixel worldCtx
-      RenderSystem.drawNavigation spriteBatch pixel navCtx
-      RenderSystem.drawEntitiesPhase spriteBatch pixel entityCtx
-      RenderSystem.drawEffectsPhase spriteBatch pixel effectsCtx
-      RenderSystem.drawInputPhase spriteBatch pixel inputCtx
       spriteBatch.End()
 
       hudOpt
@@ -399,9 +311,8 @@ type PomoGame() as this =
           pixel
           font
           uiState
-          state
+          drawCtx
           this.GraphicsDevice.Viewport)
-
     | _ -> ()
 
     base.Draw(gameTime)

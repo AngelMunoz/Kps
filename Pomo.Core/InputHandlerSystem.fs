@@ -21,8 +21,12 @@ module InputHandlerSystem =
     | NoAction
     | EntitySelected of Guid<EntityId>
     | SelectionCleared
-    | AbilityActivatedOnEntity of abilityId: int<AbilityId> * targetId: Guid<EntityId>
-    | AbilityActivatedAtPosition of abilityId: int<AbilityId> * position: Position
+    | AbilityActivatedOnEntity of
+      abilityId: int<AbilityId> *
+      targetId: Guid<EntityId>
+    | AbilityActivatedAtPosition of
+      abilityId: int<AbilityId> *
+      position: Position
     | AbilityTargetMissed
 
   type NavigationResult = {
@@ -60,7 +64,10 @@ module InputHandlerSystem =
       | Stage.Third -> 20f
 
     match playerComp.Movement.Path with
-    | [] -> { CurrentPath = Array.empty; PathPreview = Array.empty }
+    | [] -> {
+        CurrentPath = Array.empty
+        PathPreview = Array.empty
+      }
     | waypoints ->
       let fullPath =
         Array.concat [| [| playerComp.Position |]; waypoints |> List.toArray |]
@@ -68,9 +75,14 @@ module InputHandlerSystem =
       let preview =
         PathPreview.generatePreview scenario.scenario fullPath entityRadius
 
-      Debug.WriteLine($"[Pathfinding] Preview generated for {fullPath.Length} points")
+      Debug.WriteLine(
+        $"[Pathfinding] Preview generated for {fullPath.Length} points"
+      )
 
-      { CurrentPath = fullPath; PathPreview = preview }
+      {
+        CurrentPath = fullPath
+        PathPreview = preview
+      }
 
   let handleLeftClick
     (state: GameState)
@@ -96,7 +108,8 @@ module InputHandlerSystem =
       let dist2 = dx * dx + dy * dy
       let inside = dist2 <= r * r
 
-      if inside then found <- ValueSome id
+      if inside then
+        found <- ValueSome id
 
     match inputMode with
     | InputManager.InputMode.Normal ->
@@ -107,7 +120,8 @@ module InputHandlerSystem =
       | ValueNone ->
         Debug.WriteLine("[Input] Selection cleared")
         SelectionCleared
-    | InputManager.InputMode.AbilityTargeting(abilityId, InputManager.TargetingMode.EntityTargeting) ->
+    | InputManager.InputMode.AbilityTargeting(abilityId,
+                                              InputManager.TargetingMode.EntityTargeting) ->
       match found with
       | ValueSome targetId ->
         let stateChange =
@@ -126,7 +140,8 @@ module InputHandlerSystem =
       | ValueNone ->
         Debug.WriteLine("[Ability] No target selected.")
         AbilityTargetMissed
-    | InputManager.InputMode.AbilityTargeting(abilityId, InputManager.TargetingMode.GroundTargeting _) ->
+    | InputManager.InputMode.AbilityTargeting(abilityId,
+                                              InputManager.TargetingMode.GroundTargeting _) ->
       let targetPos = { X = world.X; Y = world.Y }
 
       let stateChange =
@@ -140,7 +155,9 @@ module InputHandlerSystem =
 
       GameState.apply state stateChange
 
-      Debug.WriteLine($"[Ability] Activated {abilityId} at position ({targetPos.X}, {targetPos.Y})")
+      Debug.WriteLine(
+        $"[Ability] Activated {abilityId} at position ({targetPos.X}, {targetPos.Y})"
+      )
 
       AbilityActivatedAtPosition(abilityId, targetPos)
 
@@ -162,25 +179,37 @@ module InputHandlerSystem =
       newUIState <- UISystem.togglePanel UISystem.CharacterSheet newUIState
       Debug.WriteLine("[UI] Character sheet toggled")
 
-    newInputState <- { newInputState with PrevKey2Down = keyF1 }
+    newInputState <- {
+      newInputState with
+          PrevKey2Down = keyF1
+    }
 
     if keyF2 && not inputState.PrevKeyVDown then
       newUIState <- UISystem.togglePanel UISystem.EquipmentView newUIState
       Debug.WriteLine("[UI] Equipment view toggled")
 
-    newInputState <- { newInputState with PrevKeyVDown = keyF2 }
+    newInputState <- {
+      newInputState with
+          PrevKeyVDown = keyF2
+    }
 
     if keyF3 && not inputState.PrevKeyEDown then
       newUIState <- UISystem.togglePanel UISystem.AbilityList newUIState
       Debug.WriteLine("[UI] Ability list toggled")
 
-    newInputState <- { newInputState with PrevKeyEDown = keyF3 }
+    newInputState <- {
+      newInputState with
+          PrevKeyEDown = keyF3
+    }
 
     if keyF4 && not inputState.PrevKeyADown then
       toggleGrid <- true
       Debug.WriteLine("[Debug] showPathfindingGrid toggled")
 
-    newInputState <- { newInputState with PrevKeyADown = keyF4 }
+    newInputState <- {
+      newInputState with
+          PrevKeyADown = keyF4
+    }
 
     struct (toggleGrid, newInputState, newUIState)
 
@@ -214,7 +243,10 @@ module InputHandlerSystem =
       GameState.apply state stateChange
       Debug.WriteLine("[Debug] MP replenished")
 
-    newInputState <- { newInputState with PrevKeyRDown = keyF5 }
+    newInputState <- {
+      newInputState with
+          PrevKeyRDown = keyF5
+    }
 
     newInputState
 
@@ -233,6 +265,7 @@ module InputHandlerSystem =
     for set in KeybindingSystem.allSets do
       let key = KeybindingSystem.setToKey set
       let isDown = keyboardState.IsKeyDown(key)
+
       let wasDown =
         match set with
         | KeybindingSystem.Set1 -> inputState.PrevKey1Down
@@ -248,6 +281,7 @@ module InputHandlerSystem =
     for slot in KeybindingSystem.allSlots do
       let key = KeybindingSystem.slotToKey slot
       let isDown = keyboardState.IsKeyDown(key)
+
       let wasDown =
         match slot with
         | KeybindingSystem.Q -> inputState.PrevKeyQDown
@@ -261,15 +295,27 @@ module InputHandlerSystem =
 
       if isDown && not wasDown then
         let action = KeybindingSystem.getSlotAction slot keybindingConfig
+
         match action with
         | KeybindingSystem.ActivateAbility abilityId ->
-          match KeybindingSystem.getAbilityTargetingMode state.services.abilityStore abilityId with
+          match
+            KeybindingSystem.getAbilityTargetingMode
+              state.services.abilityStore
+              abilityId
+          with
           | ValueSome targetingMode ->
-            result <- KeybindingSystem.EnterAbilityTargeting(abilityId, targetingMode)
-            Debug.WriteLine($"[Keybinding] Slot {slot} entering targeting for ability {abilityId}")
+            result <-
+              KeybindingSystem.EnterAbilityTargeting(abilityId, targetingMode)
+
+            Debug.WriteLine(
+              $"[Keybinding] Slot {slot} entering targeting for ability {abilityId}"
+            )
           | ValueNone ->
             result <- KeybindingSystem.ExecuteSelfAbility abilityId
-            Debug.WriteLine($"[Keybinding] Slot {slot} executing self ability {abilityId}")
+
+            Debug.WriteLine(
+              $"[Keybinding] Slot {slot} executing self ability {abilityId}"
+            )
         | KeybindingSystem.UseItem itemId ->
           result <- KeybindingSystem.UseItemAction itemId
           Debug.WriteLine($"[Keybinding] Slot {slot} used item {itemId}")
@@ -277,14 +323,39 @@ module InputHandlerSystem =
 
       newInputState <-
         match slot with
-        | KeybindingSystem.Q -> { newInputState with PrevKeyQDown = isDown }
-        | KeybindingSystem.W -> { newInputState with PrevKeyWDown = isDown }
-        | KeybindingSystem.E -> { newInputState with PrevKeyEKeyDown = isDown }
-        | KeybindingSystem.R -> { newInputState with PrevKeyRKeyDown = isDown }
-        | KeybindingSystem.A -> { newInputState with PrevKeyAKeyDown = isDown }
-        | KeybindingSystem.S -> { newInputState with PrevKeySDown = isDown }
-        | KeybindingSystem.D -> { newInputState with PrevKeyDDown = isDown }
-        | KeybindingSystem.F -> { newInputState with PrevKeyFDown = isDown }
+        | KeybindingSystem.Q -> {
+            newInputState with
+                PrevKeyQDown = isDown
+          }
+        | KeybindingSystem.W -> {
+            newInputState with
+                PrevKeyWDown = isDown
+          }
+        | KeybindingSystem.E -> {
+            newInputState with
+                PrevKeyEKeyDown = isDown
+          }
+        | KeybindingSystem.R -> {
+            newInputState with
+                PrevKeyRKeyDown = isDown
+          }
+        | KeybindingSystem.A -> {
+            newInputState with
+                PrevKeyAKeyDown = isDown
+          }
+        | KeybindingSystem.S -> {
+            newInputState with
+                PrevKeySDown = isDown
+          }
+        | KeybindingSystem.D -> {
+            newInputState with
+                PrevKeyDDown = isDown
+          }
+        | KeybindingSystem.F ->
+            {
+              newInputState with
+                  PrevKeyFDown = isDown
+            }
 
     match result with
     | KeybindingSystem.ExecuteSelfAbility abilityId ->
@@ -301,3 +372,156 @@ module InputHandlerSystem =
     | _ -> ()
 
     struct (newInputState, newConfig, result)
+
+  type InputUpdateResult = {
+    InputState: InputManager.InputState
+    UIState: UISystem.UIState
+    KeybindingConfig: KeybindingSystem.KeybindingConfig
+    InputMode: InputManager.InputMode voption
+    Selected: Guid<EntityId> voption
+    ShowPathfindingGrid: bool
+    CurrentPath: Position[]
+    PathPreview: PathPreview.PathSegment[]
+  }
+
+  let handleAllInput
+    (state: GameState)
+    (playerId: Guid<EntityId>)
+    (scenario: ScenarioState)
+    (world: Vector2)
+    (gameTime: GameTime)
+    (inputState: InputManager.InputState)
+    (uiState: UISystem.UIState)
+    (keybindingConfig: KeybindingSystem.KeybindingConfig)
+    (inputMode: InputManager.InputMode)
+    (selected: Guid<EntityId> voption)
+    (showPathfindingGrid: bool)
+    (currentPath: Position[])
+    (pathPreview: PathPreview.PathSegment[])
+    (clickThrottle: InputManager.ClickThrottleState)
+    =
+    let mutable result = {
+      InputState = inputState
+      UIState = uiState
+      KeybindingConfig = keybindingConfig
+      InputMode = ValueNone
+      Selected = selected
+      ShowPathfindingGrid = showPathfindingGrid
+      CurrentPath = currentPath
+      PathPreview = pathPreview
+    }
+
+    let rightMouseDown = InputManager.isRightClickPressed()
+    let mouseDown = InputManager.isLeftClickPressed()
+    let keyboardState = Keyboard.GetState()
+
+    InputManager.updateThrottle clickThrottle gameTime.ElapsedGameTime
+
+    if rightMouseDown && not inputState.PrevRightMouseDown then
+      if inputMode <> InputManager.InputMode.Normal then
+        result <- {
+          result with
+              InputMode = ValueSome InputManager.InputMode.Normal
+        }
+      else
+        match InputManager.tryThrottleClick clickThrottle (ValueSome world) with
+        | ValueSome clickWorld ->
+          let navResult = handleRightClick state playerId clickWorld scenario
+
+          result <- {
+            result with
+                CurrentPath = navResult.CurrentPath
+                PathPreview = navResult.PathPreview
+          }
+        | ValueNone -> ()
+
+    result <- {
+      result with
+          InputState = {
+            result.InputState with
+                PrevRightMouseDown = rightMouseDown
+          }
+    }
+
+    if mouseDown && not inputState.PrevMouseDown then
+      let clickResult = handleLeftClick state playerId world scenario inputMode
+
+      match clickResult with
+      | EntitySelected entityId ->
+        result <- {
+          result with
+              Selected = ValueSome entityId
+        }
+      | SelectionCleared -> result <- { result with Selected = ValueNone }
+      | AbilityActivatedOnEntity _
+      | AbilityActivatedAtPosition _
+      | AbilityTargetMissed ->
+        result <- {
+          result with
+              InputMode = ValueSome InputManager.InputMode.Normal
+        }
+      | NoAction -> ()
+
+    result <- {
+      result with
+          InputState = {
+            result.InputState with
+                PrevMouseDown = mouseDown
+          }
+    }
+
+    let struct (toggleGrid, newInputState2, newUIState) =
+      handleUIKeys keyboardState result.InputState result.UIState
+
+    result <- {
+      result with
+          InputState = newInputState2
+          UIState = newUIState
+          ShowPathfindingGrid =
+            if toggleGrid then
+              not result.ShowPathfindingGrid
+            else
+              result.ShowPathfindingGrid
+    }
+
+    result <- {
+      result with
+          InputState =
+            handleDebugKeys
+              state
+              playerId
+              scenario
+              keyboardState
+              result.InputState
+    }
+
+    let struct (newInputState3, newKeybindingConfig, keybindingResult) =
+      handleKeybindingInput
+        state
+        playerId
+        scenario
+        keyboardState
+        result.InputState
+        result.KeybindingConfig
+
+    result <- {
+      result with
+          InputState = newInputState3
+          KeybindingConfig = newKeybindingConfig
+    }
+
+    match keybindingResult with
+    | KeybindingSystem.EnterAbilityTargeting(abilityId, targetingMode) ->
+      result <- {
+        result with
+            InputMode =
+              ValueSome(
+                InputManager.InputMode.AbilityTargeting(
+                  abilityId,
+                  targetingMode
+                )
+              )
+      }
+    | _ -> ()
+
+    result
