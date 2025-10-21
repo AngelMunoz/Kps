@@ -797,8 +797,8 @@ module GameState =
         {
           Width = scenario.BoundsWidth
           Height = scenario.BoundsHeight
-          CenterX = 0f
-          CenterY = 0f
+          CenterX = scenario.BoundsWidth * 0.5f
+          CenterY = scenario.BoundsHeight * 0.5f
         }
         |> Movement.Update.withPath time scenario currentEntityId currentEntity
 
