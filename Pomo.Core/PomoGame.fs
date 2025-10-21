@@ -60,32 +60,6 @@ type PomoGame() as this =
   let mutable terrainVersion: int64 = 0L
   let mutable isGridDirty: bool = true
 
-  let computeTerrainVersion(scenario: Scenario) =
-    let objs = scenario.TerrainObjects |> IndexList.toArray
-
-    let hashObjs =
-      objs
-      |> Array.fold
-        (fun s o ->
-          s + int64(HashCode.Combine(o.Id, o.Position.X, o.Position.Y)))
-        0L
-
-    let transHash =
-      scenario.Transitions
-      |> Array.fold
-        (fun s t ->
-          s
-          + int64(
-            HashCode.Combine(
-              t.FromPosition.X,
-              t.FromPosition.Y,
-              t.ToScenarioId
-            )
-          ))
-        0L
-
-    hashObjs + transHash
-
   do
     base.Services.AddService(
       typeof<GraphicsDeviceManager>,
@@ -157,59 +131,31 @@ type PomoGame() as this =
       match gameState with
       | ValueNone -> base.Update(gameTime)
       | ValueSome state ->
-        let stateChange =
-          gameTime.ElapsedGameTime |> GameState.tick state |> AVal.force
-
-        let scenario = Scenario.ActiveScenario state |> AVal.force
-
-        AudioSystem.processAudioChanges
-          state.services.audioStore
-          scenario
-          stateChange.audioChanges
-
-        GameState.apply state stateChange
-        AudioSystem.update()
+        GameUpdateSystem.updateGameTick state gameTime.ElapsedGameTime
 
         camera <- CameraSystem.updateZoom camera
 
         let scenario = Scenario.ActiveScenario state |> AVal.force
 
-        let newVersion = computeTerrainVersion scenario.scenario
-
-        if newVersion <> terrainVersion then
-          terrainVersion <- newVersion
-          isGridDirty <- true
-
-        if isGridDirty then
-          navigationDebugGrid <-
-            let g = Grid.createGrid scenario.scenario 32.0f 16.0f
-
-            ValueSome g
-
-          isGridDirty <- false
-
-        // Check for scenario transitions
-        let detectedTransitions =
-          Pomo.Lib.ScenarioTransitions.TransitionDetection.detectTransitions
-            scenario.entities
+        let struct (newVer, newDirty, gridOpt) =
+          GameUpdateSystem.updateNavigationGrid
             scenario.scenario
-          |> AMap.force
+            terrainVersion
+            isGridDirty
 
-        // Process any detected transitions
-        detectedTransitions
-        |> HashMap.iter(fun entityId trigger ->
-          Debug.WriteLine(
-            $"[Transition] Entity {entityId} triggered transition to scenario {trigger.ToScenarioId}"
-          )
-        // For now, just log the transition - full transition execution would require
-        // multiple scenarios to be loaded
-        )
+        terrainVersion <- newVer
+        isGridDirty <- newDirty
 
-        match scenario.entities |> AMap.force |> HashMap.tryFindV playerId with
-        | ValueSome comp ->
-          camera <-
-            CameraSystem.setPosition (Position.toVector2 comp.Position) camera
-        | ValueNone -> ()
+        gridOpt |> ValueOption.iter(fun g -> navigationDebugGrid <- ValueSome g)
+
+        GameUpdateSystem.checkScenarioTransitions scenario
+
+        let playerComps = scenario.entities[playerId]
+
+        camera <-
+          CameraSystem.setPosition
+            (Position.toVector2 playerComps.Position)
+            camera
 
         let view =
           CameraSystem.createViewMatrix camera this.GraphicsDevice.Viewport
@@ -230,52 +176,15 @@ type PomoGame() as this =
               InputManager.tryThrottleClick clickThrottle (ValueSome world)
             with
             | ValueSome clickWorld ->
-              let moveCmd =
-                Rules.Navigate {
-                  actor = playerId
-                  destination = { X = clickWorld.X; Y = clickWorld.Y }
-                }
+              let navResult =
+                InputHandlerSystem.handleRightClick
+                  state
+                  playerId
+                  clickWorld
+                  scenario
 
-              let stateChange =
-                CommandHandler.evaluate state moveCmd |> AVal.force
-
-              AudioSystem.processAudioChanges
-                state.services.audioStore
-                scenario
-                stateChange.audioChanges
-
-              GameState.apply state stateChange
-
-              let playerComp = scenario.entities[playerId]
-
-              let entityRadius =
-                match playerComp.Identity.Stage with
-                | Stage.First -> 12f
-                | Stage.Second -> 16f
-                | Stage.Third -> 20f
-
-              match playerComp.Movement.Path with
-              | [] ->
-                currentPath <- Array.empty
-                pathPreview <- Array.empty
-              | waypoints ->
-                let fullPath =
-                  Array.concat [|
-                    [| playerComp.Position |]
-                    waypoints |> List.toArray
-                  |]
-
-                currentPath <- fullPath
-
-                pathPreview <-
-                  PathPreview.generatePreview
-                    scenario.scenario
-                    fullPath
-                    entityRadius
-
-                Debug.WriteLine(
-                  $"[Pathfinding] Preview generated for {fullPath.Length} points"
-                )
+              currentPath <- navResult.CurrentPath
+              pathPreview <- navResult.PathPreview
             | ValueNone -> ()
 
         inputState <- {
@@ -285,83 +194,27 @@ type PomoGame() as this =
 
         let mouseDown = InputManager.isLeftClickPressed()
 
-        if (mouseDown && not inputState.PrevMouseDown) then
-          let entities = scenario.entities |> AMap.force |> HashMap.toArrayV
-
-          let inline radiusOfStage s =
-            match s with
-            | Stage.First -> 12f
-            | Stage.Second -> 16f
-            | Stage.Third -> 20f
-
-          let mutable found: Guid<EntityId> voption = ValueNone
-
-          for struct (id, comp) in entities do
-            let dx = world.X - comp.Position.X
-            let dy = world.Y - comp.Position.Y
-            let r = radiusOfStage comp.Identity.Stage
-            let dist2 = dx * dx + dy * dy
-            let inside = dist2 <= r * r
-
-            if inside then
-              found <- ValueSome id
-
-          match inputMode with
-          | InputManager.InputMode.Normal ->
-            selected <- found
-
-            match selected with
-            | ValueSome sid -> Debug.WriteLine($"[Input] Selected {sid}")
-            | ValueNone -> Debug.WriteLine("[Input] Selection cleared")
-          | InputManager.InputMode.AbilityTargeting(abilityId,
-                                                    InputManager.TargetingMode.EntityTargeting) ->
-            match found with
-            | ValueSome targetId ->
-              let stateChange =
-                GameState.activateAbility
-                  playerId
-                  abilityId
-                  [| targetId |]
-                  state
-                |> AVal.force
-
-              AudioSystem.processAudioChanges
-                state.services.audioStore
-                scenario
-                stateChange.audioChanges
-
-              GameState.apply state stateChange
-
-              Debug.WriteLine($"[Ability] Activated {abilityId} on {targetId}")
-            | ValueNone -> Debug.WriteLine("[Ability] No target selected.")
-
-            inputMode <- InputManager.InputMode.Normal
-            Debug.WriteLine("[Input] Reverted to normal input mode.")
-          | InputManager.InputMode.AbilityTargeting(abilityId,
-                                                    InputManager.TargetingMode.GroundTargeting _) ->
-            let targetPos = { X = world.X; Y = world.Y }
-
-            let stateChange =
-              GameState.activateAbilityAtPosition
-                playerId
-                abilityId
-                targetPos
-                state
-              |> AVal.force
-
-            AudioSystem.processAudioChanges
-              state.services.audioStore
+        if mouseDown && not inputState.PrevMouseDown then
+          let clickResult =
+            InputHandlerSystem.handleLeftClick
+              state
+              playerId
+              world
               scenario
-              stateChange.audioChanges
+              inputMode
 
-            GameState.apply state stateChange
-
-            Debug.WriteLine(
-              $"[Ability] Activated {abilityId} at position ({targetPos.X}, {targetPos.Y})"
-            )
-
+          match clickResult with
+          | InputHandlerSystem.EntitySelected entityId ->
+            selected <- ValueSome entityId
+          | InputHandlerSystem.SelectionCleared -> selected <- ValueNone
+          | InputHandlerSystem.AbilityActivatedOnEntity _
+          | InputHandlerSystem.AbilityActivatedAtPosition _ ->
             inputMode <- InputManager.InputMode.Normal
             Debug.WriteLine("[Input] Reverted to normal input mode.")
+          | InputHandlerSystem.AbilityTargetMissed ->
+            inputMode <- InputManager.InputMode.Normal
+            Debug.WriteLine("[Input] Reverted to normal input mode.")
+          | InputHandlerSystem.NoAction -> ()
 
 
         inputState <- {
@@ -369,136 +222,32 @@ type PomoGame() as this =
               PrevMouseDown = mouseDown
         }
 
-        let key1 = Keyboard.GetState().IsKeyDown(Keys.D1)
+        let keyboardState = Keyboard.GetState()
 
-        if key1 && not inputState.PrevKey1Down then
-          inputMode <-
-            InputManager.InputMode.AbilityTargeting(
-              2<AbilityId>,
-              InputManager.TargetingMode.EntityTargeting
-            )
+        let struct (newInputModeOpt, newInputState1) =
+          InputHandlerSystem.handleAbilityKeys keyboardState inputState
 
-          Debug.WriteLine(
-            "[Input] Entered ability targeting mode for Fireball (ability 2)."
-          )
+        inputState <- newInputState1
 
-        inputState <- { inputState with PrevKey1Down = key1 }
+        newInputModeOpt |> ValueOption.iter(fun mode -> inputMode <- mode)
 
-        let key3 = Keyboard.GetState().IsKeyDown(Keys.D3)
+        let struct (toggleGrid, newInputState2, newUIState) =
+          InputHandlerSystem.handleUIKeys keyboardState inputState uiState
 
-        if key3 && not inputState.PrevKey3Down then
-          inputMode <-
-            InputManager.InputMode.AbilityTargeting(
-              102<AbilityId>,
-              InputManager.TargetingMode.GroundTargeting 32.0f
-            )
+        inputState <- newInputState2
+        uiState <- newUIState
 
-          Debug.WriteLine(
-            "[Input] Entered ground targeting mode for Arrow Shot (ability 102)."
-          )
-
-        inputState <- { inputState with PrevKey3Down = key3 }
-
-        let key4 = Keyboard.GetState().IsKeyDown(Keys.D4)
-
-        if key4 && not inputState.PrevKey4Down then
-          inputMode <-
-            InputManager.InputMode.AbilityTargeting(
-              103<AbilityId>,
-              InputManager.TargetingMode.GroundTargeting 64.0f
-            )
-
-          Debug.WriteLine(
-            "[Input] Entered ground targeting mode for Meteor Shower (ability 103)."
-          )
-
-        inputState <- { inputState with PrevKey4Down = key4 }
-
-        let key5 = Keyboard.GetState().IsKeyDown(Keys.D5)
-
-        if key5 && not inputState.PrevKey5Down then
-          inputMode <-
-            InputManager.InputMode.AbilityTargeting(
-              104<AbilityId>,
-              InputManager.TargetingMode.GroundTargeting 32.0f
-            )
-
-          Debug.WriteLine(
-            "[Input] Entered ground targeting mode for Magic Arrow (ability 104)."
-          )
-
-        inputState <- { inputState with PrevKey5Down = key5 }
-
-        let keyF2 = Keyboard.GetState().IsKeyDown(Keys.F2)
-
-        if keyF2 && not inputState.PrevKey2Down then
+        if toggleGrid then
           showPathfindingGrid <- not showPathfindingGrid
 
-          Debug.WriteLine(
-            $"[Debug] showPathfindingGrid toggled: {showPathfindingGrid}"
-          )
-
-        inputState <- { inputState with PrevKey2Down = keyF2 }
-
-        let keyV = Keyboard.GetState().IsKeyDown(Keys.V)
-
-        if keyV && not inputState.PrevKeyVDown then
-          uiState <- UISystem.togglePanel UISystem.CharacterSheet uiState
-
-          Debug.WriteLine(
-            $"[UI] Character sheet toggled: {uiState.ActivePanels |> HashSet.contains UISystem.CharacterSheet}"
-          )
-
-        inputState <- { inputState with PrevKeyVDown = keyV }
-
-        let keyE = Keyboard.GetState().IsKeyDown(Keys.E)
-
-        if keyE && not inputState.PrevKeyEDown then
-          uiState <- UISystem.togglePanel UISystem.EquipmentView uiState
-
-          Debug.WriteLine(
-            $"[UI] Equipment view toggled: {uiState.ActivePanels |> HashSet.contains UISystem.EquipmentView}"
-          )
-
-        inputState <- { inputState with PrevKeyEDown = keyE }
-
-        let keyA = Keyboard.GetState().IsKeyDown(Keys.A)
-
-        if keyA && not inputState.PrevKeyADown then
-          uiState <- UISystem.togglePanel UISystem.AbilityList uiState
-
-          Debug.WriteLine(
-            $"[UI] Ability list toggled: {uiState.ActivePanels |> HashSet.contains UISystem.AbilityList}"
-          )
-
-        inputState <- { inputState with PrevKeyADown = keyA }
-
-        let keyR = Keyboard.GetState().IsKeyDown(Keys.R)
-
-        if keyR && not inputState.PrevKeyRDown then
-
-          let replenishCmd =
-            Rules.ReplenishResources [|
-              {
-                Actor = playerId
-                ResourceType = ResourceType.MP
-                Amount = 1000
-              }
-            |]
-
-          let stateChange =
-            CommandHandler.evaluate state replenishCmd |> AVal.force
-
-          AudioSystem.processAudioChanges
-            state.services.audioStore
+        inputState <-
+          InputHandlerSystem.handleDebugKeys
+            state
+            playerId
             scenario
-            stateChange.audioChanges
+            keyboardState
+            inputState
 
-          GameState.apply state stateChange
-
-        inputState <- { inputState with PrevKeyRDown = keyR }
-
-        let keyboardState = Keyboard.GetState()
         let enemyEntity = scenario.entities |> AMap.find enemyId |> AVal.force
         let baseSpeed = enemyEntity.Movement.Speed
 
