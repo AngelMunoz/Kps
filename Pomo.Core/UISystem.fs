@@ -103,7 +103,7 @@ module UISystem =
     =
 
     let width = 300
-    let height = 400
+    let height = 600
 
     drawPanel sb pixel font x y width height "Character Sheet"
 
@@ -195,6 +195,14 @@ module UISystem =
           font
           leftX
           (startY + 12f * lineHeight)
+          "Power:"
+          ""
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 13f * lineHeight)
           "  AP:"
           $"{derivedStats.AP}"
 
@@ -202,7 +210,7 @@ module UISystem =
           sb
           font
           leftX
-          (startY + 13f * lineHeight)
+          (startY + 14f * lineHeight)
           "  AC:"
           $"{derivedStats.AC}"
 
@@ -210,7 +218,7 @@ module UISystem =
           sb
           font
           leftX
-          (startY + 14f * lineHeight)
+          (startY + 15f * lineHeight)
           "  DX:"
           $"{derivedStats.DX}"
 
@@ -218,7 +226,23 @@ module UISystem =
           sb
           font
           leftX
-          (startY + 15f * lineHeight)
+          (startY + 16f * lineHeight)
+          "Magic:"
+          ""
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 17f * lineHeight)
+          "  MP:"
+          $"{derivedStats.MP}"
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 18f * lineHeight)
           "  MA:"
           $"{derivedStats.MA}"
 
@@ -226,7 +250,7 @@ module UISystem =
           sb
           font
           leftX
-          (startY + 16f * lineHeight)
+          (startY + 19f * lineHeight)
           "  MD:"
           $"{derivedStats.MD}"
 
@@ -234,9 +258,122 @@ module UISystem =
           sb
           font
           leftX
-          (startY + 17f * lineHeight)
+          (startY + 20f * lineHeight)
+          "Sense:"
+          ""
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 21f * lineHeight)
           "  WT:"
           $"{derivedStats.WT}"
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 22f * lineHeight)
+          "  DA:"
+          $"{derivedStats.DA}"
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 23f * lineHeight)
+          "  LK:"
+          $"{derivedStats.LK}"
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 24f * lineHeight)
+          "Charm:"
+          ""
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 25f * lineHeight)
+          "  HP:"
+          $"{derivedStats.HP}"
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 26f * lineHeight)
+          "  DP:"
+          $"{derivedStats.DP}"
+
+        drawStatLine
+          sb
+          font
+          leftX
+          (startY + 27f * lineHeight)
+          "  HV:"
+          $"{derivedStats.HV}"
+
+        let hasElementalData =
+          not(derivedStats.ElementAttributes |> HashMap.isEmpty)
+          || not(derivedStats.ElementResistances |> HashMap.isEmpty)
+
+        if hasElementalData then
+          drawStatLine sb font leftX (startY + 29f * lineHeight) "Elemental:" ""
+
+          let mutable lineOffset = 24f
+
+          if not(derivedStats.ElementAttributes |> HashMap.isEmpty) then
+            drawStatLine
+              sb
+              font
+              leftX
+              (startY + lineOffset * lineHeight)
+              "  Attributes:"
+              ""
+
+            lineOffset <- lineOffset + 1f
+
+            for element, value in derivedStats.ElementAttributes do
+              let pct = value * 100.0
+
+              drawStatLine
+                sb
+                font
+                (leftX + 20f)
+                (startY + lineOffset * lineHeight)
+                $"    {element}:"
+                $"{pct:F0}%%"
+
+              lineOffset <- lineOffset + 1f
+
+          if not(derivedStats.ElementResistances |> HashMap.isEmpty) then
+            drawStatLine
+              sb
+              font
+              leftX
+              (startY + lineOffset * lineHeight)
+              "  Resistances:"
+              ""
+
+            lineOffset <- lineOffset + 1f
+
+            for element, value in derivedStats.ElementResistances do
+              let pct = value * 100.0
+
+              drawStatLine
+                sb
+                font
+                (leftX + 20f)
+                (startY + lineOffset * lineHeight)
+                $"    {element}:"
+                $"{pct:F0}%%"
+
+              lineOffset <- lineOffset + 1f
       | None -> ()
 
     | None ->

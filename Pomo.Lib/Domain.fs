@@ -687,6 +687,7 @@ module VisualEffects =
     | Critical
     | MPRecovery
     | Evade
+    | SystemMessage
 
   [<Struct>]
   type FloatingText = {

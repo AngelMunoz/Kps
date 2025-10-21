@@ -475,7 +475,36 @@ module CommandHandler =
     | InsufficientResource
     | OnCooldown
     | InvalidTarget
-    | MissingRequirements -> return StateChange.empty
+    | MissingRequirements ->
+      let! gameTime = rparams.gameTime
+      let! actor = rparams.scenarioState.entities |> AMap.tryFind ractors.actor
+
+      let floatingText =
+        actor
+        |> Option.map(fun a ->
+          let text =
+            match validationResult with
+            | Stunned -> "Stunned"
+            | Silenced -> "Silenced"
+            | OnCooldown -> "On Cooldown"
+            | InsufficientResource -> "Not Enough Resources"
+            | MissingRequirements -> "Requirements Not Met"
+            | InvalidTarget -> "Invalid Target"
+            | _ -> "Cannot Use"
+
+          AddFloatingText {
+            Id = Guid.NewGuid() |> UMX.tag
+            Text = text
+            Position = a.Position
+            Color = SystemMessage
+            CreationTick = gameTime
+          })
+        |> Option.toArray
+
+      return {
+        StateChange.empty with
+            visualEffects = floatingText
+      }
     | ValidAction action ->
       let hasVisualEffect =
         action.abilityDefinition.ProjectileId.IsSome
@@ -575,12 +604,64 @@ module CommandHandler =
       | AbilityTarget.PositionTarget targetPos ->
         match abilityDef.Targeting with
         | GroundTarget radius ->
+          let! actor =
+            rparams.scenarioState.entities |> AMap.tryFind action.actor
+
+          match actor with
+          | None -> return StateChange.empty
+          | Some actor when not actor.Resources.Status.IsAlive ->
+            return StateChange.empty
+          | Some actor ->
+
+          let! actorStats = rparams.derivedStats |> AMap.find action.actor
           let! gameTime = rparams.gameTime
+
+          let isStunned = ValidateAction.checkStun actor
+          let isSilenced = ValidateAction.checkSilence actor abilityDef
+
+          let! isOnCooldown =
+            ValidateAction.checkCooldown actor action.abilityId rparams.gameTime
+
+          let struct (hasEnoughResource, cost) =
+            ValidateAction.checkResourceCost actor abilityDef
+
+          let hasRequirements =
+            ValidateAction.checkAbilityRequirements
+              actor
+              actorStats
+              abilityDef.Requirements
+
+          if
+            isStunned
+            || isSilenced
+            || isOnCooldown
+            || not hasEnoughResource
+            || not hasRequirements
+          then
+            let text =
+              if isStunned then "Stunned"
+              elif isSilenced then "Silenced"
+              elif isOnCooldown then "On Cooldown"
+              elif not hasEnoughResource then "Not Enough Resources"
+              else "Requirements Not Met"
+
+            return {
+              StateChange.empty with
+                  visualEffects = [|
+                    AddFloatingText {
+                      Id = Guid.NewGuid() |> UMX.tag
+                      Text = text
+                      Position = actor.Position
+                      Color = SystemMessage
+                      CreationTick = gameTime
+                    }
+                  |]
+            }
+          else
+
           let resolutionId = %Guid.NewGuid()
           let mutable visualEffects = ResizeArray()
-          
-          let! actor = rparams.scenarioState.entities |> AMap.find action.actor
-          
+
           abilityDef.ProjectileId
           |> ValueOption.iter(fun defId ->
             let resolution = {
@@ -590,9 +671,9 @@ module CommandHandler =
               AbilityId = action.abilityId
               TriggerTick = gameTime + TimeSpan.FromSeconds(5.0)
             }
-            
+
             visualEffects.Add(AddPendingResolution resolution)
-            
+
             visualEffects.Add(
               AddProjectile {
                 Id = Guid.NewGuid() |> UMX.tag
@@ -603,9 +684,16 @@ module CommandHandler =
                 PendingResolutionId = resolutionId
               }
             ))
-          let! actorWithCost = Resolution.applyResourceCost abilityDef.Cost actor 0
-          let actorWithCooldown = Resolution.updateCooldowns actorWithCost action.abilityId gameTime abilityDef
-          
+
+          let! actorWithCost = Resolution.applyResourceCost cost actor 0
+
+          let actorWithCooldown =
+            Resolution.updateCooldowns
+              actorWithCost
+              action.abilityId
+              gameTime
+              abilityDef
+
           return {
             StateChange.empty with
                 updates = HashMap.single action.actor actorWithCooldown

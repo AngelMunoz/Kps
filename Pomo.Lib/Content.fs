@@ -580,6 +580,21 @@ module AbilityStore =
         AoeId = ValueNone
         ImpactId = ValueSome 1<ImpactId>
       }
+      103<AbilityId>,
+      {
+        Id = 103<AbilityId>
+        Name = "Meteor Shower"
+        Intent = AbilityIntent.Offensive
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 25 }
+        Cooldown = TimeSpan.FromMilliseconds(5000.0)
+        Targeting = GroundTarget 64.0f
+        FormulaId = ValueSome 2<FormulaId>
+        Effects = Array.empty
+        Requirements = Array.empty
+        ProjectileId = ValueSome 4<ProjectileId>
+        AoeId = ValueNone
+        ImpactId = ValueSome 2<ImpactId>
+      }
     ]
 
   let passiveDefinitions: Map<int<AbilityId>, PassiveAbilityDefinition> =
@@ -688,6 +703,8 @@ module CharacterKitStore =
             2<AbilityId>
             4<AbilityId>
             6<AbilityId>
+            102<AbilityId>
+            103<AbilityId>
           |]
       }
       { Family = Magic; Stage = Third },

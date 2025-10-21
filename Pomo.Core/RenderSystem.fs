@@ -344,7 +344,8 @@ module RenderSystem =
             | Critical -> Color.Yellow
             | Heal -> Color.LightGreen
             | Evade -> Color.White
-            | _ -> Color.White
+            | SystemMessage -> Color.Goldenrod
+            | MPRecovery -> Color.SkyBlue
 
           let finalColor = color * alpha
           let textSize = font.MeasureString(text)
@@ -411,7 +412,8 @@ module RenderSystem =
     (mouseWorldPos: Vector2)
     =
     match inputMode with
-    | InputManager.InputMode.AbilityTargeting(_, InputManager.TargetingMode.EntityTargeting) ->
+    | InputManager.InputMode.AbilityTargeting(_,
+                                              InputManager.TargetingMode.EntityTargeting) ->
       let radius = 16f
       let w = radius * 2f
       let h = radius * 2f
@@ -421,7 +423,8 @@ module RenderSystem =
 
       if not(isNull mediumCircle) then
         sb.Draw(mediumCircle, Vector2(x, y), indicatorColor)
-    | InputManager.InputMode.AbilityTargeting(_, InputManager.TargetingMode.GroundTargeting radius) ->
+    | InputManager.InputMode.AbilityTargeting(_,
+                                              InputManager.TargetingMode.GroundTargeting radius) ->
       let diameter = int(radius * 2f)
       let x = int(mouseWorldPos.X - radius)
       let y = int(mouseWorldPos.Y - radius)

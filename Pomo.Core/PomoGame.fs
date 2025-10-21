@@ -52,6 +52,8 @@ type PomoGame() as this =
   let mutable prevKey1Down: bool = false
   let mutable showPathfindingGrid: bool = false
   let mutable prevKey2Down: bool = false
+  let mutable prevKey3Down: bool = false
+  let mutable prevKey4Down: bool = false
   let mutable prevKeyVDown: bool = false
   let mutable prevKeyEDown: bool = false
   let mutable prevKeyADown: bool = false
@@ -225,7 +227,7 @@ type PomoGame() as this =
 
     let state = GameState.create' services (initialScenarioId, scenarios)
 
-    let playerProfession = { Family = Magic; Stage = First }
+    let playerProfession = { Family = Magic; Stage = Second }
 
     let starterKit =
       Pomo.Lib.Content.CharacterKitStore.definitions[playerProfession]
@@ -264,8 +266,9 @@ type PomoGame() as this =
       let scenario = Scenario.ActiveScenario state |> AVal.force
       let p = scenario.entities[playerId]
       let fireballAbilityId = 2<AbilityId>
-      let meleeAbilityId = 8<AbilityId>
-      let abilities = HashSet.ofList [ fireballAbilityId; meleeAbilityId ]
+      let arrowShotAbilityId = 102<AbilityId>
+      let meteorShowerAbilityId = 103<AbilityId>
+      let abilities = HashSet.ofList [ fireballAbilityId; arrowShotAbilityId; meteorShowerAbilityId ]
 
       scenario.entities[playerId] <-
         {
@@ -375,7 +378,9 @@ type PomoGame() as this =
     Console.WriteLine("Right Click: Move with pathfinding (shows path preview)")
     Console.WriteLine("Key 2: Toggle pathfinding grid visualization")
     Console.WriteLine("Left Click: Select entity")
-    Console.WriteLine("Key 1: Use ability on selected target")
+    Console.WriteLine("Key 1: Use Fireball on selected target (entity-targeted)")
+    Console.WriteLine("Key 3: Use Arrow Shot (ground-targeted, 32px radius, blocked by terrain)")
+    Console.WriteLine("Key 4: Use Meteor Shower (ground-targeted, 64px radius, ignores terrain)")
     Console.WriteLine("Key V: Toggle Character Sheet")
     Console.WriteLine("Key E: Toggle Equipment View")
     Console.WriteLine("Key A: Toggle Ability List")
@@ -597,7 +602,7 @@ type PomoGame() as this =
             match selected with
             | ValueSome sid -> Console.WriteLine($"[Input] Selected {sid}")
             | ValueNone -> Console.WriteLine("[Input] Selection cleared")
-          | InputManager.InputMode.AbilityTargeting(abilityId, _) ->
+          | InputManager.InputMode.AbilityTargeting(abilityId, InputManager.TargetingMode.EntityTargeting) ->
             match found with
             | ValueSome targetId ->
               let stateChange =
@@ -622,6 +627,30 @@ type PomoGame() as this =
 
             inputMode <- InputManager.InputMode.Normal
             Console.WriteLine("[Input] Reverted to normal input mode.")
+          | InputManager.InputMode.AbilityTargeting(abilityId, InputManager.TargetingMode.GroundTargeting _) ->
+            let targetPos = { X = world.X; Y = world.Y }
+            
+            let stateChange =
+              GameState.activateAbilityAtPosition
+                playerId
+                abilityId
+                targetPos
+                state
+              |> AVal.force
+            
+            AudioSystem.processAudioChanges
+              state.services.audioStore
+              scenario
+              stateChange.audioChanges
+            
+            GameState.apply state stateChange
+            
+            Console.WriteLine(
+              $"[Ability] Activated {abilityId} at position ({targetPos.X}, {targetPos.Y})"
+            )
+            
+            inputMode <- InputManager.InputMode.Normal
+            Console.WriteLine("[Input] Reverted to normal input mode.")
 
 
         prevMouseDown <- mouseDown
@@ -637,6 +666,27 @@ type PomoGame() as this =
 
         prevKey1Down <- key1
 
+        let key3 = Keyboard.GetState().IsKeyDown(Keys.D3)
+
+        if key3 && not prevKey3Down then
+          inputMode <- InputManager.InputMode.AbilityTargeting(102<AbilityId>, InputManager.TargetingMode.GroundTargeting 32.0f)
+
+          Console.WriteLine(
+            "[Input] Entered ground targeting mode for Arrow Shot (ability 102)."
+          )
+
+        prevKey3Down <- key3
+
+        let key4 = Keyboard.GetState().IsKeyDown(Keys.D4)
+
+        if key4 && not prevKey4Down then
+          inputMode <- InputManager.InputMode.AbilityTargeting(103<AbilityId>, InputManager.TargetingMode.GroundTargeting 64.0f)
+
+          Console.WriteLine(
+            "[Input] Entered ground targeting mode for Meteor Shower (ability 103)."
+          )
+
+        prevKey4Down <- key4
 
         let keyF2 = Keyboard.GetState().IsKeyDown(Keys.F2)
 
