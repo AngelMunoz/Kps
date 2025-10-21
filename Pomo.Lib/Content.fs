@@ -489,6 +489,36 @@ module AbilityStore =
         AoeId = ValueNone
         ImpactId = ValueNone
       }
+      10<AbilityId>,
+      {
+        Id = 10<AbilityId>
+        Name = "Quick Strike"
+        Intent = AbilityIntent.Offensive
+        Cost = ValueNone
+        Cooldown = TimeSpan.FromMilliseconds(1000.0)
+        Targeting = TargetType.SingleEnemy
+        FormulaId = ValueSome 1<FormulaId>
+        Effects = Array.empty
+        Requirements = Array.empty
+        ProjectileId = ValueNone
+        AoeId = ValueNone
+        ImpactId = ValueNone
+      }
+      11<AbilityId>,
+      {
+        Id = 11<AbilityId>
+        Name = "Power Strike"
+        Intent = AbilityIntent.Offensive
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
+        Cooldown = TimeSpan.FromMilliseconds(2000.0)
+        Targeting = TargetType.SingleEnemy
+        FormulaId = ValueSome 1<FormulaId>
+        Effects = Array.empty
+        Requirements = Array.empty
+        ProjectileId = ValueNone
+        AoeId = ValueNone
+        ImpactId = ValueNone
+      }
       7<AbilityId>,
       {
         Id = 7<AbilityId>

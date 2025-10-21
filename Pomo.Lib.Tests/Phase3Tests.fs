@@ -246,9 +246,9 @@ type ``Phase3 - Silence``() =
     let state = create(fun () -> 0.5)
     let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let melee = 8<AbilityId>
+    let melee = 10<AbilityId>
     let silence = 9<AbilityId>
-    let meleeWithCost = 1<AbilityId>
+    let meleeWithCost = 11<AbilityId>
 
     let attacker =
       makeEntity attackerId baseStats 100 30 [ silence ] [] [
@@ -360,7 +360,7 @@ type ``Phase3 - Taunt``() =
     let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
     let intendedTargetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let taunterId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let melee = 1<AbilityId>
+    let melee = 11<AbilityId>
     let tauntEffectId = 103<EffectId>
 
     let tauntBaseStats = {
@@ -707,7 +707,7 @@ type ``Phase3 - Determinism``() =
 
     let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let melee = 1<AbilityId>
+    let melee = 11<AbilityId>
 
     let attacker1 =
       makeEntity attackerId baseStats 100 30 [ melee ] [] [
@@ -775,7 +775,7 @@ type ``Phase3 - Cooldown Management``() =
     let state = create(fun () -> 0.5)
     let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
-    let melee = 1<AbilityId>
+    let melee = 11<AbilityId>
     let spell = 2<AbilityId>
 
     let attacker =

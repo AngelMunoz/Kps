@@ -124,7 +124,8 @@ module CommandHandler =
           true)
 
     let resolveTaunt rparams ractors initialTarget = adaptive {
-      let! actor = rparams.entities |> AMap.tryFind ractors.actor
+      let! actor =
+        ScenarioState.getEntityById ractors.actor rparams.scenarioState
 
       match actor with
       | None -> return struct (ractors.target, initialTarget)
@@ -136,7 +137,8 @@ module CommandHandler =
       | ValueNone -> return struct (ractors.target, initialTarget)
       | ValueSome targetId ->
 
-      let! newTarget = rparams.entities |> AMap.tryFind targetId
+      let! newTarget =
+        ScenarioState.getEntityById targetId rparams.scenarioState
 
       return
         match newTarget with
@@ -230,7 +232,7 @@ module CommandHandler =
           else
 
             let! struct (targetId, targetComponents) =
-              ValidateAction.resolveTaunt rparams.scenarioState ractors target
+              ValidateAction.resolveTaunt rparams ractors target
 
             return
               ValidAction {
