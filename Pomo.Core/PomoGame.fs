@@ -54,6 +54,7 @@ type PomoGame() as this =
   let mutable prevKey2Down: bool = false
   let mutable prevKey3Down: bool = false
   let mutable prevKey4Down: bool = false
+  let mutable prevKey5Down: bool = false
   let mutable prevKeyVDown: bool = false
   let mutable prevKeyEDown: bool = false
   let mutable prevKeyADown: bool = false
@@ -268,7 +269,8 @@ type PomoGame() as this =
       let fireballAbilityId = 2<AbilityId>
       let arrowShotAbilityId = 102<AbilityId>
       let meteorShowerAbilityId = 103<AbilityId>
-      let abilities = HashSet.ofList [ fireballAbilityId; arrowShotAbilityId; meteorShowerAbilityId ]
+      let magicArrowAbilityId = 104<AbilityId>
+      let abilities = HashSet.ofList [ fireballAbilityId; arrowShotAbilityId; meteorShowerAbilityId; magicArrowAbilityId ]
 
       scenario.entities[playerId] <-
         {
@@ -381,6 +383,7 @@ type PomoGame() as this =
     Console.WriteLine("Key 1: Use Fireball on selected target (entity-targeted)")
     Console.WriteLine("Key 3: Use Arrow Shot (ground-targeted, 32px radius, blocked by terrain)")
     Console.WriteLine("Key 4: Use Meteor Shower (ground-targeted, 64px radius, ignores terrain)")
+    Console.WriteLine("Key 5: Use Magic Arrow (ground-targeted, 32px radius, magical damage)")
     Console.WriteLine("Key V: Toggle Character Sheet")
     Console.WriteLine("Key E: Toggle Equipment View")
     Console.WriteLine("Key A: Toggle Ability List")
@@ -687,6 +690,17 @@ type PomoGame() as this =
           )
 
         prevKey4Down <- key4
+
+        let key5 = Keyboard.GetState().IsKeyDown(Keys.D5)
+
+        if key5 && not prevKey5Down then
+          inputMode <- InputManager.InputMode.AbilityTargeting(104<AbilityId>, InputManager.TargetingMode.GroundTargeting 32.0f)
+
+          Console.WriteLine(
+            "[Input] Entered ground targeting mode for Magic Arrow (ability 104)."
+          )
+
+        prevKey5Down <- key5
 
         let keyF2 = Keyboard.GetState().IsKeyDown(Keys.F2)
 

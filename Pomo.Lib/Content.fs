@@ -595,6 +595,21 @@ module AbilityStore =
         AoeId = ValueNone
         ImpactId = ValueSome 2<ImpactId>
       }
+      104<AbilityId>,
+      {
+        Id = 104<AbilityId>
+        Name = "Magic Arrow"
+        Intent = AbilityIntent.Offensive
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
+        Cooldown = TimeSpan.FromMilliseconds(3000.0)
+        Targeting = GroundTarget 32.0f
+        FormulaId = ValueSome 3<FormulaId>
+        Effects = Array.empty
+        Requirements = Array.empty
+        ProjectileId = ValueSome 3<ProjectileId>
+        AoeId = ValueNone
+        ImpactId = ValueSome 1<ImpactId>
+      }
     ]
 
   let passiveDefinitions: Map<int<AbilityId>, PassiveAbilityDefinition> =
@@ -705,6 +720,7 @@ module CharacterKitStore =
             6<AbilityId>
             102<AbilityId>
             103<AbilityId>
+            104<AbilityId>
           |]
       }
       { Family = Magic; Stage = Third },
