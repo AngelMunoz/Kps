@@ -247,7 +247,11 @@ module Projectile =
               |]
         }
       else
-        let! targetOpt = entities |> AMap.tryFind proj.TargetId
+        match proj.Target with
+        | PositionTarget _ -> return StateChange.empty
+        | EntityTarget targetId ->
+
+        let! targetOpt = entities |> AMap.tryFind targetId
 
         match targetOpt with
         | Some target ->
@@ -326,7 +330,7 @@ module Projectile =
                 Audio.Cues.createAbilityImpactCue
                   state.services.audioStore
                   resolution.AbilityId
-                  proj.TargetId
+                  targetId
                   target.Position
                   newTime
 
@@ -360,7 +364,7 @@ module Projectile =
                         Rolloff = 1f
                       }
                     CreationTick = newTime
-                    EntityId = ValueSome proj.TargetId
+                    EntityId = ValueSome targetId
                   })
                 |> audioChanges.AddRange
 
@@ -397,13 +401,13 @@ module Projectile =
                         Rolloff = 1f
                       }
                     CreationTick = newTime
-                    EntityId = ValueSome proj.TargetId
+                    EntityId = ValueSome targetId
                   })
                 |> audioChanges.AddRange
 
               return {
                 StateChange.empty with
-                    updates = HashMap.single proj.TargetId targetAfterEffects
+                    updates = HashMap.single targetId targetAfterEffects
                     visualEffects = visualEffects.ToArray()
                     audioChanges = audioChanges.ToArray()
               }
@@ -453,7 +457,12 @@ module Projectile =
     |> AMap.mapA(fun _ res -> adaptive {
       // Handle AoE/Impact resolutions here as before
       let! actor = entities |> AMap.find res.ActorId
-      let! target = entities |> AMap.find res.TargetId
+      
+      match res.Target with
+      | PositionResolution _ -> return StateChange.empty
+      | EntityResolution targetId ->
+      
+      let! target = entities |> AMap.find targetId
 
       let! actorStats =
         actor
@@ -531,7 +540,7 @@ module Projectile =
 
         return {
           StateChange.empty with
-              updates = HashMap.single res.TargetId targetAfterEffects
+              updates = HashMap.single targetId targetAfterEffects
               visualEffects = visualEffects.ToArray()
         }
       | _ -> return StateChange.empty

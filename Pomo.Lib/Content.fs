@@ -25,6 +25,9 @@ module ProjectileStore =
         Speed = 300.0f
         Color = VisualColor.Red
         Size = 16.0f
+        Behavior = Visuals.ProjectileBehavior.Seeker
+        CollisionMode = Visuals.CollisionMode.IgnoreTerrain
+        ImpactRadius = ValueNone
       }
       2<ProjectileId>,
       {
@@ -34,6 +37,33 @@ module ProjectileStore =
         Speed = 250.0f
         Color = VisualColor.Blue
         Size = 12.0f
+        Behavior = Visuals.ProjectileBehavior.Seeker
+        CollisionMode = Visuals.CollisionMode.IgnoreTerrain
+        ImpactRadius = ValueNone
+      }
+      3<ProjectileId>,
+      {
+        Id = 3<ProjectileId>
+        Name = "Arrow"
+        Shape = Shape.Square 8.0f
+        Speed = 400.0f
+        Color = VisualColor.Yellow
+        Size = 12.0f
+        Behavior = Visuals.ProjectileBehavior.Linear
+        CollisionMode = Visuals.CollisionMode.BlockedByTerrain
+        ImpactRadius = ValueSome 32.0f
+      }
+      4<ProjectileId>,
+      {
+        Id = 4<ProjectileId>
+        Name = "Meteor"
+        Shape = Shape.Circle 16.0f
+        Speed = 200.0f
+        Color = VisualColor.Orange
+        Size = 32.0f
+        Behavior = Visuals.ProjectileBehavior.Linear
+        CollisionMode = Visuals.CollisionMode.IgnoreTerrain
+        ImpactRadius = ValueSome 64.0f
       }
     ]
 

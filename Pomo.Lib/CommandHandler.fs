@@ -379,7 +379,7 @@ module CommandHandler =
           let resolution = {
             Id = resolutionId
             ActorId = ractors.actor
-            TargetId = ractors.target
+            Target = EntityResolution ractors.target
             AbilityId = abilityId
             TriggerTick = gameTime + TimeSpan.FromSeconds(5.0) // Fallback timeout
           }
@@ -391,7 +391,7 @@ module CommandHandler =
               Id = Guid.NewGuid() |> UMX.tag
               DefinitionId = defId
               CurrentPosition = action.actorComponents.Position
-              TargetId = ractors.target
+              Target = EntityTarget ractors.target
               CreationTick = gameTime
               PendingResolutionId = resolutionId
             }
@@ -402,7 +402,7 @@ module CommandHandler =
           let resolution = {
             Id = resolutionId
             ActorId = ractors.actor
-            TargetId = ractors.target
+            Target = EntityResolution ractors.target
             AbilityId = abilityId
             TriggerTick = gameTime + TimeSpan.FromSeconds(0.5) // Example delay
           }
@@ -426,7 +426,7 @@ module CommandHandler =
           let resolution = {
             Id = resolutionId
             ActorId = ractors.actor
-            TargetId = ractors.target
+            Target = EntityResolution ractors.target
             AbilityId = abilityId
             TriggerTick = gameTime + impactDef.Duration
           }
@@ -568,24 +568,29 @@ module CommandHandler =
 
       match abilityKind with
       | ValueNone
-      | ValueSome(Passive _) ->
-        // Passive abilities cannot be invoked
-        return StateChange.empty
+      | ValueSome(Passive _) -> return StateChange.empty
       | ValueSome(Active abilityDef) ->
-      // Determine actual targets based on ability targeting constraints
+
+      match action.target with
+      | AbilityTarget.PositionTarget _ ->
+        // Position-based targeting not yet implemented
+        return StateChange.empty
+      | EntityTargets targets ->
+
       let actualTargets =
         match abilityDef.Targeting with
         | Self -> [| action.actor |]
         | SingleAlly
         | SingleEnemy ->
-          action.targets
+          targets
           |> Array.tryHead
           |> Option.map(fun targetId -> [| targetId |])
           |> Option.defaultValue Array.empty
-        | MultiTarget maxTargets -> action.targets |> Array.take maxTargets
+        | MultiTarget maxTargets -> targets |> Array.take maxTargets
+        | GroundTarget _ -> Array.empty
 
       let resolver = resolveAbility rparams action.abilityId
-      // Process each target
+
       let stateChanges =
         actualTargets
         |> AList.ofArray

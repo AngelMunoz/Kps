@@ -47,6 +47,9 @@ type AudioClipId
 [<Measure>]
 type AudioEventId
 
+[<Struct>]
+type Position = { X: float32; Y: float32 }
+
 module Visuals =
   [<Struct>]
   type Shape =
@@ -63,6 +66,16 @@ module Visuals =
     | Purple
     | Orange
 
+  [<Struct>]
+  type ProjectileBehavior =
+    | Seeker
+    | Linear
+
+  [<Struct>]
+  type CollisionMode =
+    | IgnoreTerrain
+    | BlockedByTerrain
+
   type ProjectileDefinition = {
     Id: int<ProjectileId>
     Name: string
@@ -70,6 +83,9 @@ module Visuals =
     Speed: float32
     Color: VisualColor
     Size: float32
+    Behavior: ProjectileBehavior
+    CollisionMode: CollisionMode
+    ImpactRadius: float32 voption
   }
 
   type AoeDefinition = {
@@ -90,10 +106,15 @@ module Visuals =
   }
 
 [<Struct>]
+type ResolutionTarget =
+  | EntityResolution of entityRes: Guid<EntityId>
+  | PositionResolution of positionRes: Position
+
+[<Struct>]
 type PendingResolution = {
   Id: Guid<PendingResolutionId>
   ActorId: Guid<EntityId>
-  TargetId: Guid<EntityId>
+  Target: ResolutionTarget
   AbilityId: int<AbilityId>
   TriggerTick: TimeSpan
 }
@@ -103,9 +124,6 @@ type PendingResolution = {
 type ResourceType =
   | HP
   | MP
-
-[<Struct>]
-type Position = { X: float32; Y: float32 }
 
 [<Struct>]
 type Movement = {
@@ -473,6 +491,7 @@ module Abilities =
     | SingleAlly
     | SingleEnemy
     | MultiTarget of int
+    | GroundTarget of radius: float32
 
   [<Struct>]
   type PassiveAbilityDefinition = {
@@ -544,9 +563,14 @@ module Rules =
   }
 
   [<Struct>]
+  type AbilityTarget =
+    | EntityTargets of targets: Guid<EntityId>[]
+    | PositionTarget of position: Position
+
+  [<Struct>]
   type UseAbilityAction = {
     actor: Guid<EntityId>
-    targets: Guid<EntityId>[]
+    target: AbilityTarget
     abilityId: int<AbilityId>
   }
 
@@ -674,11 +698,16 @@ module VisualEffects =
   }
 
   [<Struct>]
+  type ProjectileTarget =
+    | EntityTarget of byEntity: Guid<EntityId>
+    | PositionTarget of byPosition: Position
+
+  [<Struct>]
   type ActiveProjectile = {
     Id: Guid<ProjectileId>
     DefinitionId: int<ProjectileId>
     CurrentPosition: Position
-    TargetId: Guid<EntityId>
+    Target: ProjectileTarget
     CreationTick: TimeSpan
     PendingResolutionId: Guid<PendingResolutionId>
   }
@@ -793,7 +822,9 @@ module Services =
     abstract member tryFind: int<AudioClipId> -> Audio.AudioClip voption
     abstract member find: int<AudioClipId> -> Audio.AudioClip
     abstract member findByTrigger: Audio.AudioTrigger -> int<AudioClipId>[]
-    abstract member findMusicForScenario: Guid<ScenarioId> -> int<AudioClipId> voption
+
+    abstract member findMusicForScenario:
+      Guid<ScenarioId> -> int<AudioClipId> voption
 
   type EngineServices = {
     abilityStore: IAbilityStore

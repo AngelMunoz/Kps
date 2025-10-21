@@ -229,7 +229,7 @@ module GameState =
 
     let action = {
       actor = entityId
-      targets = targets
+      target = EntityTargets targets
       abilityId = abilityId
     }
 
