@@ -3,7 +3,6 @@ namespace Pomo.Core
 open System
 open System.Collections.Generic
 open System.Globalization
-open type System.Net.Mime.MediaTypeNames
 
 open Microsoft.Xna.Framework
 open Microsoft.Xna.Framework.Graphics
@@ -28,13 +27,6 @@ type PomoGame() as this =
   inherit Game()
 
   let graphicsDeviceManager = new GraphicsDeviceManager(this)
-
-  let _ = OperatingSystem.IsAndroid() || OperatingSystem.IsIOS()
-
-  let _ =
-    OperatingSystem.IsWindows()
-    || OperatingSystem.IsLinux()
-    || OperatingSystem.IsMacOS()
 
   let mutable gameState: GameState voption = ValueNone
   let mutable playerId: Guid<EntityId> = Guid.Empty |> UMX.tag<EntityId>
@@ -137,277 +129,17 @@ type PomoGame() as this =
       })
 
     let scenarios = cmap [ initialScenarioId, initialScenarioState ]
-
-    let services = {
-      effectStore =
-        { new IEffectStore with
-            member _.tryFind effectId =
-              EffectStore.definitions
-              |> Map.tryFind effectId
-              |> ValueOption.ofOption
-
-            member _.find effectId =
-              EffectStore.definitions |> Map.find effectId
-        }
-      abilityStore =
-        { new IAbilityStore with
-            member _.tryFind abilityId =
-              AbilityStore.definitions
-              |> Map.tryFind abilityId
-              |> ValueOption.ofOption
-
-            member _.find abilityId =
-              AbilityStore.definitions |> Map.find abilityId
-        }
-      formulaStore =
-        { new IFormulaStore with
-            member _.tryFind formulaId =
-              FormulaStore.definitions
-              |> Map.tryFind formulaId
-              |> ValueOption.ofOption
-
-            member _.find formulaId =
-              FormulaStore.definitions |> Map.find formulaId
-        }
-      projectileStore =
-        { new IProjectileStore with
-            member _.tryFind projectileId =
-              ProjectileStore.definitions
-              |> Map.tryFind projectileId
-              |> ValueOption.ofOption
-
-            member _.find projectileId =
-              ProjectileStore.definitions |> Map.find projectileId
-        }
-      aoeStore =
-        { new IAoeStore with
-            member _.tryFind aoeId =
-              AoeStore.definitions |> Map.tryFind aoeId |> ValueOption.ofOption
-
-            member _.find aoeId = AoeStore.definitions |> Map.find aoeId
-        }
-      impactStore =
-        { new IImpactStore with
-            member _.tryFind impactId =
-              ImpactStore.definitions
-              |> Map.tryFind impactId
-              |> ValueOption.ofOption
-
-            member _.find impactId =
-              ImpactStore.definitions |> Map.find impactId
-        }
-      audioStore =
-        { new IAudioStore with
-            member _.tryFind clipId =
-              AudioStore.definitions
-              |> Map.tryFind clipId
-              |> ValueOption.ofOption
-
-            member _.find clipId =
-              AudioStore.definitions |> Map.find clipId
-
-            member _.findByTrigger trigger =
-              AudioStore.triggerMap
-              |> Map.tryFind trigger
-              |> Option.defaultValue Array.empty
-
-            member _.findMusicForScenario scenarioId =
-              let scenario =
-                scenarios.Value
-                |> HashMap.tryFindV scenarioId
-                |> ValueOption.map _.scenario
-
-              scenario
-              |> ValueOption.bind(fun s ->
-                AudioStore.scenarioMusicMap
-                |> Map.tryFind s.Name
-                |> ValueOption.ofOption)
-        }
-      rng = fun () -> Random.Shared.NextDouble()
-    }
-
+    let services = ServiceFactory.createServices scenarios
     let state = GameState.create' services (initialScenarioId, scenarios)
 
-    let playerProfession = { Family = Magic; Stage = Second }
-
-    let starterKit =
-      Pomo.Lib.Content.CharacterKitStore.definitions[playerProfession]
-
-    let playerChange =
-      starterKit
-      |> GameState.createEntity(fun stats -> {
-        stats with
-            Factions = HashSet.ofList [ Player ]
-      })
-
-    let _playerId = playerChange.additions |> HashMap.toKeySeq |> Seq.head
-    GameState.apply state playerChange
-    playerId <- _playerId
-
-    let enemyProfession = { Family = Charm; Stage = First }
-
-
-    let enemyKit = CharacterKitStore.definitions[enemyProfession]
-
-    let enemyChange =
-      enemyKit
-      |> GameState.createEntity(fun stats -> {
-        stats with
-            Factions = HashSet.ofList [ Enemy ]
-      })
-
-    let enemyIdLocal = enemyChange.additions |> HashMap.toKeySeq |> Seq.head
-
-    GameState.apply state enemyChange
-    enemyId <- enemyIdLocal
-
-    // Set initial positions for visibility (Phase 6.1) and give player a basic ability (Phase 6.2)
-    // Add terrain objects and transitions for Phase 6.5 & 6.6 visualization
-    transact(fun _ ->
-      let scenario = Scenario.ActiveScenario state |> AVal.force
-      let p = scenario.entities[playerId]
-      let fireballAbilityId = 2<AbilityId>
-      let arrowShotAbilityId = 102<AbilityId>
-      let meteorShowerAbilityId = 103<AbilityId>
-      let magicArrowAbilityId = 104<AbilityId>
-      let abilities = HashSet.ofList [ fireballAbilityId; arrowShotAbilityId; meteorShowerAbilityId; magicArrowAbilityId ]
-
-      scenario.entities[playerId] <-
-        {
-          p with
-              Position = { X = 100f; Y = 140f }
-              Abilities = abilities
-              AbilityCooldowns = HashMap.empty
-        }
-
-      let e = scenario.entities[enemyId]
-
-      scenario.entities[enemyId] <-
-        {
-          e with
-              Position = { X = 220f; Y = 140f }
-        }
-
-      // Add terrain objects for pathfinding visualization
-      let terrainObjects = [
-        // Blocked wall
-        {
-          Id = %Guid.NewGuid()
-          Position = { X = 300f; Y = 200f }
-          CollisionGeometry =
-            Polygon(
-              [|
-                { X = 280f; Y = 180f }
-                { X = 320f; Y = 180f }
-                { X = 320f; Y = 220f }
-                { X = 280f; Y = 220f }
-              |]
-            )
-          TerrainType = TerrainType.Blocked
-          DepthLayer = 0.6f
-          SpriteId = ValueSome "wall"
-        }
-        // Water area
-        {
-          Id = %Guid.NewGuid()
-          Position = { X = 500f; Y = 300f }
-          CollisionGeometry = Circle({ X = 500f; Y = 300f }, 40f)
-          TerrainType = TerrainType.Water
-          DepthLayer = 0.4f
-          SpriteId = ValueSome "water"
-        }
-        // Hazard area
-        {
-          Id = %Guid.NewGuid()
-          Position = { X = 700f; Y = 150f }
-          CollisionGeometry = Circle({ X = 700f; Y = 150f }, 30f)
-          TerrainType = TerrainType.Hazard
-          DepthLayer = 0.5f
-          SpriteId = ValueSome "hazard"
-        }
-      ]
-
-      // Create updated scenario with terrain objects and transitions
-      let transitions = [|
-        {
-          FromPosition = { X = 50f; Y = 300f }
-          ToScenarioId = %Guid.NewGuid()
-          ToPosition = { X = 750f; Y = 300f }
-        }
-        {
-          FromPosition = { X = 750f; Y = 100f }
-          ToScenarioId = %Guid.NewGuid()
-          ToPosition = { X = 100f; Y = 100f }
-        }
-      |]
-
-      let updatedTerrainObjects =
-        terrainObjects
-        |> List.fold
-          (fun acc obj -> IndexList.add obj acc)
-          scenario.scenario.TerrainObjects
-
-      let updatedScenario = {
-        scenario.scenario with
-            TerrainObjects = updatedTerrainObjects
-            Transitions = transitions
-      }
-
-      // Update the scenario state
-      let updatedScenarioState = {
-        scenario with
-            scenario = updatedScenario
-      }
-
-      // Precompute navigation debug grid sharing scenario origin
-      let debugGrid = Grid.createGrid updatedScenario 32.0f 16.0f
-
-      navigationDebugGrid <- ValueSome debugGrid
-
-      // Update the scenario in the game state
-      let activeScenarioId = state.activeScenarioId |> AVal.force
-      state.scenarios[activeScenarioId] <- updatedScenarioState
-
-      AudioSystem.updateScenarioMusic services.audioStore activeScenarioId)
+    let testData = TestScenarioBuilder.createDefaultScenario state
+    playerId <- testData.PlayerId
+    enemyId <- testData.EnemyId
+    navigationDebugGrid <- ValueSome testData.NavigationGrid
 
     gameState <- ValueSome state
 
-    Console.WriteLine("[Phase 6] Game initialized with player and enemy")
-    Console.WriteLine($"[Phase 6] Player ID: {playerId}")
-    Console.WriteLine($"[Phase 6] Enemy ID: {enemyId}")
-    Console.WriteLine("")
-    Console.WriteLine("=== PHASE 6.8 VISUAL CONTROLS ===")
-    Console.WriteLine("Right Click: Move with pathfinding (shows path preview)")
-    Console.WriteLine("Key 2: Toggle pathfinding grid visualization")
-    Console.WriteLine("Left Click: Select entity")
-    Console.WriteLine("Key 1: Use Fireball on selected target (entity-targeted)")
-    Console.WriteLine("Key 3: Use Arrow Shot (ground-targeted, 32px radius, blocked by terrain)")
-    Console.WriteLine("Key 4: Use Meteor Shower (ground-targeted, 64px radius, ignores terrain)")
-    Console.WriteLine("Key 5: Use Magic Arrow (ground-targeted, 32px radius, magical damage)")
-    Console.WriteLine("Key V: Toggle Character Sheet")
-    Console.WriteLine("Key E: Toggle Equipment View")
-    Console.WriteLine("Key A: Toggle Ability List")
-    Console.WriteLine("Key R: Replenish MP")
-    Console.WriteLine("")
-    Console.WriteLine("Visual Elements:")
-    Console.WriteLine("- Brown rectangles: Blocked terrain (walls)")
-    Console.WriteLine("- Light blue circles: Water terrain (slower movement)")
-    Console.WriteLine("- Red-orange circles: Hazard terrain (damage over time)")
-    Console.WriteLine("- Purple squares: Transition points (portals)")
-    Console.WriteLine("- Green lines: Valid path preview")
-    Console.WriteLine("- Red lines: Invalid path preview")
-    Console.WriteLine("- Yellow borders: Scenario bounds")
-
-    Console.WriteLine(
-      "- Grid overlay: Pathfinding navigation grid (toggle with Key 2)"
-    )
-
-    Console.WriteLine(
-      "- UI Panels: Character sheet (V), Equipment (E), Abilities (A)"
-    )
-
-    Console.WriteLine("=======================================")
-    Console.WriteLine("")
+    Console.WriteLine("Game initialized")
 
 
   override this.LoadContent() =
@@ -605,7 +337,8 @@ type PomoGame() as this =
             match selected with
             | ValueSome sid -> Console.WriteLine($"[Input] Selected {sid}")
             | ValueNone -> Console.WriteLine("[Input] Selection cleared")
-          | InputManager.InputMode.AbilityTargeting(abilityId, InputManager.TargetingMode.EntityTargeting) ->
+          | InputManager.InputMode.AbilityTargeting(abilityId,
+                                                    InputManager.TargetingMode.EntityTargeting) ->
             match found with
             | ValueSome targetId ->
               let stateChange =
@@ -630,9 +363,10 @@ type PomoGame() as this =
 
             inputMode <- InputManager.InputMode.Normal
             Console.WriteLine("[Input] Reverted to normal input mode.")
-          | InputManager.InputMode.AbilityTargeting(abilityId, InputManager.TargetingMode.GroundTargeting _) ->
+          | InputManager.InputMode.AbilityTargeting(abilityId,
+                                                    InputManager.TargetingMode.GroundTargeting _) ->
             let targetPos = { X = world.X; Y = world.Y }
-            
+
             let stateChange =
               GameState.activateAbilityAtPosition
                 playerId
@@ -640,18 +374,18 @@ type PomoGame() as this =
                 targetPos
                 state
               |> AVal.force
-            
+
             AudioSystem.processAudioChanges
               state.services.audioStore
               scenario
               stateChange.audioChanges
-            
+
             GameState.apply state stateChange
-            
+
             Console.WriteLine(
               $"[Ability] Activated {abilityId} at position ({targetPos.X}, {targetPos.Y})"
             )
-            
+
             inputMode <- InputManager.InputMode.Normal
             Console.WriteLine("[Input] Reverted to normal input mode.")
 
@@ -661,7 +395,11 @@ type PomoGame() as this =
         let key1 = Keyboard.GetState().IsKeyDown(Keys.D1)
 
         if key1 && not prevKey1Down then
-          inputMode <- InputManager.InputMode.AbilityTargeting(2<AbilityId>, InputManager.TargetingMode.EntityTargeting)
+          inputMode <-
+            InputManager.InputMode.AbilityTargeting(
+              2<AbilityId>,
+              InputManager.TargetingMode.EntityTargeting
+            )
 
           Console.WriteLine(
             "[Input] Entered ability targeting mode for Fireball (ability 2)."
@@ -672,7 +410,11 @@ type PomoGame() as this =
         let key3 = Keyboard.GetState().IsKeyDown(Keys.D3)
 
         if key3 && not prevKey3Down then
-          inputMode <- InputManager.InputMode.AbilityTargeting(102<AbilityId>, InputManager.TargetingMode.GroundTargeting 32.0f)
+          inputMode <-
+            InputManager.InputMode.AbilityTargeting(
+              102<AbilityId>,
+              InputManager.TargetingMode.GroundTargeting 32.0f
+            )
 
           Console.WriteLine(
             "[Input] Entered ground targeting mode for Arrow Shot (ability 102)."
@@ -683,7 +425,11 @@ type PomoGame() as this =
         let key4 = Keyboard.GetState().IsKeyDown(Keys.D4)
 
         if key4 && not prevKey4Down then
-          inputMode <- InputManager.InputMode.AbilityTargeting(103<AbilityId>, InputManager.TargetingMode.GroundTargeting 64.0f)
+          inputMode <-
+            InputManager.InputMode.AbilityTargeting(
+              103<AbilityId>,
+              InputManager.TargetingMode.GroundTargeting 64.0f
+            )
 
           Console.WriteLine(
             "[Input] Entered ground targeting mode for Meteor Shower (ability 103)."
@@ -694,7 +440,11 @@ type PomoGame() as this =
         let key5 = Keyboard.GetState().IsKeyDown(Keys.D5)
 
         if key5 && not prevKey5Down then
-          inputMode <- InputManager.InputMode.AbilityTargeting(104<AbilityId>, InputManager.TargetingMode.GroundTargeting 32.0f)
+          inputMode <-
+            InputManager.InputMode.AbilityTargeting(
+              104<AbilityId>,
+              InputManager.TargetingMode.GroundTargeting 32.0f
+            )
 
           Console.WriteLine(
             "[Input] Entered ground targeting mode for Magic Arrow (ability 104)."

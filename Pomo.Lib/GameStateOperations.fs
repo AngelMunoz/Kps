@@ -13,6 +13,7 @@ open Pomo.Lib.Domain.Rules
 open Pomo.Lib.Domain.State
 open Pomo.Lib.Gameplay
 open Pomo.Lib.Rules
+open Pomo.Lib.Domain.Scenario
 
 module Errors =
 
@@ -281,3 +282,25 @@ module GameState =
   /// Force and apply an adaptive StateChange with time update. (applyTick)
   let inline forceAndApply(state: GameState) =
     AVal.force >> GameState.apply state
+
+  let inline apply (state: GameState) (change: StateChange) =
+    GameState.apply state change
+
+
+module ScenarioState =
+
+  let create scenario : ScenarioState = {
+    scenario = scenario
+    entities = cmap()
+    gameTime = cval TimeSpan.Zero
+    battleContext = ValueNone
+    battleInstances = cmap()
+    pendingDuels = cmap()
+    pendingPartyDuels = cmap()
+    parties = cmap()
+    floatingTexts = cmap()
+    projectiles = cmap()
+    aoes = cmap()
+    impacts = cmap()
+    pendingResolutions = cmap()
+  }
