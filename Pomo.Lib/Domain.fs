@@ -47,6 +47,9 @@ type AudioClipId
 [<Measure>]
 type AudioEventId
 
+[<Measure>]
+type AiArchetypeId
+
 [<Struct>]
 type Position = { X: float32; Y: float32 }
 
@@ -536,6 +539,123 @@ module CharacterKits =
     StarterAbilities: int<AbilityId> HashSet
   }
 
+module AI =
+  [<Struct>]
+  type BehaviorType =
+    | Passive
+    | Aggressive
+    | Defensive
+    | Patrol
+    | Turret
+    | Ambusher
+    | Supporter
+
+  [<Struct>]
+  type CueType =
+    | Visual
+    | Audio
+    | Projectile
+    | Tactile
+    | Memory
+
+  [<Struct>]
+  type CueStrength =
+    | Weak
+    | Moderate
+    | Strong
+    | Overwhelming
+
+  [<Struct>]
+  type ResponseBehavior =
+    | Investigate
+    | Engage
+    | Evade
+    | Flee
+    | Ignore
+
+  [<Struct>]
+  type CuePriority = {
+    cueType: CueType
+    minStrength: CueStrength
+    priority: int
+    response: ResponseBehavior
+  }
+
+  [<Struct>]
+  type AIState =
+    | Idle
+    | Investigating of position: Position
+    | Detecting of entityId: Guid<EntityId>
+    | Pursuing of entityId: Guid<EntityId>
+    | Engaging of entityId: Guid<EntityId> * abilityId: int<AbilityId>
+    | Evading of projectileId: Guid<ProjectileId>
+    | Retreating
+    | Patrolling of waypointIndex: int
+
+  [<Struct>]
+  type StateCondition =
+    | CueDetected of cueType: CueType * strength: CueStrength
+    | HealthBelow of threshold: float32
+    | TargetInRange of range: float32
+    | TimeElapsed of ticks: TimeSpan
+    | NoTargetsVisible
+    | ReachedDestination
+
+  [<Struct>]
+  type StateTransition = {
+    fromState: AIState
+    condition: StateCondition
+    toState: AIState
+  }
+
+  [<Struct>]
+  type PerceptionConfig = {
+    visualRange: float32
+    audioSensitivity: float32
+    memoryDuration: TimeSpan
+    canDetectProjectiles: bool
+  }
+
+  type AIArchetype = {
+    id: int<AiArchetypeId>
+    name: string
+    characterKit: CharacterKits.CharacterKit
+    behaviorType: BehaviorType
+    perceptionConfig: PerceptionConfig
+    decisionInterval: TimeSpan
+    cuePriorities: CuePriority[]
+    stateTransitions: StateTransition[]
+    patrolWaypoints: Position[] voption
+  }
+
+  type MemoryEntry = {
+    entityId: Guid<EntityId>
+    lastKnownPosition: Position
+    confidence: float32
+    lastSeenTick: TimeSpan
+  }
+
+  [<Struct>]
+  type AIController = {
+    controlledEntityId: Guid<EntityId>
+    archetypeId: int<AiArchetypeId>
+    currentState: AIState
+    currentTarget: Guid<EntityId> voption
+    lastDecisionTime: TimeSpan
+    memories: HashMap<Guid<EntityId>, MemoryEntry>
+    waypointIndex: int
+    stateEnterTime: TimeSpan
+  }
+
+  [<Struct>]
+  type PerceptionCue = {
+    cueType: CueType
+    strength: CueStrength
+    sourceEntityId: Guid<EntityId> voption
+    position: Position
+    timestamp: TimeSpan
+  }
+
 module Components =
   open Effects
   open Inventory
@@ -775,6 +895,7 @@ module Scenario =
     aoes: cmap<Guid<AoeId>, VisualEffects.ActiveAoe>
     impacts: cmap<Guid<ImpactId>, VisualEffects.ActiveImpact>
     pendingResolutions: cmap<Guid<PendingResolutionId>, PendingResolution>
+    aiControllers: cmap<Guid<EntityId>, AI.AIController>
   }
 
   type GameStateScenarios = {

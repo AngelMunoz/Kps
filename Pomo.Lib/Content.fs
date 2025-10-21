@@ -1288,6 +1288,201 @@ module GameState =
       }
       (initialScenarioId, scenarios)
 
+module AIArchetypeStore =
+  open Pomo.Lib.Domain.CharacterKits
+  open Pomo.Lib.Domain.Classification
+  open Pomo.Lib.Domain.AI
+
+  let definitions: Map<int<AiArchetypeId>, AI.AIArchetype> =
+    Map.ofList [
+      1<AiArchetypeId>,
+      {
+        id = 1<AiArchetypeId>
+        name = "AggressiveMelee"
+        characterKit =
+          CharacterKitStore.definitions[{ Family = Power; Stage = First }]
+        behaviorType = Aggressive
+        perceptionConfig = {
+          visualRange = 400f
+          audioSensitivity = 1.5f
+          memoryDuration = TimeSpan.FromSeconds(20.0)
+          canDetectProjectiles = true
+        }
+        decisionInterval = TimeSpan.FromMilliseconds(250.0)
+        cuePriorities = [|
+          {
+            cueType = Projectile
+            minStrength = Moderate
+            priority = 1
+            response = Evade
+          }
+          {
+            cueType = Visual
+            minStrength = Moderate
+            priority = 2
+            response = Engage
+          }
+          {
+            cueType = Audio
+            minStrength = Strong
+            priority = 3
+            response = Investigate
+          }
+          {
+            cueType = Memory
+            minStrength = Moderate
+            priority = 4
+            response = Investigate
+          }
+        |]
+        stateTransitions = [|
+          {
+            fromState = Idle
+            condition = CueDetected(Audio, Strong)
+            toState = Investigating { X = 0f; Y = 0f }
+          }
+          {
+            fromState = Investigating { X = 0f; Y = 0f }
+            condition = CueDetected(Visual, Moderate)
+            toState = Detecting %Guid.Empty
+          }
+          {
+            fromState = Detecting %Guid.Empty
+            condition = TargetInRange 50f
+            toState = Engaging(%Guid.Empty, 8<AbilityId>)
+          }
+          {
+            fromState = Engaging(%Guid.Empty, 8<AbilityId>)
+            condition = HealthBelow 0.2f
+            toState = Retreating
+          }
+          {
+            fromState = Engaging(%Guid.Empty, 8<AbilityId>)
+            condition = NoTargetsVisible
+            toState = Idle
+          }
+        |]
+        patrolWaypoints = ValueNone
+      }
+      2<AiArchetypeId>,
+      {
+        id = 2<AiArchetypeId>
+        name = "StaticTurret"
+        characterKit =
+          CharacterKitStore.definitions[{ Family = Magic; Stage = First }]
+        behaviorType = Turret
+        perceptionConfig = {
+          visualRange = 600f
+          audioSensitivity = 0f
+          memoryDuration = TimeSpan.FromSeconds(5.0)
+          canDetectProjectiles = false
+        }
+        decisionInterval = TimeSpan.FromMilliseconds(100.0)
+        cuePriorities = [|
+          {
+            cueType = Visual
+            minStrength = Moderate
+            priority = 1
+            response = Engage
+          }
+          {
+            cueType = Memory
+            minStrength = Weak
+            priority = 2
+            response = Engage
+          }
+        |]
+        stateTransitions = [|
+          {
+            fromState = Idle
+            condition = CueDetected(Visual, Moderate)
+            toState = Detecting %Guid.Empty
+          }
+          {
+            fromState = Detecting %Guid.Empty
+            condition = TargetInRange 600f
+            toState = Engaging(%Guid.Empty, 2<AbilityId>)
+          }
+          {
+            fromState = Engaging(%Guid.Empty, 2<AbilityId>)
+            condition = NoTargetsVisible
+            toState = Idle
+          }
+        |]
+        patrolWaypoints = ValueNone
+      }
+      3<AiArchetypeId>,
+      {
+        id = 3<AiArchetypeId>
+        name = "PatrolGuard"
+        characterKit =
+          CharacterKitStore.definitions[{ Family = Power; Stage = Second }]
+        behaviorType = Patrol
+        perceptionConfig = {
+          visualRange = 500f
+          audioSensitivity = 2.0f
+          memoryDuration = TimeSpan.FromSeconds(30.0)
+          canDetectProjectiles = true
+        }
+        decisionInterval = TimeSpan.FromMilliseconds(300.0)
+        cuePriorities = [|
+          {
+            cueType = Projectile
+            minStrength = Moderate
+            priority = 1
+            response = Evade
+          }
+          {
+            cueType = Tactile
+            minStrength = Weak
+            priority = 2
+            response = Engage
+          }
+          {
+            cueType = Visual
+            minStrength = Moderate
+            priority = 3
+            response = Engage
+          }
+          {
+            cueType = Audio
+            minStrength = Moderate
+            priority = 4
+            response = Investigate
+          }
+        |]
+        stateTransitions = [|
+          {
+            fromState = Patrolling 0
+            condition = ReachedDestination
+            toState = Patrolling 1
+          }
+          {
+            fromState = Patrolling 0
+            condition = CueDetected(Visual, Moderate)
+            toState = Detecting %Guid.Empty
+          }
+          {
+            fromState = Investigating { X = 0f; Y = 0f }
+            condition = TimeElapsed(TimeSpan.FromSeconds(10.0))
+            toState = Patrolling 0
+          }
+          {
+            fromState = Engaging(%Guid.Empty, 8<AbilityId>)
+            condition = NoTargetsVisible
+            toState = Patrolling 0
+          }
+        |]
+        patrolWaypoints =
+          ValueSome [|
+            { X = 100f; Y = 100f }
+            { X = 300f; Y = 100f }
+            { X = 300f; Y = 300f }
+            { X = 100f; Y = 300f }
+          |]
+      }
+    ]
+
 module ScenarioDefinitions =
   let createTownScenario(id: Guid<ScenarioId>) : Scenario = {
     Id = id

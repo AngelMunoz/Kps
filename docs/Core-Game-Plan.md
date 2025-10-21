@@ -1167,7 +1167,7 @@ All of the above remains valid; new EngagementMode and BattleInstance mechanics 
 
 **Goal**: Additional features for richer gameplay
 
-**Status**: 🚧 **IN PROGRESS** - Implementing AI Perception System (Issue #19)
+**Status**: 🚧 **IN PROGRESS** - Phase 6.10.1: AI Domain Types Complete
 
 ### 6.10.1 AI Controller System
 
@@ -1501,8 +1501,8 @@ let spawnAIEntity
 
 **Deliverables**:
 
-- [ ] AI domain types (AIArchetype, AIController, PerceptionCue, etc.) in Domain.fs
-- [ ] AIArchetypes.fs with archetype definitions and loading
+- [x] AI domain types (AIArchetype, AIController, PerceptionCue, etc.) in Domain.fs
+- [x] AI archetype definitions in Content.fs (AggressiveMelee, StaticTurret, PatrolGuard)
 - [ ] Perception.fs module with cue gathering and memory management
 - [ ] AI.fs module with priority matching, command generation, state transitions
 - [ ] AISystem.fs with main processing loop

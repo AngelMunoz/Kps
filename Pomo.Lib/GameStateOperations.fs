@@ -303,4 +303,5 @@ module ScenarioState =
     aoes = cmap()
     impacts = cmap()
     pendingResolutions = cmap()
+    aiControllers = cmap()
   }
