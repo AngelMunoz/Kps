@@ -49,6 +49,9 @@ type PomoGame() as this =
   let mutable inputMode: InputManager.InputMode = InputManager.InputMode.Normal
   let mutable mouseWorldPos: Vector2 = Vector2.Zero
 
+  let mutable keybindingConfig: KeybindingSystem.KeybindingConfig =
+    KeybindingSystem.createDefault()
+
   let mutable playerInputState: InputManager.PlayerInputState =
     InputManager.createInitialState()
 
@@ -224,13 +227,6 @@ type PomoGame() as this =
 
         let keyboardState = Keyboard.GetState()
 
-        let struct (newInputModeOpt, newInputState1) =
-          InputHandlerSystem.handleAbilityKeys keyboardState inputState
-
-        inputState <- newInputState1
-
-        newInputModeOpt |> ValueOption.iter(fun mode -> inputMode <- mode)
-
         let struct (toggleGrid, newInputState2, newUIState) =
           InputHandlerSystem.handleUIKeys keyboardState inputState uiState
 
@@ -247,6 +243,24 @@ type PomoGame() as this =
             scenario
             keyboardState
             inputState
+
+        let struct (newInputState3, newKeybindingConfig, keybindingResult) =
+          InputHandlerSystem.handleKeybindingInput
+            state
+            playerId
+            scenario
+            keyboardState
+            inputState
+            keybindingConfig
+
+        inputState <- newInputState3
+        keybindingConfig <- newKeybindingConfig
+
+        match keybindingResult with
+        | KeybindingSystem.EnterAbilityTargeting(abilityId, targetingMode) ->
+          inputMode <-
+            InputManager.InputMode.AbilityTargeting(abilityId, targetingMode)
+        | _ -> ()
 
         let enemyEntity = scenario.entities |> AMap.find enemyId |> AVal.force
         let baseSpeed = enemyEntity.Movement.Speed

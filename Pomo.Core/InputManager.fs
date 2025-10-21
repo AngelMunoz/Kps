@@ -37,6 +37,14 @@ module InputManager =
     PrevKeyEDown: bool
     PrevKeyADown: bool
     PrevKeyRDown: bool
+    PrevKeyQDown: bool
+    PrevKeyWDown: bool
+    PrevKeyEKeyDown: bool
+    PrevKeyRKeyDown: bool
+    PrevKeyAKeyDown: bool
+    PrevKeySDown: bool
+    PrevKeyDDown: bool
+    PrevKeyFDown: bool
   }
 
   let createInputState() = {
@@ -51,6 +59,14 @@ module InputManager =
     PrevKeyEDown = false
     PrevKeyADown = false
     PrevKeyRDown = false
+    PrevKeyQDown = false
+    PrevKeyWDown = false
+    PrevKeyEKeyDown = false
+    PrevKeyRKeyDown = false
+    PrevKeyAKeyDown = false
+    PrevKeySDown = false
+    PrevKeyDDown = false
+    PrevKeyFDown = false
   }
 
   let createInitialState() = {
