@@ -306,7 +306,119 @@ module Projectile =
                         })
               }
             else
-              return StateChange.empty
+              let! resolution =
+                scenario.pendingResolutions
+                |> AMap.find proj.PendingResolutionId
+
+              let! actor = entities |> AMap.find resolution.ActorId
+
+              let! actorStats =
+                actor
+                |> DerivedStats.byEntity
+                  state.services.effectStore
+                  state.services.formulaStore
+
+              let ability =
+                state.services.abilityStore.find resolution.AbilityId
+
+              match ability with
+              | Abilities.Active abilityDef ->
+                let visualEffects = ResizeArray()
+                let mutable updates = HashMap.empty
+
+                visualEffects.Add(RemoveProjectile projId)
+
+                visualEffects.Add(
+                  RemovePendingResolution proj.PendingResolutionId
+                )
+
+                let targetResults =
+                  entitiesInZone
+                  |> AMap.mapA(fun targetId target -> adaptive {
+                    let! targetStats =
+                      target
+                      |> DerivedStats.byEntity
+                        state.services.effectStore
+                        state.services.formulaStore
+
+                    let damageParams = {
+                      services = state.services
+                      attackerStats = actorStats
+                      defenderStats = targetStats
+                      attackerEffects = actor.Effects
+                    }
+
+                    let! damageResult =
+                      match abilityDef.FormulaId with
+                      | ValueSome formulaId ->
+                        Resolution.calculateDamage damageParams formulaId
+                      | ValueNone ->
+                        AVal.constant {
+                          Amount = 0
+                          IsCritical = false
+                          IsEvaded = false
+                        }
+
+                    let targetAfterDamage = {
+                      target with
+                          Resources =
+                            Resolution.applyDamage damageResult.Amount target
+                    }
+
+                    let! targetAfterEffects =
+                      Resolution.applyAbilityEffects
+                        state.services.effectStore
+                        resolution.ActorId
+                        abilityDef
+                        targetAfterDamage
+
+                    let floatingText =
+                      if damageResult.IsEvaded then
+                        ValueSome {
+                          Id = Guid.NewGuid() |> UMX.tag
+                          Text = "Miss"
+                          Position = target.Position
+                          Color = FloatingTextColor.Evade
+                          CreationTick = newTime
+                        }
+                      elif damageResult.Amount > 0 then
+                        ValueSome {
+                          Id = Guid.NewGuid() |> UMX.tag
+                          Text = string damageResult.Amount
+                          Position = target.Position
+                          Color =
+                            if damageResult.IsCritical then
+                              FloatingTextColor.Critical
+                            else
+                              FloatingTextColor.Damage
+                          CreationTick = newTime
+                        }
+                      else
+                        ValueNone
+
+                    return struct (targetAfterEffects, floatingText)
+                  })
+
+
+                let! finalUpdates =
+                  targetResults
+                  |> AMap.fold
+                    (fun acc targetId struct (updatedTarget, floatingText) ->
+                      floatingText
+                      |> ValueOption.iter(fun ft ->
+                        visualEffects.Add(AddFloatingText ft))
+
+                      HashMap.add targetId updatedTarget acc)
+                    HashMap.empty
+
+                updates <- finalUpdates
+
+                return {
+                  StateChange.empty with
+                      updates = updates
+                      visualEffects = visualEffects.ToArray()
+                }
+              | _ -> return StateChange.empty
           else
             let dirX = dx / dist
             let dirY = dy / dist
