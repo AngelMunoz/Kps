@@ -64,10 +64,41 @@ module GameState =
   /// Returns the new EntityId and StateChange to apply via Resolution.apply.
   let createEntity
     (configure: EntityComponents -> EntityComponents)
+    (services: Services.EngineServices)
     (kit: CharacterKits.CharacterKit)
     =
 
     let newId = Guid.NewGuid() |> UMX.tag<EntityId>
+
+    let passiveEffects =
+      kit.StarterAbilities
+      |> HashSet.fold
+        (fun acc abilityId ->
+          match services.abilityStore.tryFind abilityId with
+          | ValueSome(Abilities.Passive passiveDef) ->
+            passiveDef.Effects
+            |> Array.fold
+              (fun effectAcc effectId ->
+                match services.effectStore.tryFind effectId with
+                | ValueSome effectDef ->
+                  let activeEffect = {
+                    EffectId = effectId
+                    SourceId = newId
+                    RemainingTicks =
+                      effectDef.Duration.Ticks
+                      |> ValueOption.defaultValue TimeSpan.Zero
+                    NextTickIn =
+                      effectDef.Duration.Interval
+                      |> ValueOption.defaultValue TimeSpan.Zero
+                    Stacks = 1
+                    Definition = effectDef
+                  }
+
+                  HashMap.add effectId activeEffect effectAcc
+                | ValueNone -> effectAcc)
+              acc
+          | _ -> acc)
+        HashMap.empty
 
     let newEntity = {
       Factions = HashSet.empty
@@ -84,7 +115,7 @@ module GameState =
         Destination = ValueNone
         Path = []
       }
-      Effects = HashMap.empty
+      Effects = passiveEffects
       Abilities = kit.StarterAbilities
       AbilityCooldowns = HashMap.empty
       Equipment = HashMap.empty

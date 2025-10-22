@@ -144,6 +144,7 @@ type PomoGame() as this =
           AISystem.processAllControllersAndCommands
             scenario.entities
             state.services.aiArchetypeStore
+            state.services.abilityStore
             scenario.gameTime
             scenario.aiControllers
           |> AVal.force

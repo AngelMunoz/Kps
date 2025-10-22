@@ -203,7 +203,12 @@ module StatusEffects =
       if not willExpire then
         let nextTickIn =
           if shouldTick then
-            interval + newNextTickIn
+            match effectDef.Duration with
+            | Instant
+            | Permanent
+            | Timed _
+            | PermanentLoop _ -> interval
+            | Loop _ -> interval + newNextTickIn
           else
             newNextTickIn
 

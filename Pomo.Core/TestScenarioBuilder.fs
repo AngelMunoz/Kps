@@ -38,11 +38,13 @@ module CharacterBuilder =
 
     let change =
       kit
-      |> GameState.createEntity(fun stats -> {
-        stats with
-            Factions = HashSet.ofList [ faction ]
-            Position = position
-      })
+      |> GameState.createEntity
+        (fun stats -> {
+          stats with
+              Factions = HashSet.ofList [ faction ]
+              Position = position
+        })
+        state.services
 
     let entityId = change.additions |> HashMap.toKeySeq |> Seq.head
     GameState.apply state change
@@ -60,11 +62,13 @@ module CharacterBuilder =
 
     let components =
       kit
-      |> GameState.createEntity(fun stats -> {
-        stats with
-            Position = position
-            Factions = HashSet.ofList [ Enemy; AIControlled ]
-      })
+      |> GameState.createEntity
+        (fun stats -> {
+          stats with
+              Position = position
+              Factions = HashSet.ofList [ Enemy; AIControlled ]
+        })
+        state.services
 
     let spawnData: Rules.SpawnEntityData = {
       components = components.additions |> HashMap.toValueArray |> Array.head
@@ -98,10 +102,10 @@ module TestScenarioBuilder =
         { X = 100f; Y = 400f }
 
     let enemyId =
-      CharacterBuilder.createAICharacter
-        state
-        2<AiArchetypeId>
-        { X = 300f; Y = 400f }
+      CharacterBuilder.createAICharacter state 3<AiArchetypeId> {
+        X = 300f
+        Y = 400f
+      }
 
     {
       PlayerId = playerId

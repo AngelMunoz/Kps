@@ -16,8 +16,20 @@ module Perception =
     let dy = p1.Y - p2.Y
     sqrt(dx * dx + dy * dy)
 
+  let inline isHostileFaction
+    (controllerFactions: Classification.Faction HashSet)
+    (targetFactions: Classification.Faction HashSet)
+    =
+    let isEnemy = controllerFactions.Contains Classification.Faction.Enemy
+    let isAlly = controllerFactions.Contains Classification.Faction.Ally
+    let targetIsPlayer = targetFactions.Contains Classification.Faction.Player
+    let targetIsAlly = targetFactions.Contains Classification.Faction.Ally
+    let targetIsEnemy = targetFactions.Contains Classification.Faction.Enemy
+    isEnemy && (targetIsPlayer || targetIsAlly) || isAlly && targetIsEnemy
+
   let gatherVisualCues
     (controllerPos: Position)
+    (controllerFactions: Classification.Faction HashSet)
     (config: PerceptionConfig)
     (entities: amap<Guid<EntityId>, EntityComponents>)
     (currentTick: TimeSpan)
@@ -28,7 +40,10 @@ module Perception =
         |> AMap.choose(fun entityId entity ->
           let dist = distance controllerPos entity.Position
 
-          if dist <= config.visualRange then
+          if
+            dist <= config.visualRange
+            && isHostileFaction controllerFactions entity.Factions
+          then
             let strength =
               if dist < config.visualRange * 0.3f then Overwhelming
               elif dist < config.visualRange * 0.6f then Strong
@@ -74,6 +89,7 @@ module Perception =
       let! visualCues =
         gatherVisualCues
           controllerEntity.Position
+          controllerEntity.Factions
           archetype.perceptionConfig
           entities
           currentTick
@@ -88,6 +104,8 @@ module Perception =
     }
 
 module Decision =
+  open Abilities
+
   let matchCueToPriority (cue: PerceptionCue) (priorities: CuePriority[]) =
     priorities
     |> Array.tryFind(fun p ->
@@ -104,11 +122,40 @@ module Decision =
     |> Array.sortBy(fun struct (_, priority) -> priority.priority)
     |> Array.tryHead
 
+  let selectAbilityForTarget
+    (abilityStore: Services.IAbilityStore)
+    (targetId: Guid<EntityId> voption)
+    (targetPos: Position)
+    (abilities: int<AbilityId> HashSet)
+    =
+    abilities
+    |> HashSet.chooseV(fun abilityId ->
+      match abilityStore.tryFind abilityId with
+      | ValueNone -> ValueNone
+      | ValueSome(Passive _) -> ValueNone
+      | ValueSome(Active def) ->
+        match def.Targeting with
+        | Self -> ValueSome struct (abilityId, EntityTargets [||])
+        | SingleEnemy
+        | SingleAlly ->
+          match targetId with
+          | ValueSome id ->
+            ValueSome struct (abilityId, EntityTargets [| id |])
+          | ValueNone -> ValueNone
+        | MultiTarget _ ->
+          match targetId with
+          | ValueSome id ->
+            ValueSome struct (abilityId, EntityTargets [| id |])
+          | ValueNone -> ValueNone
+        | GroundTarget _ ->
+          ValueSome struct (abilityId, PositionTarget targetPos))
+
   let generateCommand
     (cue: PerceptionCue)
     (priority: CuePriority)
     (controller: AIController)
     (entity: EntityComponents)
+    (abilityStore: Services.IAbilityStore)
     =
     match priority.response with
     | Investigate ->
@@ -119,23 +166,24 @@ module Decision =
         }
       )
     | Engage ->
-      match cue.sourceEntityId with
-      | ValueSome targetId ->
-        let abilities = entity.Abilities |> HashSet.toArray
+      let abilities =
+        entity.Abilities
+        |> selectAbilityForTarget abilityStore cue.sourceEntityId cue.position
+        |> HashSet.toArray
 
-        if Array.isEmpty abilities then
-          ValueNone
-        else
-          let selected = abilities |> Array.randomChoice
 
-          ValueSome(
-            UseAbility {
-              actor = controller.controlledEntityId
-              target = EntityTargets [| targetId |]
-              abilityId = selected
-            }
-          )
-      | ValueNone -> ValueNone
+      match abilities with
+      | [||] -> ValueNone
+      | abilities ->
+        let struct (abilityId, target) = abilities |> Array.randomChoice
+
+        ValueSome(
+          UseAbility {
+            actor = controller.controlledEntityId
+            target = target
+            abilityId = abilityId
+          }
+        )
     | Evade -> ValueNone
     | Flee -> ValueNone
     | Ignore -> ValueNone
@@ -173,6 +221,7 @@ module AISystem =
     (controller: AIController)
     (archetype: AIArchetype)
     (entities: amap<Guid<EntityId>, EntityComponents>)
+    (abilityStore: Services.IAbilityStore)
     (currentTick: TimeSpan aval)
     =
     adaptive {
@@ -198,7 +247,12 @@ module AISystem =
               | None -> ValueNone
               | Some struct (cue, priority) ->
 
-                Decision.generateCommand cue priority controller entity
+                Decision.generateCommand
+                  cue
+                  priority
+                  controller
+                  entity
+                  abilityStore
 
             struct (cmd, true)
           else
@@ -220,6 +274,7 @@ module AISystem =
   let processAllControllersAndCommands
     (entities: amap<Guid<EntityId>, EntityComponents>)
     (archetypeStore: Services.IAIArchetypeStore)
+    (abilityStore: Services.IAbilityStore)
     (currentTick: TimeSpan aval)
     (controllers: amap<Guid<EntityId>, AIController>)
     : aval<struct (HashMap<Guid<EntityId>, AIController> * Command[])> =
@@ -237,6 +292,7 @@ module AISystem =
                 controller
                 archetype
                 entities
+                abilityStore
                 currentTick
         })
 
