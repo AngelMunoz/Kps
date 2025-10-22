@@ -343,11 +343,21 @@ module CommandHandler =
             gameTime
             action.abilityDefinition
 
+        let finalActor = {
+          actorWithCooldown with
+              Movement = {
+                actorWithCooldown.Movement with
+                    Path = []
+                    Destination = ValueNone
+              }
+        }
+
         if actorId = targetId then
           let merged = {
             targetAfterEffects with
-                Resources = actorWithCooldown.Resources
-                AbilityCooldowns = actorWithCooldown.AbilityCooldowns
+                Resources = finalActor.Resources
+                AbilityCooldowns = finalActor.AbilityCooldowns
+                Movement = finalActor.Movement
           }
 
           return {
@@ -360,7 +370,7 @@ module CommandHandler =
             StateChange.empty with
                 updates =
                   HashMap.ofSeq [
-                    actorId, actorWithCooldown
+                    actorId, finalActor
                     targetId, targetAfterEffects
                   ]
                 visualEffects = visualEffects
@@ -470,9 +480,18 @@ module CommandHandler =
             gameTime
             action.abilityDefinition
 
+        let finalActor = {
+          actorWithCooldown with
+              Movement = {
+                actorWithCooldown.Movement with
+                    Path = []
+                    Destination = ValueNone
+              }
+        }
+
         return {
           StateChange.empty with
-              updates = HashMap.single ractors.actor actorWithCooldown
+              updates = HashMap.single ractors.actor finalActor
               visualEffects = visualEffects.ToArray()
               audioChanges = audioChanges.ToArray()
         }

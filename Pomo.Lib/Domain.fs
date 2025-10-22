@@ -630,7 +630,6 @@ module AI =
     perceptionConfig: PerceptionConfig
     decisionInterval: TimeSpan
     cuePriorities: CuePriority[]
-    stateTransitions: StateTransition[]
     patrolWaypoints: Position[] voption
   }
 

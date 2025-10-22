@@ -131,7 +131,13 @@ let ``createController initializes with default state``() =
   let archetypeId = 1<AiArchetypeId>
   let currentTime = TimeSpan.FromSeconds(10.0)
 
-  let controller = AILifecycle.createController entityId archetypeId currentTime
+  let controller =
+    AILifecycle.createController
+      entityId
+      archetypeId
+      Position.zero
+      ValueNone
+      currentTime
 
   Assert.Equal(entityId, controller.controlledEntityId)
   Assert.Equal(archetypeId, controller.archetypeId)
@@ -168,11 +174,26 @@ let ``cleanupDeadControllers removes controllers for dead entities``() =
   let controllers =
     cmap [
       entityId1,
-      AILifecycle.createController entityId1 1<AiArchetypeId> TimeSpan.Zero
+      AILifecycle.createController
+        entityId1
+        1<AiArchetypeId>
+        Position.zero
+        ValueNone
+        TimeSpan.Zero
       entityId2,
-      AILifecycle.createController entityId2 1<AiArchetypeId> TimeSpan.Zero
+      AILifecycle.createController
+        entityId2
+        1<AiArchetypeId>
+        Position.zero
+        ValueNone
+        TimeSpan.Zero
       entityId3,
-      AILifecycle.createController entityId3 1<AiArchetypeId> TimeSpan.Zero
+      AILifecycle.createController
+        entityId3
+        1<AiArchetypeId>
+        Position.zero
+        ValueNone
+        TimeSpan.Zero
     ]
 
   AILifecycle.cleanupDeadControllers entities controllers
@@ -268,7 +289,12 @@ let ``RemoveEntities removes both entity and controller``() =
   let components = TestHelpers.createTestEntity()
 
   let controller =
-    AILifecycle.createController entityId 1<AiArchetypeId> TimeSpan.Zero
+    AILifecycle.createController
+      entityId
+      1<AiArchetypeId>
+      Position.zero
+      ValueNone
+      TimeSpan.Zero
 
   transact(fun _ ->
     let activeId = state.activeScenarioId.Value
@@ -299,7 +325,12 @@ let ``Dead entities have controllers removed on apply``() =
   }
 
   let controller =
-    AILifecycle.createController entityId 1<AiArchetypeId> TimeSpan.Zero
+    AILifecycle.createController
+      entityId
+      1<AiArchetypeId>
+      Position.zero
+      ValueNone
+      TimeSpan.Zero
 
   transact(fun _ ->
     let activeId = state.activeScenarioId.Value

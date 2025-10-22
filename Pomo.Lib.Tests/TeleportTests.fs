@@ -50,7 +50,9 @@ module TeleportTests =
       StarterAbilities = HashSet.empty
     }
 
-    let createChange = Pomo.Lib.Operations.GameState.createEntity id kit
+    let createChange =
+      Pomo.Lib.Operations.GameState.createEntity id servicesState.services kit
+
     GameState.apply servicesState createChange
 
     let entityId =
@@ -106,7 +108,9 @@ module TeleportTests =
       StarterAbilities = HashSet.empty
     }
 
-    let createChange = Pomo.Lib.Operations.GameState.createEntity id kit
+    let createChange =
+      Pomo.Lib.Operations.GameState.createEntity id servicesState.services kit
+
     GameState.apply servicesState createChange
 
     let entityId =

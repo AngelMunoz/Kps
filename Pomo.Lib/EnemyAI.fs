@@ -94,13 +94,61 @@ module Perception =
           entities
           currentTick
 
-      let updatedMemories =
+      let decayedMemories =
         decayMemories
           controller.memories
           currentTick
           archetype.perceptionConfig.memoryDuration
 
-      return struct (visualCues, updatedMemories)
+      let updatedMemories =
+        visualCues
+        |> Array.fold
+          (fun (mem: HashMap<Guid<EntityId>, MemoryEntry>) (cue: PerceptionCue) ->
+            match cue.sourceEntityId with
+            | ValueSome entityId ->
+              let confidence =
+                match cue.strength with
+                | Weak -> 0.25f
+                | Moderate -> 0.5f
+                | Strong -> 0.75f
+                | Overwhelming -> 1.0f
+
+              let entry = {
+                entityId = entityId
+                lastSeenTick = currentTick
+                lastKnownPosition = cue.position
+                confidence = confidence
+              }
+
+              mem.Add(entityId, entry)
+            | ValueNone -> mem)
+          decayedMemories
+
+      let memoryCues =
+        updatedMemories
+        |> HashMap.toArray
+        |> Array.map(fun(entityId, memoryEntry) ->
+          let strength =
+            if memoryEntry.confidence >= 1.0f then
+              Overwhelming
+            elif memoryEntry.confidence >= 0.75f then
+              Strong
+            elif memoryEntry.confidence >= 0.5f then
+              Moderate
+            else
+              Weak
+
+          {
+            cueType = Memory
+            strength = strength
+            sourceEntityId = ValueSome entityId
+            position = memoryEntry.lastKnownPosition
+            timestamp = memoryEntry.lastSeenTick
+          })
+
+      let allCues = Array.concat [ visualCues; memoryCues ]
+
+      return struct (allCues, updatedMemories)
     }
 
 module Decision =
@@ -109,10 +157,7 @@ module Decision =
   let matchCueToPriority (cue: PerceptionCue) (priorities: CuePriority[]) =
     priorities
     |> Array.tryFind(fun p ->
-      p.cueType = cue.cueType
-      && (cue.strength = p.minStrength
-          || cue.strength = Strong
-          || cue.strength = Overwhelming))
+      p.cueType = cue.cueType && cue.strength >= p.minStrength)
 
   let selectBestCue (cues: PerceptionCue[]) (priorities: CuePriority[]) =
     cues
@@ -137,25 +182,24 @@ module Decision =
       | ValueSome(Active def) ->
         let dist = Perception.distance entityPosition targetPos
 
-        if dist < def.Range then
-          ValueNone
+        if dist <= def.Range then
+          match def.Targeting with
+          | Self -> ValueSome struct (abilityId, EntityTargets [||])
+          | SingleEnemy
+          | SingleAlly ->
+            match targetId with
+            | ValueSome id ->
+              ValueSome struct (abilityId, EntityTargets [| id |])
+            | ValueNone -> ValueNone
+          | MultiTarget _ ->
+            match targetId with
+            | ValueSome id ->
+              ValueSome struct (abilityId, EntityTargets [| id |])
+            | ValueNone -> ValueNone
+          | GroundTarget _ ->
+            ValueSome struct (abilityId, PositionTarget targetPos)
         else
-
-        match def.Targeting with
-        | Self -> ValueSome struct (abilityId, EntityTargets [||])
-        | SingleEnemy
-        | SingleAlly ->
-          match targetId with
-          | ValueSome id ->
-            ValueSome struct (abilityId, EntityTargets [| id |])
-          | ValueNone -> ValueNone
-        | MultiTarget _ ->
-          match targetId with
-          | ValueSome id ->
-            ValueSome struct (abilityId, EntityTargets [| id |])
-          | ValueNone -> ValueNone
-        | GroundTarget _ ->
-          ValueSome struct (abilityId, PositionTarget targetPos))
+          ValueNone)
 
   let generateCommand
     (cue: PerceptionCue)
@@ -182,9 +226,14 @@ module Decision =
           cue.position
         |> HashSet.toArray
 
-
       match abilities with
-      | [||] -> ValueNone
+      | [||] ->
+        ValueSome(
+          Navigate {
+            actor = controller.controlledEntityId
+            destination = cue.position
+          }
+        )
       | abilities ->
         let struct (abilityId, target) = abilities |> Array.randomChoice
 
@@ -195,7 +244,16 @@ module Decision =
             abilityId = abilityId
           }
         )
-    | Evade -> ValueNone
+    | Evade ->
+      ValueSome(
+        Navigate {
+          actor = controller.controlledEntityId
+          destination = {
+            X = controller.spawnPosition.X
+            Y = controller.spawnPosition.Y
+          }
+        }
+      )
     | Flee -> ValueNone
     | Ignore -> ValueNone
 
@@ -338,27 +396,63 @@ module AISystem =
 
               struct (cmd, true, controller.waypointIndex)
             | None ->
+              let navigateSpawn =
+                ValueSome(
+                  Navigate {
+                    actor = controller.controlledEntityId
+                    destination = controller.spawnPosition
+                  }
+                )
+
               match controller.absoluteWaypoints with
               | ValueNone
               | ValueSome [||] ->
-                struct (ValueNone, true, controller.waypointIndex)
+                match archetype.behaviorType with
+                | Patrol -> struct (ValueNone, true, controller.waypointIndex)
+                | Aggressive
+                | Defensive
+                | Supporter
+                | Ambusher
+                | Turret
+                | Passive ->
+                  struct (navigateSpawn, true, controller.waypointIndex)
               | ValueSome waypoints ->
-                let struct (targetWaypoint, nextIdx) =
-                  selectNextWaypoint
-                    archetype.behaviorType
-                    controller
-                    entity
-                    waypoints
+                match archetype.behaviorType with
+                | Patrol ->
+                  let struct (targetWaypoint, nextIdx) =
+                    selectNextWaypoint
+                      archetype.behaviorType
+                      controller
+                      entity
+                      waypoints
 
-                let cmd =
-                  ValueSome(
-                    Navigate {
-                      actor = controller.controlledEntityId
-                      destination = targetWaypoint
-                    }
-                  )
+                  let cmd =
+                    ValueSome(
+                      Navigate {
+                        actor = controller.controlledEntityId
+                        destination = targetWaypoint
+                      }
+                    )
 
-                struct (cmd, true, nextIdx)
+                  struct (cmd, true, nextIdx)
+                | Aggressive ->
+                  let targetWaypoint = waypoints |> Array.randomChoice
+
+                  let cmd =
+                    ValueSome(
+                      Navigate {
+                        actor = controller.controlledEntityId
+                        destination = targetWaypoint
+                      }
+                    )
+
+                  struct (cmd, true, controller.waypointIndex)
+                | Defensive
+                | Supporter
+                | Ambusher
+                | Passive ->
+                  struct (navigateSpawn, true, controller.waypointIndex)
+                | Turret -> struct (ValueNone, true, controller.waypointIndex)
           else
             struct (ValueNone, false, controller.waypointIndex)
 

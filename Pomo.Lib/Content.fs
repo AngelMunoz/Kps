@@ -1248,33 +1248,6 @@ module AIArchetypeStore =
             response = Investigate
           }
         |]
-        stateTransitions = [|
-          {
-            fromState = Idle
-            condition = CueDetected(Audio, Strong)
-            toState = Investigating { X = 0f; Y = 0f }
-          }
-          {
-            fromState = Investigating { X = 0f; Y = 0f }
-            condition = CueDetected(Visual, Moderate)
-            toState = Detecting %Guid.Empty
-          }
-          {
-            fromState = Detecting %Guid.Empty
-            condition = TargetInRange(32f * 2f)
-            toState = Engaging %Guid.Empty
-          }
-          {
-            fromState = Engaging %Guid.Empty
-            condition = HealthBelow 0.2f
-            toState = Retreating
-          }
-          {
-            fromState = Engaging %Guid.Empty
-            condition = NoTargetsVisible
-            toState = Idle
-          }
-        |]
         patrolWaypoints =
           ValueSome [|
             { X = -300f; Y = -300f } // Top-Left
@@ -1311,23 +1284,6 @@ module AIArchetypeStore =
             response = Engage
           }
         |]
-        stateTransitions = [|
-          {
-            fromState = Idle
-            condition = CueDetected(Visual, Moderate)
-            toState = Detecting %Guid.Empty
-          }
-          {
-            fromState = Detecting %Guid.Empty
-            condition = TargetInRange(32f * 6f)
-            toState = Engaging %Guid.Empty
-          }
-          {
-            fromState = Engaging %Guid.Empty
-            condition = NoTargetsVisible
-            toState = Idle
-          }
-        |]
         patrolWaypoints = ValueNone
       }
       3<AiArchetypeId>,
@@ -1347,49 +1303,27 @@ module AIArchetypeStore =
         cuePriorities = [|
           {
             cueType = Projectile
-            minStrength = Strong
+            minStrength = Weak
             priority = 1
-            response = Engage
+            response = Investigate
           }
           {
             cueType = Tactile
-            minStrength = Strong
+            minStrength = Weak
             priority = 2
             response = Engage
           }
           {
             cueType = Visual
-            minStrength = Overwhelming
+            minStrength = Weak
             priority = 3
             response = Engage
           }
           {
             cueType = Audio
-            minStrength = Moderate
+            minStrength = Weak
             priority = 4
             response = Investigate
-          }
-        |]
-        stateTransitions = [|
-          {
-            fromState = Patrolling 0
-            condition = ReachedDestination
-            toState = Patrolling 1
-          }
-          {
-            fromState = Patrolling 0
-            condition = CueDetected(Visual, Moderate)
-            toState = Detecting %Guid.Empty
-          }
-          {
-            fromState = Investigating { X = 0f; Y = 0f }
-            condition = TimeElapsed(TimeSpan.FromSeconds(10.0))
-            toState = Patrolling 0
-          }
-          {
-            fromState = Engaging %Guid.Empty
-            condition = NoTargetsVisible
-            toState = Patrolling 0
           }
         |]
         patrolWaypoints =

@@ -50,6 +50,9 @@ type Effects.Duration with
     | Effects.Instant -> ValueNone
 
 
+module Position =
+  let zero: Position = { X = 0f; Y = 0f }
+
 module ResourceType =
 
   let inline asString r =
