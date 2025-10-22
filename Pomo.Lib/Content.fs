@@ -1225,13 +1225,13 @@ module AIArchetypeStore =
         cuePriorities = [|
           {
             cueType = Projectile
-            minStrength = Moderate
+            minStrength = Strong
             priority = 1
             response = Evade
           }
           {
             cueType = Visual
-            minStrength = Moderate
+            minStrength = Strong
             priority = 2
             response = Engage
           }
@@ -1262,15 +1262,15 @@ module AIArchetypeStore =
           {
             fromState = Detecting %Guid.Empty
             condition = TargetInRange(32f * 2f)
-            toState = Engaging(%Guid.Empty, 8<AbilityId>)
+            toState = Engaging %Guid.Empty
           }
           {
-            fromState = Engaging(%Guid.Empty, 8<AbilityId>)
+            fromState = Engaging %Guid.Empty
             condition = HealthBelow 0.2f
             toState = Retreating
           }
           {
-            fromState = Engaging(%Guid.Empty, 8<AbilityId>)
+            fromState = Engaging %Guid.Empty
             condition = NoTargetsVisible
             toState = Idle
           }
@@ -1300,13 +1300,13 @@ module AIArchetypeStore =
         cuePriorities = [|
           {
             cueType = Visual
-            minStrength = Moderate
+            minStrength = Strong
             priority = 1
             response = Engage
           }
           {
             cueType = Memory
-            minStrength = Weak
+            minStrength = Moderate
             priority = 2
             response = Engage
           }
@@ -1320,10 +1320,10 @@ module AIArchetypeStore =
           {
             fromState = Detecting %Guid.Empty
             condition = TargetInRange(32f * 6f)
-            toState = Engaging(%Guid.Empty, 2<AbilityId>)
+            toState = Engaging %Guid.Empty
           }
           {
-            fromState = Engaging(%Guid.Empty, 2<AbilityId>)
+            fromState = Engaging %Guid.Empty
             condition = NoTargetsVisible
             toState = Idle
           }
@@ -1347,19 +1347,19 @@ module AIArchetypeStore =
         cuePriorities = [|
           {
             cueType = Projectile
-            minStrength = Moderate
+            minStrength = Strong
             priority = 1
-            response = Evade
+            response = Engage
           }
           {
             cueType = Tactile
-            minStrength = Weak
+            minStrength = Strong
             priority = 2
             response = Engage
           }
           {
             cueType = Visual
-            minStrength = Moderate
+            minStrength = Overwhelming
             priority = 3
             response = Engage
           }
@@ -1387,7 +1387,7 @@ module AIArchetypeStore =
             toState = Patrolling 0
           }
           {
-            fromState = Engaging(%Guid.Empty, 8<AbilityId>)
+            fromState = Engaging %Guid.Empty
             condition = NoTargetsVisible
             toState = Patrolling 0
           }

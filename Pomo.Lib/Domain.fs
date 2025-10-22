@@ -593,7 +593,7 @@ module AI =
     | Investigating of position: Position
     | Detecting of entityId: Guid<EntityId>
     | Pursuing of entityId: Guid<EntityId>
-    | Engaging of entityId: Guid<EntityId> * abilityId: int<AbilityId>
+    | Engaging of entityId: Guid<EntityId>
     | Evading of projectileId: Guid<ProjectileId>
     | Retreating
     | Patrolling of waypointIndex: int

@@ -124,6 +124,7 @@ module Decision =
 
   let selectAbilityForTarget
     (abilityStore: Services.IAbilityStore)
+    (entityPosition: Position)
     (targetId: Guid<EntityId> voption)
     (targetPos: Position)
     (abilities: int<AbilityId> HashSet)
@@ -134,6 +135,12 @@ module Decision =
       | ValueNone -> ValueNone
       | ValueSome(Passive _) -> ValueNone
       | ValueSome(Active def) ->
+        let dist = Perception.distance entityPosition targetPos
+
+        if dist < def.Range then
+          ValueNone
+        else
+
         match def.Targeting with
         | Self -> ValueSome struct (abilityId, EntityTargets [||])
         | SingleEnemy
@@ -168,7 +175,11 @@ module Decision =
     | Engage ->
       let abilities =
         entity.Abilities
-        |> selectAbilityForTarget abilityStore cue.sourceEntityId cue.position
+        |> selectAbilityForTarget
+          abilityStore
+          entity.Position
+          cue.sourceEntityId
+          cue.position
         |> HashSet.toArray
 
 
