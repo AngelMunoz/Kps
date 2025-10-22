@@ -369,7 +369,9 @@ module InputHandlerSystem =
         stateChange.audioChanges
 
       GameState.apply state stateChange
-    | _ -> ()
+    | KeybindingSystem.NoAction
+    | KeybindingSystem.EnterAbilityTargeting _
+    | KeybindingSystem.UseItemAction _ -> ()
 
     struct (newInputState, newConfig, result)
 
@@ -522,6 +524,8 @@ module InputHandlerSystem =
                 )
               )
       }
-    | _ -> ()
+    | KeybindingSystem.ExecuteSelfAbility _
+    | KeybindingSystem.NoAction
+    | KeybindingSystem.UseItemAction _ -> ()
 
     result

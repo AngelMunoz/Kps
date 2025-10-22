@@ -103,5 +103,6 @@ module KeybindingSystem =
         | Abilities.SingleAlly -> ValueSome EntityTargeting
         | Abilities.GroundTarget radius -> ValueSome(GroundTargeting radius)
         | Abilities.Self -> ValueNone
-        | _ -> ValueNone
-      | _ -> ValueNone
+        | Abilities.MultiTarget _ -> ValueNone
+
+      | Abilities.Passive _ -> ValueNone

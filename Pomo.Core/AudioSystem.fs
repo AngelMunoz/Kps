@@ -49,7 +49,7 @@ module AudioSystem =
           MediaPlayer.IsRepeating <- true
           MediaPlayer.Volume <- 0.7f
           MediaPlayer.Play song
-        | _ -> ()
+        | false, _ -> ()
       | ValueNone -> ()
 
   let calculateSpatialVolume

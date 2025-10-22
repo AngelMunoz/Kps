@@ -94,8 +94,9 @@ module PartyDuel =
       match scenario.CombatType with
       | PvP
       | PvH -> true
-      | _ -> false
-    | _ -> false
+      | PvE -> false
+    | Peaceful
+    | AlwaysOn -> false
 
   let request
     (requester: Guid<PartyId>)
@@ -182,8 +183,9 @@ module Duel =
       match scenario.CombatType with
       | PvP
       | PvH -> true
-      | _ -> false
-    | _ -> false
+      | PvE -> false
+    | AlwaysOn
+    | Peaceful -> false
 
   let request
     (requester: Guid<EntityId>)

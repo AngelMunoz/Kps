@@ -123,6 +123,14 @@ module CommandHandler =
           // For now, return true - formula validation would be implemented later
           true)
 
+    let inline distance (p1: Position) (p2: Position) =
+      let dx = p1.X - p2.X
+      let dy = p1.Y - p2.Y
+      sqrt(dx * dx + dy * dy)
+
+    let checkRange (actorPos: Position) (targetPos: Position) (range: float32) =
+      distance actorPos targetPos <= range
+
     let resolveTaunt rparams ractors initialTarget = adaptive {
       let! actor =
         ScenarioState.getEntityById ractors.actor rparams.scenarioState
@@ -167,6 +175,7 @@ module CommandHandler =
     | NotFound
     | IsPassive
     | InvalidTarget
+    | OutOfRange
     | ValidAction of ValidatedActionResult
 
   let validateAction
@@ -219,6 +228,9 @@ module CommandHandler =
               actorStats
               abilityDef.Requirements
 
+          let inRange =
+            ValidateAction.checkRange actor.Position target.Position abilityDef.Range
+
           if isStunned then
             return Stunned
           else if isSilenced then
@@ -229,6 +241,8 @@ module CommandHandler =
             return InsufficientResource
           else if not hasRequirements then
             return MissingRequirements
+          else if not inRange then
+            return OutOfRange
           else
 
             let! struct (targetId, targetComponents) =
@@ -477,7 +491,8 @@ module CommandHandler =
     | InsufficientResource
     | OnCooldown
     | InvalidTarget
-    | MissingRequirements ->
+    | MissingRequirements
+    | OutOfRange ->
       let! gameTime = rparams.gameTime
       let! actor = rparams.scenarioState.entities |> AMap.tryFind ractors.actor
 
@@ -492,6 +507,7 @@ module CommandHandler =
             | InsufficientResource -> "Not Enough Resources"
             | MissingRequirements -> "Requirements Not Met"
             | InvalidTarget -> "Invalid Target"
+            | OutOfRange -> "Out of Range"
             | _ -> "Cannot Use"
 
           AddFloatingText {
@@ -633,18 +649,23 @@ module CommandHandler =
               actorStats
               abilityDef.Requirements
 
+          let inRange =
+            ValidateAction.checkRange actor.Position targetPos abilityDef.Range
+
           if
             isStunned
             || isSilenced
             || isOnCooldown
             || not hasEnoughResource
             || not hasRequirements
+            || not inRange
           then
             let text =
               if isStunned then "Stunned"
               elif isSilenced then "Silenced"
               elif isOnCooldown then "On Cooldown"
               elif not hasEnoughResource then "Not Enough Resources"
+              elif not inRange then "Out of Range"
               else "Requirements Not Met"
 
             return {

@@ -36,6 +36,7 @@ type Effects.Duration with
   member inline this.Ticks =
     match this with
     | Effects.Instant
+    | Effects.PermanentLoop _
     | Effects.Permanent -> ValueNone
     | Effects.Timed d -> ValueSome d
     | Effects.Loop(_, d) -> ValueSome d
@@ -43,8 +44,10 @@ type Effects.Duration with
   member inline this.Interval =
     match this with
     | Effects.Loop(i, _) -> ValueSome i
+    | Effects.PermanentLoop i -> ValueSome i
     | Effects.Permanent -> ValueNone
-    | _ -> ValueNone
+    | Effects.Timed _
+    | Effects.Instant -> ValueNone
 
 
 module ResourceType =
@@ -54,8 +57,19 @@ module ResourceType =
     | ResourceType.HP -> "HP"
     | ResourceType.MP -> "MP"
 
+module Resources =
+
+  let zero: Attributes.Resources = {
+    HP = 0
+    MP = 0
+    Status = Attributes.Status.Alive
+  }
+
 module TickResult =
-  let Zero: AggregatedEffects.TickResult = { Damage = 0; Healing = 0 }
+  let Zero: AggregatedEffects.TickResult = {
+    Damage = 0
+    Resources = Resources.zero
+  }
 
 module DamageResult =
 

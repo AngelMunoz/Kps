@@ -402,7 +402,7 @@ module Effects =
     | Buff
     | Debuff
     | DamageOverTime
-    | HealOverTime
+    | ResourceOverTime
     | Stun
     | Silence
     | Taunt
@@ -418,6 +418,7 @@ module Effects =
     | Instant
     | Timed of TimeSpan
     | Loop of TimeSpan * TimeSpan // Interval * Total Duration
+    | PermanentLoop of TimeSpan // Interval
     | Permanent // For passive skill effects, never expires
 
   [<Struct>]
@@ -514,6 +515,7 @@ module Abilities =
     Cooldown: TimeSpan
     Cost: ResourceCost voption
     Targeting: TargetType
+    Range: float32
     FormulaId: int<FormulaId> voption
     Effects: int<EffectId>[]
     Requirements: AbilityRequirement[]
@@ -529,7 +531,10 @@ module Abilities =
 
 module AggregatedEffects =
   [<Struct>]
-  type TickResult = { Damage: int; Healing: int }
+  type TickResult = {
+    Damage: int
+    Resources: Attributes.Resources
+  }
 
 module CharacterKits =
   [<Struct>]

@@ -303,7 +303,7 @@ module RenderSystem =
         let effectColor =
           match effect.Definition.Kind with
           | Effects.EffectKind.Buff -> Color.LightGreen
-          | Effects.EffectKind.HealOverTime -> Color.LightGreen
+          | Effects.EffectKind.ResourceOverTime -> Color.LightGreen
           | Effects.EffectKind.Debuff -> Color.IndianRed
           | Effects.EffectKind.DamageOverTime -> Color.IndianRed
           | Effects.EffectKind.Stun -> Color.DarkOrange

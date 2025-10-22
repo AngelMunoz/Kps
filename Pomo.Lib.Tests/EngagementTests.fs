@@ -263,6 +263,7 @@ type ``Engagement Targeting Rules``() =
       Cooldown = TimeSpan.Zero
       Cost = ValueNone
       Targeting = TargetType.SingleEnemy
+      Range = 1000f
       FormulaId = ValueNone
       Effects = [||]
       Requirements = [||]
@@ -278,6 +279,7 @@ type ``Engagement Targeting Rules``() =
       Cooldown = TimeSpan.Zero
       Cost = ValueNone
       Targeting = TargetType.SingleAlly
+      Range = 1000f
       FormulaId = ValueNone
       Effects = [||]
       Requirements = [||]
@@ -355,4 +357,3 @@ type ``Engagement Targeting Rules``() =
       |> AVal.force
 
     Assert.False(canAttackAlly)
-

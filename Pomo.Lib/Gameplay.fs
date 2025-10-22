@@ -809,11 +809,17 @@ module GameState =
 
       let maxHp = derivedStatsForEntity.HP
       let currentHp = movedComponents.Resources.HP
-      let newHp = min maxHp (currentHp + tickResult.Healing)
+      let newHp = min maxHp (currentHp + tickResult.Resources.HP)
+
+      let newMp =
+        min
+          derivedStatsForEntity.MP
+          (movedComponents.Resources.MP + tickResult.Resources.MP)
 
       let updatedResources = {
         movedComponents.Resources with
             HP = max 0 (newHp - tickResult.Damage)
+            MP = newMp
       }
 
       return {

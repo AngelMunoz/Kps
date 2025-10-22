@@ -201,7 +201,7 @@ module EffectStore =
       {
         Id = 106<EffectId>
         Name = "Regeneration"
-        Kind = EffectKind.HealOverTime
+        Kind = EffectKind.ResourceOverTime
         Duration =
           Loop(
             TimeSpan.FromMilliseconds(2000.0),
@@ -295,10 +295,22 @@ module EffectStore =
         Id = 301<EffectId>
         Name = "Dynamic MA Boost"
         Kind = EffectKind.Buff
-        Duration = Timed(TimeSpan.FromMilliseconds(15000.0))
+        Duration = Timed(TimeSpan.FromSeconds(15.0))
         Stacking = StackingRule.RefreshDuration
         Modifiers = [| EffectModifier.DynamicMod(101<FormulaId>, MA) |]
         FormulaId = ValueSome 101<FormulaId>
+      }
+      304<EffectId>,
+      {
+        Id = 304<EffectId>
+        Name = "Mana Regen"
+        Kind = EffectKind.ResourceOverTime
+        Duration = PermanentLoop(TimeSpan.FromSeconds(2.0))
+        Stacking = StackingRule.RefreshDuration
+        Modifiers = [|
+          EffectModifier.StaticMod(StatModifier.Additive(MP, 10))
+        |]
+        FormulaId = ValueNone
       }
     ]
 
@@ -407,6 +419,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = TimeSpan.FromMilliseconds(2000.0) // 2 seconds
         Targeting = TargetType.SingleEnemy
+        Range = 32.0f // 2 tiles
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
@@ -422,6 +435,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 20 }
         Cooldown = TimeSpan.FromMilliseconds(5000.0) // 5 seconds
         Targeting = TargetType.SingleEnemy
+        Range = 32f * 3f
         FormulaId = ValueSome 2<FormulaId>
         Effects = [| 2<EffectId> |]
         Requirements = Array.empty
@@ -437,6 +451,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = TimeSpan.FromMilliseconds(1000.0)
         Targeting = TargetType.SingleEnemy
+        Range = 160.0f // 5 tiles
         FormulaId = ValueNone
         Effects = [| 104<EffectId> |]
         Requirements = Array.empty
@@ -452,6 +467,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = TimeSpan.FromMilliseconds(1000.0)
         Targeting = TargetType.Self
+        Range = 0.0f // Self
         FormulaId = ValueNone
         Effects = [| 1<EffectId> |] // RefreshDuration effect
         Requirements = Array.empty
@@ -467,6 +483,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
         Cooldown = TimeSpan.FromMilliseconds(1000.0)
         Targeting = TargetType.SingleAlly
+        Range = 192.0f // 6 tiles
         FormulaId = ValueNone
         Effects = [| 102<EffectId> |] // AddStack effect
         Requirements = Array.empty
@@ -482,6 +499,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = TimeSpan.FromMilliseconds(1000.0)
         Targeting = TargetType.SingleEnemy
+        Range = 32f * 4f // 5 tiles
         FormulaId = ValueSome 3<FormulaId>
         Effects = [| 105<EffectId> |] // DoT effect
         Requirements = Array.empty
@@ -497,6 +515,7 @@ module AbilityStore =
         Cost = ValueNone
         Cooldown = TimeSpan.FromMilliseconds(1000.0)
         Targeting = TargetType.SingleEnemy
+        Range = 32.0f // 2 tiles
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
@@ -512,6 +531,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = TimeSpan.FromMilliseconds(2000.0)
         Targeting = TargetType.SingleEnemy
+        Range = 32.0f // 2 tiles
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
@@ -527,6 +547,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
         Cooldown = TimeSpan.FromMilliseconds(1000.0)
         Targeting = TargetType.SingleAlly
+        Range = 32f * 5f
         FormulaId = ValueNone
         Effects = [| 106<EffectId> |] // HoT effect
         Requirements = Array.empty
@@ -542,6 +563,7 @@ module AbilityStore =
         Cost = ValueNone
         Cooldown = TimeSpan.FromMilliseconds(1000.0)
         Targeting = TargetType.SingleEnemy
+        Range = 32.0f // 2 tiles
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
@@ -557,6 +579,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 25 }
         Cooldown = TimeSpan.FromMilliseconds(10000.0) // 10 seconds
         Targeting = TargetType.SingleEnemy
+        Range = 160.0f // 5 tiles
         FormulaId = ValueNone
         Effects = [| 101<EffectId> |] // Silence effect
         Requirements = Array.empty
@@ -573,6 +596,7 @@ module AbilityStore =
         Cost = ValueNone
         Cooldown = TimeSpan.FromMilliseconds(3000.0)
         Targeting = TargetType.SingleEnemy
+        Range = 64.0f // 2 tiles
         FormulaId = ValueSome 1<FormulaId>
         Effects = [| 200<EffectId>; 202<EffectId> |] // Applies HP cost + damage boost to self
         Requirements = Array.empty
@@ -588,6 +612,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 20 }
         Cooldown = TimeSpan.FromMilliseconds(5000.0)
         Targeting = TargetType.Self
+        Range = 0.0f // Self
         FormulaId = ValueNone
         Effects = [| 201<EffectId> |] // Converts MP to HP
         Requirements = Array.empty
@@ -603,6 +628,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
         Cooldown = TimeSpan.FromMilliseconds(3000.0)
         Targeting = GroundTarget 32.0f
+        Range = 32f * 6f
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
@@ -618,6 +644,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 25 }
         Cooldown = TimeSpan.FromMilliseconds(5000.0)
         Targeting = GroundTarget 64.0f
+        Range = 32f * 7f
         FormulaId = ValueSome 2<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
@@ -633,6 +660,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
         Cooldown = TimeSpan.FromMilliseconds(3000.0)
         Targeting = GroundTarget 32.0f
+        Range = 32f * 4f
         FormulaId = ValueSome 3<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
@@ -659,6 +687,14 @@ module AbilityStore =
         Intent = AbilityIntent.Neutral
         Requirements = Array.empty
         Effects = [| 107<EffectId> |]
+      }
+      1003<AbilityId>,
+      {
+        Id = 1003<AbilityId>
+        Name = "Mana Regeneration"
+        Intent = AbilityIntent.Support
+        Requirements = Array.empty
+        Effects = [| 304<EffectId> |]
       }
     ]
 
@@ -687,8 +723,7 @@ module CharacterKitStore =
           Sense = 8
           Charm = 12
         }
-        StarterAbilities =
-          FSharp.Data.Adaptive.HashSet.ofArray [| 8<AbilityId> |]
+        StarterAbilities = HashSet.ofArray [| 8<AbilityId>; 1003<AbilityId> |]
       }
       { Family = Power; Stage = Second },
       {
@@ -701,7 +736,7 @@ module CharacterKitStore =
           Charm = 17
         }
         StarterAbilities =
-          FSharp.Data.Adaptive.HashSet.ofArray [| 8<AbilityId>; 1<AbilityId> |]
+          HashSet.ofArray [| 8<AbilityId>; 1<AbilityId>; 1003<AbilityId> |]
       }
       { Family = Power; Stage = Third },
       {
@@ -714,10 +749,11 @@ module CharacterKitStore =
           Charm = 22
         }
         StarterAbilities =
-          FSharp.Data.Adaptive.HashSet.ofArray [|
+          HashSet.ofArray [|
             8<AbilityId>
             1<AbilityId>
             100<AbilityId>
+            1003<AbilityId>
           |]
       }
       { Family = Magic; Stage = First },
@@ -731,7 +767,7 @@ module CharacterKitStore =
           Charm = 8
         }
         StarterAbilities =
-          FSharp.Data.Adaptive.HashSet.ofArray [| 2<AbilityId>; 4<AbilityId> |]
+          HashSet.ofArray [| 2<AbilityId>; 4<AbilityId>; 1003<AbilityId> |]
       }
       { Family = Magic; Stage = Second },
       {
@@ -744,13 +780,14 @@ module CharacterKitStore =
           Charm = 12
         }
         StarterAbilities =
-          FSharp.Data.Adaptive.HashSet.ofArray [|
+          HashSet.ofArray [|
             2<AbilityId>
             4<AbilityId>
             6<AbilityId>
             102<AbilityId>
             103<AbilityId>
             104<AbilityId>
+            1003<AbilityId>
           |]
       }
       { Family = Magic; Stage = Third },
@@ -764,11 +801,12 @@ module CharacterKitStore =
           Charm = 15
         }
         StarterAbilities =
-          FSharp.Data.Adaptive.HashSet.ofArray [|
+          HashSet.ofArray [|
             2<AbilityId>
             4<AbilityId>
             6<AbilityId>
             9<AbilityId>
+            1003<AbilityId>
           |]
       }
       { Family = Sense; Stage = First },
@@ -782,7 +820,7 @@ module CharacterKitStore =
           Charm = 10
         }
         StarterAbilities =
-          FSharp.Data.Adaptive.HashSet.ofArray [| 8<AbilityId>; 3<AbilityId> |]
+          HashSet.ofArray [| 8<AbilityId>; 3<AbilityId>; 1003<AbilityId> |]
       }
       { Family = Sense; Stage = Second },
       {
@@ -795,10 +833,11 @@ module CharacterKitStore =
           Charm = 14
         }
         StarterAbilities =
-          FSharp.Data.Adaptive.HashSet.ofArray [|
+          HashSet.ofArray [|
             8<AbilityId>
             3<AbilityId>
             6<AbilityId>
+            1003<AbilityId>
           |]
       }
       { Family = Sense; Stage = Third },
@@ -812,11 +851,12 @@ module CharacterKitStore =
           Charm = 18
         }
         StarterAbilities =
-          FSharp.Data.Adaptive.HashSet.ofArray [|
+          HashSet.ofArray [|
             8<AbilityId>
             3<AbilityId>
             6<AbilityId>
             9<AbilityId>
+            1003<AbilityId>
           |]
       }
       { Family = Charm; Stage = First },
@@ -830,10 +870,11 @@ module CharacterKitStore =
           Charm = 15
         }
         StarterAbilities =
-          FSharp.Data.Adaptive.HashSet.ofArray [|
+          HashSet.ofArray [|
             8<AbilityId>
             5<AbilityId>
             7<AbilityId>
+            1003<AbilityId>
           |]
       }
       { Family = Charm; Stage = Second },
@@ -847,11 +888,12 @@ module CharacterKitStore =
           Charm = 22
         }
         StarterAbilities =
-          FSharp.Data.Adaptive.HashSet.ofArray [|
+          HashSet.ofArray [|
             8<AbilityId>
             5<AbilityId>
             7<AbilityId>
             4<AbilityId>
+            1003<AbilityId>
           |]
       }
       { Family = Charm; Stage = Third },
@@ -865,12 +907,13 @@ module CharacterKitStore =
           Charm = 30
         }
         StarterAbilities =
-          FSharp.Data.Adaptive.HashSet.ofArray [|
+          HashSet.ofArray [|
             8<AbilityId>
             5<AbilityId>
             7<AbilityId>
             4<AbilityId>
             101<AbilityId>
+            1003<AbilityId>
           |]
       }
     ]
@@ -1181,12 +1224,12 @@ module AIArchetypeStore =
           CharacterKitStore.definitions[{ Family = Power; Stage = First }]
         behaviorType = Aggressive
         perceptionConfig = {
-          visualRange = 400f
+          visualRange = 21f
           audioSensitivity = 1.5f
           memoryDuration = TimeSpan.FromSeconds(20.0)
           canDetectProjectiles = true
         }
-        decisionInterval = TimeSpan.FromSeconds(1.)
+        decisionInterval = TimeSpan.FromSeconds(0.5)
         cuePriorities = [|
           {
             cueType = Projectile
@@ -1250,7 +1293,7 @@ module AIArchetypeStore =
           CharacterKitStore.definitions[{ Family = Magic; Stage = First }]
         behaviorType = Turret
         perceptionConfig = {
-          visualRange = 600f
+          visualRange = 60f
           audioSensitivity = 0f
           memoryDuration = TimeSpan.FromSeconds(5.0)
           canDetectProjectiles = false
@@ -1297,7 +1340,7 @@ module AIArchetypeStore =
           CharacterKitStore.definitions[{ Family = Power; Stage = Second }]
         behaviorType = Patrol
         perceptionConfig = {
-          visualRange = 500f
+          visualRange = 40f
           audioSensitivity = 2.0f
           memoryDuration = TimeSpan.FromSeconds(30.0)
           canDetectProjectiles = true
