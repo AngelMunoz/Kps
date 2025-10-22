@@ -1,6 +1,7 @@
 namespace Pomo.Lib.EnemyAI
 
 open System
+open System.Diagnostics
 open FSharp.UMX
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
@@ -65,9 +66,10 @@ module Perception =
     (archetype: AIArchetype)
     (entities: amap<Guid<EntityId>, EntityComponents>)
     (controllerEntity: EntityComponents)
-    (currentTick: TimeSpan)
+    (currentTick: TimeSpan aval)
     =
     adaptive {
+      let! currentTick = currentTick
 
       let! visualCues =
         gatherVisualCues
@@ -167,101 +169,91 @@ module AILifecycle =
 
 module AISystem =
 
-  let generateCommand
+  let processAndGenerateCommands
     (controller: AIController)
     (archetype: AIArchetype)
     (entities: amap<Guid<EntityId>, EntityComponents>)
-    (currentTick: TimeSpan)
-    =
-    adaptive {
-      let timeSinceLastDecision = currentTick - controller.lastDecisionTime
-
-      if timeSinceLastDecision < archetype.decisionInterval then
-        return ValueNone
-      else
-        let! controllerEntity =
-          entities |> AMap.tryFind controller.controlledEntityId
-
-        match controllerEntity with
-        | None -> return ValueNone
-        | Some entity ->
-          let! struct (cues, updatedMemories) =
-            Perception.gatherCues
-              controller
-              archetype
-              entities
-              entity
-              currentTick
-
-          let bestCue = Decision.selectBestCue cues archetype.cuePriorities
-
-          let command =
-            match bestCue with
-            | None -> ValueNone
-            | Some struct (cue, priority) ->
-              Decision.generateCommand cue priority controller entity
-
-          return command
-    }
-
-  let processController
-    (controller: AIController)
-    (archetype: AIArchetype)
-    (entities: amap<Guid<EntityId>, EntityComponents>)
-    (currentTick: TimeSpan)
+    (currentTick: TimeSpan aval)
     =
     adaptive {
       let! controllerEntity =
         entities |> AMap.tryFind controller.controlledEntityId
 
       match controllerEntity with
-      | None -> return controller
+      | None -> return struct (controller, ValueNone)
       | Some entity ->
-        let! struct (_, updatedMemories) =
+        let! struct (cues, updatedMemories) =
           Perception.gatherCues controller archetype entities entity currentTick
+
+        let! currentTick = currentTick
+        let timeSinceLastDecision = currentTick - controller.lastDecisionTime
+
+        let struct (command, shouldUpdateTime) =
+          if timeSinceLastDecision >= archetype.decisionInterval then
+
+            let bestCue = Decision.selectBestCue cues archetype.cuePriorities
+
+            let cmd =
+              match bestCue with
+              | None -> ValueNone
+              | Some struct (cue, priority) ->
+
+                Decision.generateCommand cue priority controller entity
+
+            struct (cmd, true)
+          else
+            struct (ValueNone, false)
 
         let updatedController = {
           controller with
               memories = updatedMemories
+              lastDecisionTime =
+                if shouldUpdateTime then
+                  currentTick
+                else
+                  controller.lastDecisionTime
         }
 
-        return updatedController
+        return struct (updatedController, command)
     }
 
-  let processAllControllers
+  let processAllControllersAndCommands
     (entities: amap<Guid<EntityId>, EntityComponents>)
     (archetypeStore: Services.IAIArchetypeStore)
-    (currentTick: TimeSpan)
+    (currentTick: TimeSpan aval)
     (controllers: amap<Guid<EntityId>, AIController>)
-    =
-    controllers
-    |> AMap.chooseA(fun _ controller -> adaptive {
-      let found = archetypeStore.tryFind controller.archetypeId
+    : aval<struct (HashMap<Guid<EntityId>, AIController> * Command[])> =
+    adaptive {
+      let results =
+        controllers
+        |> AMap.mapA(fun _ controller -> adaptive {
+          let found = archetypeStore.tryFind controller.archetypeId
 
-      match found with
-      | ValueNone -> return None
-      | ValueSome archetype ->
-        let! updatedController =
-          processController controller archetype entities currentTick
+          match found with
+          | ValueNone -> return struct (controller, ValueNone)
+          | ValueSome archetype ->
+            return!
+              processAndGenerateCommands
+                controller
+                archetype
+                entities
+                currentTick
+        })
 
-        return Some updatedController
-    })
 
-  let generateAllControllerCommands
-    (entities: amap<Guid<EntityId>, EntityComponents>)
-    (archetypeStore: Services.IAIArchetypeStore)
-    (currentTick: TimeSpan)
-    (controllers: amap<Guid<EntityId>, AIController>)
-    =
-    controllers
-    |> AMap.chooseA(fun _ controller -> adaptive {
-      let found = archetypeStore.tryFind controller.archetypeId
+      let! struct (updatedControllers, commands) =
+        results
+        |> AMap.fold
+          (fun struct (accCtrls, accCmds) _ struct (ctrl, cmd) ->
+            match cmd with
+            | ValueNone ->
+              struct (HashMap.add ctrl.controlledEntityId ctrl accCtrls,
+                      accCmds)
+            | ValueSome command ->
 
-      match found with
-      | ValueNone -> return None
-      | ValueSome archetype ->
-        let! commandOption =
-          generateCommand controller archetype entities currentTick
+            struct (HashMap.add ctrl.controlledEntityId ctrl accCtrls,
+                    ResizeArray.add command accCmds))
+          (HashMap.empty, ResizeArray.empty())
 
-        return commandOption |> Option.ofValueOption
-    })
+      return struct (updatedControllers, commands.ToArray())
+    }

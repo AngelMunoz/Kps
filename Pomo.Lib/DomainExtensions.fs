@@ -99,7 +99,7 @@ module Scenario =
 
 module ResizeArray =
 
-  let empty<'T> = ResizeArray<'T>()
+  let empty<'T>() = ResizeArray<'T>()
 
   let inline add (item: 'T) (arr: ResizeArray<'T>) =
     arr.Add item

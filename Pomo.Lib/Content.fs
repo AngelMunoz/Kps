@@ -1186,7 +1186,7 @@ module AIArchetypeStore =
           memoryDuration = TimeSpan.FromSeconds(20.0)
           canDetectProjectiles = true
         }
-        decisionInterval = TimeSpan.FromMilliseconds(250.0)
+        decisionInterval = TimeSpan.FromSeconds(1.)
         cuePriorities = [|
           {
             cueType = Projectile
@@ -1255,7 +1255,7 @@ module AIArchetypeStore =
           memoryDuration = TimeSpan.FromSeconds(5.0)
           canDetectProjectiles = false
         }
-        decisionInterval = TimeSpan.FromMilliseconds(100.0)
+        decisionInterval = TimeSpan.FromSeconds(2.0)
         cuePriorities = [|
           {
             cueType = Visual
@@ -1302,7 +1302,7 @@ module AIArchetypeStore =
           memoryDuration = TimeSpan.FromSeconds(30.0)
           canDetectProjectiles = true
         }
-        decisionInterval = TimeSpan.FromMilliseconds(300.0)
+        decisionInterval = TimeSpan.FromSeconds(1.5)
         cuePriorities = [|
           {
             cueType = Projectile

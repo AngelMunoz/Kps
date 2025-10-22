@@ -945,21 +945,12 @@ module GameState =
         nonProjectileResolutionChanges.audioChanges
       |]
 
-    let! updatedAiControllers =
-      AISystem.processAllControllers
-        scenario.entities
-        state.services.aiArchetypeStore
-        newTime
-        scenario.aiControllers
-      |> AMap.toAVal
-
     return {
       StateChange.empty with
           updates = finalUpdates
           visualEffects = visualEffectChanges
           audioChanges = audioChanges
           gameTime = ValueSome newTime
-          aiControllers = updatedAiControllers
     }
   }
 

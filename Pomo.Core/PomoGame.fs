@@ -140,15 +140,13 @@ type PomoGame() as this =
 
         let scenario = Scenario.ActiveScenario state |> AVal.force
 
-        let currentTick = scenario.gameTime |> AVal.force
-
-        let updatedControllers =
-          AISystem.processAllControllers
+        let struct (updatedControllers, aiCommands) =
+          AISystem.processAllControllersAndCommands
             scenario.entities
             state.services.aiArchetypeStore
-            currentTick
+            scenario.gameTime
             scenario.aiControllers
-          |> AMap.force
+          |> AVal.force
 
         let controllerChange = {
           StateChange.empty with
@@ -157,16 +155,8 @@ type PomoGame() as this =
 
         GameState.apply state controllerChange
 
-        let aiCommands =
-          AISystem.generateAllControllerCommands
-            scenario.entities
-            state.services.aiArchetypeStore
-            currentTick
-            scenario.aiControllers
-          |> AMap.force
-          |> HashMap.toValueArray
-
         for cmd in aiCommands do
+          Debug.WriteLine($"Processing AI command: %A{cmd}")
           let stateChange = CommandHandler.evaluate state cmd |> AVal.force
 
           AudioSystem.processAudioChanges
