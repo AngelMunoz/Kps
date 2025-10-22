@@ -948,6 +948,10 @@ module Services =
     abstract member findMusicForScenario:
       Guid<ScenarioId> -> int<AudioClipId> voption
 
+  type IAIArchetypeStore =
+    abstract member tryFind: int<AiArchetypeId> -> AI.AIArchetype voption
+    abstract member find: int<AiArchetypeId> -> AI.AIArchetype
+
   type EngineServices = {
     abilityStore: IAbilityStore
     effectStore: IEffectStore
@@ -956,6 +960,7 @@ module Services =
     aoeStore: IAoeStore
     impactStore: IImpactStore
     audioStore: IAudioStore
+    aiArchetypeStore: IAIArchetypeStore
     rng: unit -> float
   }
 
@@ -1005,4 +1010,5 @@ module State =
     teleports: TeleportChange[]
     visualEffects: VisualEffectChange[]
     audioChanges: Audio.AudioChange[]
+    aiControllers: HashMap<Guid<EntityId>, AI.AIController>
   }

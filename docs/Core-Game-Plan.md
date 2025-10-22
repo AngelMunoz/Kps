@@ -1,6 +1,6 @@
 ﻿# Core Game Plan - MonoGame Integration & Gameplay Systems
 
-**Status**: 🚧 **PHASE 6.10 IN PROGRESS** - Phase 6.9 (Enhanced Visual Feedback & Polish) complete. Starting Phase 6.10.1: AI Perception System implementation.
+**Status**: 🚧 **PHASE 6.10 IN PROGRESS** - Phase 6.10.1 (AI Perception & Decision System) complete. Starting Phase 6.10.2: AI Controller Lifecycle Management.
 
 **Created**: 2025-10-11
 **Updated**: 2025-10-17
@@ -686,6 +686,94 @@ Progress Update (2025-10-13) - **PR #5 COMPLETE**:
 - [x] **Scenario layout validation** (terrain objects, combat types, transitions per scenario type)
 
 **Note**: PlayerContext update and multi-scenario isolation require full game state integration (future work).
+
+---
+
+## Phase 6.10 — AI System
+
+**Goal**: Implement autonomous enemy behavior with perception, decision-making, and lifecycle management
+
+**Status**: 🚧 **IN PROGRESS** (2025-01-17)
+
+### 6.10.1 AI Perception & Decision System ✅ COMPLETE
+
+**Goal**: AI entities perceive environment and generate commands
+
+**Deliverables**:
+- [x] AI domain types (AIController, AIArchetype, PerceptionCue, AIState)
+- [x] Perception system (visual cues, memory decay, range-based detection)
+- [x] Decision system (cue prioritization, response behaviors, command generation)
+- [x] Controller state updates (separated from command generation)
+- [x] Command generation projection (independent from state updates)
+- [x] Integration with game loop (controllers update in tick, commands processed in Update)
+
+**Architecture**:
+- `processAllControllers`: Updates AI controller state (perception, memory) during tick
+- `generateAllControllerCommands`: Projects commands from controller state (called in PomoGame.Update)
+- Commands processed through existing CommandHandler pipeline
+- AI controllers stored per-scenario in `ScenarioState.aiControllers`
+
+**Testing**:
+- [x] Perception tests (visual cue gathering, distance-based strength)
+- [x] Decision tests (cue prioritization, command generation)
+- [x] Controller update tests (state transitions, memory decay)
+- [x] Integration tests (full perception → decision → command flow)
+
+### 6.10.2 AI Controller Lifecycle Management 🚧 IN PROGRESS
+
+**Goal**: Automatically manage AI controllers for entity spawn/death
+
+**Deliverables**:
+- [ ] Controller creation on entity spawn (based on archetype assignment)
+- [ ] Controller removal on entity death (Status = Dead)
+- [ ] Archetype assignment system (entity → archetype mapping)
+- [ ] Spawn command integration (AddEntities with AI archetype)
+- [ ] Death detection and cleanup (remove controllers for dead entities)
+- [ ] Controller initialization helpers (default state, archetype lookup)
+
+**Architecture**:
+```fsharp
+// Entity spawning with AI
+type SpawnAIEntity = {
+  entityId: Guid<EntityId>
+  components: EntityComponents
+  archetypeId: int<AiArchetypeId>  // NEW: Assign archetype on spawn
+}
+
+// Lifecycle management
+module AILifecycle =
+  // Create controller for new AI entity
+  val createController: Guid<EntityId> -> int<AiArchetypeId> -> TimeSpan -> AIController
+  
+  // Remove controllers for dead entities
+  val cleanupDeadControllers: amap<Guid<EntityId>, EntityComponents> -> cmap<Guid<EntityId>, AIController> -> unit
+  
+  // Batch spawn AI entities with controllers
+  val spawnAIEntities: SpawnAIEntity[] -> GameState -> StateChange
+```
+
+**Integration Points**:
+- `GameState.apply`: Check for dead entities, remove their controllers
+- `AddEntities` command: Support optional archetype assignment
+- `TestScenarioBuilder`: Use new spawn helpers instead of manual controller creation
+
+**Testing Requirements**:
+- [ ] Controller creation test (verify default state initialization)
+- [ ] Death cleanup test (dead entity → controller removed)
+- [ ] Spawn integration test (AddEntities with archetype → controller created)
+- [ ] Multiple spawn test (batch entity creation with mixed archetypes)
+- [ ] Archetype lookup test (invalid archetype ID handling)
+
+### 6.10.3 Advanced AI Behaviors (Future)
+
+**Goal**: Expand AI capabilities beyond basic perception/decision
+
+**Planned Features**:
+- State machine transitions (Idle → Investigating → Engaging)
+- Patrol waypoint following
+- Projectile evasion behavior
+- Group coordination (pack tactics)
+- Dynamic difficulty adjustment
 
 ---
 
@@ -1503,9 +1591,7 @@ let spawnAIEntity
 
 - [x] AI domain types (AIArchetype, AIController, PerceptionCue, etc.) in Domain.fs
 - [x] AI archetype definitions in Content.fs (AggressiveMelee, StaticTurret, PatrolGuard)
-- [ ] Perception.fs module with cue gathering and memory management
-- [ ] AI.fs module with priority matching, command generation, state transitions
-- [ ] AISystem.fs with main processing loop
+- [x] EnemyAI.fs with Perception, Decision, and AISystem modules (adaptive computations)
 - [ ] AISpawn.fs with entity spawning from archetypes
 - [ ] Integration into Gameplay.fs tick processing
 - [ ] Visual debug rendering for AI states and perception

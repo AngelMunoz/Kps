@@ -90,5 +90,15 @@ module ServiceFactory =
               |> Map.tryFind s.Name
               |> ValueOption.ofOption)
       }
+    aiArchetypeStore =
+      { new IAIArchetypeStore with
+          member _.tryFind archetypeId =
+            AIArchetypeStore.definitions
+            |> Map.tryFind archetypeId
+            |> ValueOption.ofOption
+
+          member _.find archetypeId =
+            AIArchetypeStore.definitions |> Map.find archetypeId
+      }
     rng = fun () -> System.Random.Shared.NextDouble()
   }

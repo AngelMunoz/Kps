@@ -10,6 +10,8 @@ open Microsoft.Xna.Framework.Graphics
 open Microsoft.Xna.Framework.Input
 
 open FSharp.UMX
+open FSharp.Data.Adaptive
+
 open Pomo.Core.Localization
 open Pomo.Lib.Gameplay
 open Pomo.Lib.Domain
@@ -22,7 +24,7 @@ open Pomo.Lib.Content
 open Pomo.Lib.Operations
 open Pomo.Lib.Scenario
 open Pomo.Lib.Pathfinding
-open FSharp.Data.Adaptive
+open Pomo.Lib.EnemyAI
 
 type PomoGame() as this =
   inherit Game()
@@ -136,9 +138,28 @@ type PomoGame() as this =
       | ValueSome state ->
         GameUpdateSystem.updateGameTick state gameTime.ElapsedGameTime
 
-        camera <- CameraSystem.updateZoom camera
-
         let scenario = Scenario.ActiveScenario state |> AVal.force
+
+        let aiCommands =
+          AISystem.generateAllControllerCommands
+            scenario.entities
+            state.services.aiArchetypeStore
+            (scenario.gameTime |> AVal.force)
+            scenario.aiControllers
+          |> AMap.force
+          |> HashMap.toValueArray
+
+        for cmd in aiCommands do
+          let stateChange = CommandHandler.evaluate state cmd |> AVal.force
+
+          AudioSystem.processAudioChanges
+            state.services.audioStore
+            scenario
+            stateChange.audioChanges
+
+          GameState.apply state stateChange
+
+        camera <- CameraSystem.updateZoom camera
 
         let struct (newVer, newDirty, gridOpt) =
           GameUpdateSystem.updateNavigationGrid

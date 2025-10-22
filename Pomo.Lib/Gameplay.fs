@@ -14,6 +14,7 @@ open Pomo.Lib.Domain.AggregatedEffects
 open Pomo.Lib.Scenario
 open Pomo.Lib.Domain.VisualEffects
 open Pomo.Lib.EffectApplication
+open Pomo.Lib.EnemyAI
 
 module Scenario =
   let ActiveScenario(state: GameState) = adaptive {
@@ -937,11 +938,20 @@ module GameState =
             acc)
       )
 
+
     let audioChanges =
       Array.concat [|
         projectileStateChanges.audioChanges
         nonProjectileResolutionChanges.audioChanges
       |]
+
+    let! updatedAiControllers =
+      AISystem.processAllControllers
+        scenario.entities
+        state.services.aiArchetypeStore
+        newTime
+        scenario.aiControllers
+      |> AMap.toAVal
 
     return {
       StateChange.empty with
@@ -949,6 +959,7 @@ module GameState =
           visualEffects = visualEffectChanges
           audioChanges = audioChanges
           gameTime = ValueSome newTime
+          aiControllers = updatedAiControllers
     }
   }
 
@@ -1002,6 +1013,9 @@ module GameState =
 
       for entityId in change.removals do
         scenario.entities.Remove entityId |> ignore
+
+      for entityId, controller in change.aiControllers do
+        scenario.aiControllers[entityId] <- controller
 
       for tp in change.teleports do
         if state.scenarios.ContainsKey tp.ToScenarioId then

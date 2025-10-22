@@ -77,6 +77,7 @@ module StateChange =
     teleports = Array.empty
     visualEffects = Array.empty
     audioChanges = Array.empty
+    aiControllers = HashMap.empty
   }
 
 
@@ -94,3 +95,18 @@ module Scenario =
     VisualLayers = Array.empty
     Transitions = Array.empty
   }
+
+
+module ResizeArray =
+
+  let empty<'T> = ResizeArray<'T>()
+
+  let inline add (item: 'T) (arr: ResizeArray<'T>) =
+    arr.Add item
+    arr
+
+  let inline addRange (items: seq<'T>) (arr: ResizeArray<'T>) =
+    arr.AddRange items
+    arr
+
+  let inline toArray(arr: ResizeArray<'T>) = arr.ToArray()

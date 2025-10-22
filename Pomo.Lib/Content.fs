@@ -1166,128 +1166,6 @@ module AudioStore =
   let scenarioMusicMap: Map<string, int<AudioClipId>> =
     Map.ofList [ "Test Scenario", 1<AudioClipId> ]
 
-
-module GameState =
-  let create'
-    (services: Services.EngineServices)
-    (
-      activeScenarioId: Guid<ScenarioId>,
-      scenarios: cmap<Guid<ScenarioId>, ScenarioState>
-    ) =
-    {
-      scenarios = scenarios
-      activeScenarioId = cval activeScenarioId
-      players = cmap()
-      parties = cmap()
-      services = services
-    }
-
-  let create() =
-    let initialScenarioId = %Guid.NewGuid()
-
-    let initialScenarioState =
-      {
-        Id = initialScenarioId
-        Name = "Test Scenario"
-        BoundsWidth = 2000f
-        BoundsHeight = 2000f
-      }
-      |> ScenarioState.create id
-
-    let scenarios = cmap [ initialScenarioId, initialScenarioState ]
-
-    create'
-      {
-        effectStore =
-          { new IEffectStore with
-              member _.tryFind effectId =
-                EffectStore.definitions
-                |> Map.tryFind effectId
-                |> ValueOption.ofOption
-
-              member _.find effectId =
-                EffectStore.definitions |> Map.find effectId
-          }
-        abilityStore =
-          { new IAbilityStore with
-              member _.tryFind abilityId =
-                AbilityStore.definitions
-                |> Map.tryFind abilityId
-                |> ValueOption.ofOption
-
-              member _.find abilityId =
-                AbilityStore.definitions |> Map.find abilityId
-          }
-        formulaStore =
-          { new IFormulaStore with
-              member _.tryFind formulaId =
-                FormulaStore.definitions
-                |> Map.tryFind formulaId
-                |> ValueOption.ofOption
-
-              member _.find formulaId =
-                FormulaStore.definitions |> Map.find formulaId
-          }
-        projectileStore =
-          { new IProjectileStore with
-              member _.tryFind projectileId =
-                ProjectileStore.definitions
-                |> Map.tryFind projectileId
-                |> ValueOption.ofOption
-
-              member _.find projectileId =
-                ProjectileStore.definitions |> Map.find projectileId
-          }
-        aoeStore =
-          { new IAoeStore with
-              member _.tryFind aoeId =
-                AoeStore.definitions
-                |> Map.tryFind aoeId
-                |> ValueOption.ofOption
-
-              member _.find aoeId = AoeStore.definitions |> Map.find aoeId
-          }
-        impactStore =
-          { new IImpactStore with
-              member _.tryFind impactId =
-                ImpactStore.definitions
-                |> Map.tryFind impactId
-                |> ValueOption.ofOption
-
-              member _.find impactId =
-                ImpactStore.definitions |> Map.find impactId
-          }
-        audioStore =
-          { new IAudioStore with
-              member _.tryFind clipId =
-                AudioStore.definitions
-                |> Map.tryFind clipId
-                |> ValueOption.ofOption
-
-              member _.find clipId =
-                AudioStore.definitions |> Map.find clipId
-
-              member _.findByTrigger trigger =
-                AudioStore.triggerMap
-                |> Map.tryFind trigger
-                |> Option.defaultValue Array.empty
-
-              member _.findMusicForScenario scenarioId =
-                let scenario =
-                  scenarios.Value
-                  |> HashMap.tryFindV scenarioId
-                  |> ValueOption.map _.scenario
-
-                scenario
-                |> ValueOption.bind(fun s ->
-                  AudioStore.scenarioMusicMap
-                  |> Map.tryFind s.Name
-                  |> ValueOption.ofOption)
-          }
-        rng = fun () -> System.Random().NextDouble()
-      }
-      (initialScenarioId, scenarios)
-
 module AIArchetypeStore =
   open Pomo.Lib.Domain.CharacterKits
   open Pomo.Lib.Domain.Classification
@@ -1482,6 +1360,7 @@ module AIArchetypeStore =
           |]
       }
     ]
+
 
 module ScenarioDefinitions =
   let createTownScenario(id: Guid<ScenarioId>) : Scenario = {
@@ -1722,3 +1601,134 @@ module ScenarioDefinitions =
     }
 
     struct (updatedTown, updatedWilderness, dungeon)
+
+module GameState =
+  let create'
+    (services: Services.EngineServices)
+    (
+      activeScenarioId: Guid<ScenarioId>,
+      scenarios: cmap<Guid<ScenarioId>, ScenarioState>
+    ) =
+    {
+      scenarios = scenarios
+      activeScenarioId = cval activeScenarioId
+      players = cmap()
+      parties = cmap()
+      services = services
+    }
+
+  let create() =
+    let initialScenarioId = %Guid.NewGuid()
+
+    let initialScenarioState =
+      {
+        Id = initialScenarioId
+        Name = "Test Scenario"
+        BoundsWidth = 2000f
+        BoundsHeight = 2000f
+      }
+      |> ScenarioState.create id
+
+    let scenarios = cmap [ initialScenarioId, initialScenarioState ]
+
+    create'
+      {
+        effectStore =
+          { new IEffectStore with
+              member _.tryFind effectId =
+                EffectStore.definitions
+                |> Map.tryFind effectId
+                |> ValueOption.ofOption
+
+              member _.find effectId =
+                EffectStore.definitions |> Map.find effectId
+          }
+        abilityStore =
+          { new IAbilityStore with
+              member _.tryFind abilityId =
+                AbilityStore.definitions
+                |> Map.tryFind abilityId
+                |> ValueOption.ofOption
+
+              member _.find abilityId =
+                AbilityStore.definitions |> Map.find abilityId
+          }
+        formulaStore =
+          { new IFormulaStore with
+              member _.tryFind formulaId =
+                FormulaStore.definitions
+                |> Map.tryFind formulaId
+                |> ValueOption.ofOption
+
+              member _.find formulaId =
+                FormulaStore.definitions |> Map.find formulaId
+          }
+        projectileStore =
+          { new IProjectileStore with
+              member _.tryFind projectileId =
+                ProjectileStore.definitions
+                |> Map.tryFind projectileId
+                |> ValueOption.ofOption
+
+              member _.find projectileId =
+                ProjectileStore.definitions |> Map.find projectileId
+          }
+        aoeStore =
+          { new IAoeStore with
+              member _.tryFind aoeId =
+                AoeStore.definitions
+                |> Map.tryFind aoeId
+                |> ValueOption.ofOption
+
+              member _.find aoeId = AoeStore.definitions |> Map.find aoeId
+          }
+        impactStore =
+          { new IImpactStore with
+              member _.tryFind impactId =
+                ImpactStore.definitions
+                |> Map.tryFind impactId
+                |> ValueOption.ofOption
+
+              member _.find impactId =
+                ImpactStore.definitions |> Map.find impactId
+          }
+        audioStore =
+          { new IAudioStore with
+              member _.tryFind clipId =
+                AudioStore.definitions
+                |> Map.tryFind clipId
+                |> ValueOption.ofOption
+
+              member _.find clipId =
+                AudioStore.definitions |> Map.find clipId
+
+              member _.findByTrigger trigger =
+                AudioStore.triggerMap
+                |> Map.tryFind trigger
+                |> Option.defaultValue Array.empty
+
+              member _.findMusicForScenario scenarioId =
+                let scenario =
+                  scenarios.Value
+                  |> HashMap.tryFindV scenarioId
+                  |> ValueOption.map _.scenario
+
+                scenario
+                |> ValueOption.bind(fun s ->
+                  AudioStore.scenarioMusicMap
+                  |> Map.tryFind s.Name
+                  |> ValueOption.ofOption)
+          }
+        aiArchetypeStore =
+          { new IAIArchetypeStore with
+              member _.tryFind archetypeId =
+                AIArchetypeStore.definitions
+                |> Map.tryFind archetypeId
+                |> ValueOption.ofOption
+
+              member _.find archetypeId =
+                AIArchetypeStore.definitions |> Map.find archetypeId
+          }
+        rng = fun () -> System.Random().NextDouble()
+      }
+      (initialScenarioId, scenarios)
