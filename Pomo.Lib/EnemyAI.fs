@@ -193,8 +193,19 @@ module AILifecycle =
   let createController
     (entityId: Guid<EntityId>)
     (archetypeId: int<AiArchetypeId>)
+    (spawnPosition: Position)
+    (relativeWaypoints: Position[] voption)
     (currentTime: TimeSpan)
     : AIController =
+    let absoluteWaypoints =
+      relativeWaypoints
+      |> ValueOption.map(fun waypoints ->
+        waypoints
+        |> Array.map(fun offset -> {
+          X = spawnPosition.X + offset.X
+          Y = spawnPosition.Y + offset.Y
+        }))
+
     {
       controlledEntityId = entityId
       archetypeId = archetypeId
@@ -204,6 +215,8 @@ module AILifecycle =
       memories = HashMap.empty
       waypointIndex = 0
       stateEnterTime = currentTime
+      spawnPosition = spawnPosition
+      absoluteWaypoints = absoluteWaypoints
     }
 
   let cleanupDeadControllers
@@ -216,6 +229,67 @@ module AILifecycle =
           controllers.Remove entityId |> ignore)
 
 module AISystem =
+  let selectNextWaypoint
+    (behaviorType: BehaviorType)
+    (controller: AIController)
+    (entity: EntityComponents)
+    (waypoints: Position[])
+    =
+    match behaviorType with
+    | Patrol ->
+      // Sequential patrol - cycle through waypoints in order
+      let currentIdx = controller.waypointIndex % waypoints.Length
+      let targetWaypoint = waypoints[currentIdx]
+
+      let dx = entity.Position.X - targetWaypoint.X
+      let dy = entity.Position.Y - targetWaypoint.Y
+      let dist = sqrt(dx * dx + dy * dy)
+      let hasReached = dist < 64f
+
+      if hasReached then
+        // Move to next waypoint when current is reached
+        let nextIdx = (controller.waypointIndex + 1) % waypoints.Length
+        struct (waypoints[nextIdx], nextIdx)
+      else
+        // Keep current waypoint and index
+        struct (targetWaypoint, currentIdx)
+
+    | Aggressive ->
+      // Random waypoint selection - keeps enemies unpredictable
+      if Array.isEmpty waypoints then
+        struct (controller.spawnPosition, controller.waypointIndex)
+      else
+        let targetWaypoint = waypoints |> Array.randomChoice
+        struct (targetWaypoint, controller.waypointIndex)
+    | Defensive
+    | Supporter ->
+      // Pick closest waypoint to spawn (defensive position)
+      let targetWaypoint =
+        waypoints
+        |> Array.minBy(fun wp ->
+          let dx = controller.spawnPosition.X - wp.X
+          let dy = controller.spawnPosition.Y - wp.Y
+          sqrt(dx * dx + dy * dy))
+
+      struct (targetWaypoint, controller.waypointIndex)
+
+    | Ambusher ->
+      // Stay at spawn, or pick random hiding spots
+      let targetWaypoint =
+        if controller.waypointIndex = 0 then
+          controller.spawnPosition
+        else
+          waypoints |> Array.randomChoice
+
+      struct (targetWaypoint, controller.waypointIndex)
+    | Turret ->
+      // Never move from spawn
+      struct (controller.spawnPosition, controller.waypointIndex)
+    | Passive ->
+      // Wander randomly between waypoints
+      let targetWaypoint = waypoints |> Array.randomChoice
+      struct (targetWaypoint, controller.waypointIndex)
+
 
   let processAndGenerateCommands
     (controller: AIController)
@@ -237,16 +311,13 @@ module AISystem =
         let! currentTick = currentTick
         let timeSinceLastDecision = currentTick - controller.lastDecisionTime
 
-        let struct (command, shouldUpdateTime) =
+        let struct (command, shouldUpdateTime, newWaypointIndex) =
           if timeSinceLastDecision >= archetype.decisionInterval then
-
             let bestCue = Decision.selectBestCue cues archetype.cuePriorities
 
-            let cmd =
-              match bestCue with
-              | None -> ValueNone
-              | Some struct (cue, priority) ->
-
+            match bestCue with
+            | Some struct (cue, priority) ->
+              let cmd =
                 Decision.generateCommand
                   cue
                   priority
@@ -254,13 +325,36 @@ module AISystem =
                   entity
                   abilityStore
 
-            struct (cmd, true)
+              struct (cmd, true, controller.waypointIndex)
+            | None ->
+              match controller.absoluteWaypoints with
+              | ValueNone
+              | ValueSome [||] ->
+                struct (ValueNone, true, controller.waypointIndex)
+              | ValueSome waypoints ->
+                let struct (targetWaypoint, nextIdx) =
+                  selectNextWaypoint
+                    archetype.behaviorType
+                    controller
+                    entity
+                    waypoints
+
+                let cmd =
+                  ValueSome(
+                    Navigate {
+                      actor = controller.controlledEntityId
+                      destination = targetWaypoint
+                    }
+                  )
+
+                struct (cmd, true, nextIdx)
           else
-            struct (ValueNone, false)
+            struct (ValueNone, false, controller.waypointIndex)
 
         let updatedController = {
           controller with
               memories = updatedMemories
+              waypointIndex = newWaypointIndex
               lastDecisionTime =
                 if shouldUpdateTime then
                   currentTick

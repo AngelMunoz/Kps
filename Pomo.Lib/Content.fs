@@ -1275,7 +1275,13 @@ module AIArchetypeStore =
             toState = Idle
           }
         |]
-        patrolWaypoints = ValueNone
+        patrolWaypoints =
+          ValueSome [|
+            { X = 100f; Y = 100f }
+            { X = 300f; Y = 100f }
+            { X = 300f; Y = 300f }
+            { X = 100f; Y = 300f }
+          |]
       }
       2<AiArchetypeId>,
       {

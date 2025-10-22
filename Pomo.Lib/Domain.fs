@@ -651,6 +651,8 @@ module AI =
     memories: HashMap<Guid<EntityId>, MemoryEntry>
     waypointIndex: int
     stateEnterTime: TimeSpan
+    spawnPosition: Position
+    absoluteWaypoints: Position[] voption
   }
 
   [<Struct>]

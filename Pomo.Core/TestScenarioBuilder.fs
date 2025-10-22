@@ -84,7 +84,7 @@ module TestScenarioBuilder =
 
   type TestScenarioData = {
     PlayerId: Guid<EntityId>
-    EnemyId: Guid<EntityId>
+    Enemies: Guid<EntityId>[]
     NavigationGrid: PathfindingGrid
   }
 
@@ -101,14 +101,24 @@ module TestScenarioBuilder =
         Player
         { X = 100f; Y = 400f }
 
-    let enemyId =
-      CharacterBuilder.createAICharacter state 3<AiArchetypeId> {
+    let enemies = [|
+      CharacterBuilder.createAICharacter state 1<AiArchetypeId> {
+        X = 200f
+        Y = 600f
+      }
+      CharacterBuilder.createAICharacter state 2<AiArchetypeId> {
         X = 300f
         Y = 400f
       }
+      CharacterBuilder.createAICharacter state 3<AiArchetypeId> {
+        X = 500f
+        Y = 700f
+      }
+    |]
+
 
     {
       PlayerId = playerId
-      EnemyId = enemyId
+      Enemies = enemies
       NavigationGrid = grid
     }

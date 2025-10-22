@@ -33,7 +33,7 @@ type PomoGame() as this =
 
   let mutable gameState: GameState voption = ValueNone
   let mutable playerId: Guid<EntityId> = Guid.Empty |> UMX.tag<EntityId>
-  let mutable enemyId: Guid<EntityId> = Guid.Empty |> UMX.tag<EntityId>
+  let mutable enemyIds: Guid<EntityId>[] = Array.empty
 
   let mutable spriteBatch: SpriteBatch = null
   let mutable pixel: Texture2D = null
@@ -105,7 +105,7 @@ type PomoGame() as this =
 
     let testData = TestScenarioBuilder.createDefaultScenario state
     playerId <- testData.PlayerId
-    enemyId <- testData.EnemyId
+    enemyIds <- testData.Enemies
     navigationDebugGrid <- ValueSome testData.NavigationGrid
 
     gameState <- ValueSome state
@@ -157,7 +157,17 @@ type PomoGame() as this =
         GameState.apply state controllerChange
 
         for cmd in aiCommands do
-          Debug.WriteLine($"Processing AI command: %A{cmd}")
+          match cmd with
+          | Rules.Command.UseAbility ability ->
+            Debug.WriteLine(
+              $"AI {ability.actor} using ability {ability.abilityId} against {ability.target}"
+            )
+          | Rules.Command.Navigate nav ->
+            Debug.WriteLine($"AI {nav.actor} navigating to %A{nav.destination}")
+          | others -> Debug.WriteLine($"AI using command: %A{others}")
+
+
+
           let stateChange = CommandHandler.evaluate state cmd |> AVal.force
 
           AudioSystem.processAudioChanges
@@ -222,38 +232,6 @@ type PomoGame() as this =
         pathPreview <- inputResult.PathPreview
 
         inputResult.InputMode |> ValueOption.iter(fun mode -> inputMode <- mode)
-
-        let keyboardState = Keyboard.GetState()
-
-        let enemyEntity = scenario.entities |> AMap.find enemyId |> AVal.force
-        let baseSpeed = enemyEntity.Movement.Speed
-
-        playerInputState <-
-          InputManager.updateMovement
-            playerInputState
-            keyboardState
-            gameTime
-            baseSpeed
-
-        if playerInputState.Velocity.LengthSquared() > 0.0f then
-          let moveCmd =
-            Rules.AdvancePosition {
-              actor = enemyId
-              velocity = {
-                X = playerInputState.Velocity.X
-                Y = playerInputState.Velocity.Y
-              }
-              elapsed = gameTime.ElapsedGameTime.TotalSeconds |> float32
-            }
-
-          let stateChange = CommandHandler.evaluate state moveCmd |> AVal.force
-
-          AudioSystem.processAudioChanges
-            state.services.audioStore
-            scenario
-            stateChange.audioChanges
-
-          GameState.apply state stateChange
 
     match selected with
     | ValueSome entityId when not(uiState.SelectedEntity = ValueSome entityId) ->

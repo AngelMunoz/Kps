@@ -887,9 +887,14 @@ module CommandHandler =
               match spawnData.archetypeId with
               | ValueSome archetypeId ->
                 match resolverParams.services.aiArchetypeStore.tryFind archetypeId with
-                | ValueSome _ ->
+                | ValueSome archetype ->
                   let controller =
-                    EnemyAI.AILifecycle.createController entityId archetypeId gameTime
+                    EnemyAI.AILifecycle.createController
+                      entityId
+                      archetypeId
+                      spawnData.components.Position
+                      archetype.patrolWaypoints
+                      gameTime
 
                   HashMap.add entityId controller controllers
                 | ValueNone -> controllers
