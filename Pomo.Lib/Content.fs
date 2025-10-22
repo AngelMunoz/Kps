@@ -1277,10 +1277,10 @@ module AIArchetypeStore =
         |]
         patrolWaypoints =
           ValueSome [|
-            { X = 100f; Y = 100f }
-            { X = 300f; Y = 100f }
-            { X = 300f; Y = 300f }
-            { X = 100f; Y = 300f }
+            { X = -300f; Y = -300f } // Top-Left
+            { X = 400f; Y = -400f } // Top-Right
+            { X = 100f; Y = 100f } // Bottom-Right
+            { X = -100f; Y = 100f } // Bottom-Left
           |]
       }
       2<AiArchetypeId>,
@@ -1394,10 +1394,10 @@ module AIArchetypeStore =
         |]
         patrolWaypoints =
           ValueSome [|
-            { X = 100f; Y = 100f }
-            { X = 300f; Y = 100f }
-            { X = 300f; Y = 300f }
-            { X = 100f; Y = 300f }
+            { X = -400f; Y = -400f } // Top-Left
+            { X = 500f; Y = -500f } // Top-Right
+            { X = 100f; Y = 100f } // Bottom-Right
+            { X = -100f; Y = 100f } // Bottom-Left
           |]
       }
     ]
