@@ -853,6 +853,35 @@ module CommandHandler =
         StateChange.empty with
             additions = entitiesToAdd
       }
+    | AddEntitiesWithAI entitiesToAddWithAI ->
+      let! gameTime = resolverParams.gameTime
+
+      let struct (additions, aiControllers) =
+        entitiesToAddWithAI
+        |> HashMap.fold
+          (fun struct (adds, controllers) entityId spawnData ->
+            let newAdds = HashMap.add entityId spawnData.components adds
+
+            let newControllers =
+              match spawnData.archetypeId with
+              | ValueSome archetypeId ->
+                match resolverParams.services.aiArchetypeStore.tryFind archetypeId with
+                | ValueSome _ ->
+                  let controller =
+                    EnemyAI.AILifecycle.createController entityId archetypeId gameTime
+
+                  HashMap.add entityId controller controllers
+                | ValueNone -> controllers
+              | ValueNone -> controllers
+
+            struct (newAdds, newControllers))
+          struct (HashMap.empty, HashMap.empty)
+
+      return {
+        StateChange.empty with
+            additions = additions
+            aiControllers = aiControllers
+      }
 
     | Teleport tp ->
       return {

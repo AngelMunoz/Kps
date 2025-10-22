@@ -140,11 +140,28 @@ type PomoGame() as this =
 
         let scenario = Scenario.ActiveScenario state |> AVal.force
 
+        let currentTick = scenario.gameTime |> AVal.force
+
+        let updatedControllers =
+          AISystem.processAllControllers
+            scenario.entities
+            state.services.aiArchetypeStore
+            currentTick
+            scenario.aiControllers
+          |> AMap.force
+
+        let controllerChange = {
+          StateChange.empty with
+              aiControllers = updatedControllers
+        }
+
+        GameState.apply state controllerChange
+
         let aiCommands =
           AISystem.generateAllControllerCommands
             scenario.entities
             state.services.aiArchetypeStore
-            (scenario.gameTime |> AVal.force)
+            currentTick
             scenario.aiControllers
           |> AMap.force
           |> HashMap.toValueArray

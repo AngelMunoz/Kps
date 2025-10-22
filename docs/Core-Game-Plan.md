@@ -1,6 +1,6 @@
 ﻿# Core Game Plan - MonoGame Integration & Gameplay Systems
 
-**Status**: 🚧 **PHASE 6.10 IN PROGRESS** - Phase 6.10.1 (AI Perception & Decision System) complete. Starting Phase 6.10.2: AI Controller Lifecycle Management.
+**Status**: 🚧 **PHASE 6.10 IN PROGRESS** - Phase 6.10.1 (AI Perception & Decision System) complete. Phase 6.10.2 (AI Controller Lifecycle Management) complete.
 
 **Created**: 2025-10-11
 **Updated**: 2025-10-17
@@ -719,17 +719,17 @@ Progress Update (2025-10-13) - **PR #5 COMPLETE**:
 - [x] Controller update tests (state transitions, memory decay)
 - [x] Integration tests (full perception → decision → command flow)
 
-### 6.10.2 AI Controller Lifecycle Management 🚧 IN PROGRESS
+### 6.10.2 AI Controller Lifecycle Management ✅ COMPLETE
 
 **Goal**: Automatically manage AI controllers for entity spawn/death
 
 **Deliverables**:
-- [ ] Controller creation on entity spawn (based on archetype assignment)
-- [ ] Controller removal on entity death (Status = Dead)
-- [ ] Archetype assignment system (entity → archetype mapping)
-- [ ] Spawn command integration (AddEntities with AI archetype)
-- [ ] Death detection and cleanup (remove controllers for dead entities)
-- [ ] Controller initialization helpers (default state, archetype lookup)
+- [x] Controller creation on entity spawn (based on archetype assignment)
+- [x] Controller removal on entity death (Status = Dead)
+- [x] Archetype assignment system (entity → archetype mapping)
+- [x] Spawn command integration (AddEntitiesWithAI command)
+- [x] Death detection and cleanup (remove controllers for dead entities)
+- [x] Controller initialization helpers (default state, archetype lookup)
 
 **Architecture**:
 ```fsharp
@@ -758,11 +758,44 @@ module AILifecycle =
 - `TestScenarioBuilder`: Use new spawn helpers instead of manual controller creation
 
 **Testing Requirements**:
-- [ ] Controller creation test (verify default state initialization)
-- [ ] Death cleanup test (dead entity → controller removed)
-- [ ] Spawn integration test (AddEntities with archetype → controller created)
-- [ ] Multiple spawn test (batch entity creation with mixed archetypes)
-- [ ] Archetype lookup test (invalid archetype ID handling)
+- [x] Controller creation test (verify default state initialization)
+- [x] Death cleanup test (dead entity → controller removed)
+- [x] Spawn integration test (AddEntitiesWithAI with archetype → controller created)
+- [x] Multiple spawn test (batch entity creation with mixed archetypes)
+- [x] Archetype lookup test (invalid archetype ID handling)
+- [x] Entity removal test (RemoveEntities removes both entity and controller)
+- [x] Teleport cleanup test (controllers removed when entities teleport)
+
+**Implementation Summary (2025-01-17)**:
+
+**Core Components**:
+1. **AILifecycle Module** (EnemyAI.fs):
+   - `createController`: Initializes AIController with default state (Idle, empty memories, current time)
+   - `cleanupDeadControllers`: Removes controllers for entities with Status = Dead
+
+2. **Domain Extensions** (Domain.fs):
+   - `SpawnEntityData`: Struct record with components and optional archetypeId
+   - `AddEntitiesWithAI`: New command for spawning entities with AI controllers
+
+3. **Command Handler Integration** (CommandHandler.fs):
+   - `AddEntitiesWithAI` handler validates archetype existence before creating controllers
+   - Gracefully handles missing/invalid archetype IDs
+
+4. **GameState.apply Integration** (Gameplay.fs):
+   - Removes controllers when entities are removed (RemoveEntities)
+   - Cleans up controllers for dead entities after updates
+   - Removes controllers when entities teleport between scenarios
+
+5. **TestScenarioBuilder Helpers** (TestScenarioBuilder.fs):
+   - `createAICharacter`: Spawns entities with AI controllers using AddEntitiesWithAI
+
+**Testing Coverage** (AILifecycleTests.fs):
+- 7 comprehensive tests covering all lifecycle scenarios
+- Controller initialization with correct default state
+- Death detection and cleanup
+- Spawn integration with archetype validation
+- Invalid archetype handling
+- Entity removal and teleport cleanup
 
 ### 6.10.3 Advanced AI Behaviors (Future)
 

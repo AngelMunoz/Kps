@@ -46,6 +46,36 @@ module TestHelpers =
     let derivedStats = getDerivedStats state
     derivedStats |> HashMap.find id
 
+  let createTestEntity() = {
+    Identity = {
+      Family = Classification.Power
+      Stage = Classification.First
+    }
+    BaseStats = {
+      Power = 10
+      Magic = 5
+      Sense = 5
+      Charm = 8
+    }
+    Resources = {
+      HP = 80
+      MP = 25
+      Status = Attributes.Alive
+    }
+    Position = { X = 0f; Y = 0f }
+    Movement = {
+      Speed = 100f
+      Destination = ValueNone
+      Path = []
+    }
+    AbilityCooldowns = HashMap.empty
+    Effects = HashMap.empty
+    Factions = HashSet.ofList [ Classification.Player ]
+    Abilities = HashSet.empty
+    Equipment = HashMap.empty
+    PartyId = ValueNone
+  }
+
 [<AutoOpen>]
 module Tuple =
   let inline fstV struct (a, _) = a

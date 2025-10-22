@@ -279,6 +279,7 @@ module Classification =
   type Faction =
     | Player
     | Enemy
+    | AIControlled
     | Ally
     | Neutral
     | Terrain
@@ -722,6 +723,12 @@ module Rules =
   }
 
   [<Struct>]
+  type SpawnEntityData = {
+    components: Components.EntityComponents
+    archetypeId: int<AiArchetypeId> voption
+  }
+
+  [<Struct>]
   type Command =
     | UseAbility of abilityAction: UseAbilityAction
     | Navigate of navigateAction: NavigateAction
@@ -730,6 +737,8 @@ module Rules =
     | RemoveEntities of entityIds: Guid<EntityId> seq
     | AddEntities of
       addEntities: HashMap<Guid<EntityId>, Components.EntityComponents>
+    | AddEntitiesWithAI of
+      addEntitiesWithAI: HashMap<Guid<EntityId>, SpawnEntityData>
     | Teleport of teleportChange: TeleportChange
     | ReplenishResources of replenishEntries: ResourceReplenishment[]
 

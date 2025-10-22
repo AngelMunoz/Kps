@@ -142,6 +142,16 @@ module private InternalHelpers =
 
               member _.findMusicForScenario scenarioId = ValueNone
           }
+        aiArchetypeStore =
+          { new Services.IAIArchetypeStore with
+              member _.tryFind archetypeId =
+                AIArchetypeStore.definitions
+                |> Map.tryFind archetypeId
+                |> ValueOption.ofOption
+
+              member _.find archetypeId =
+                AIArchetypeStore.definitions |> Map.find archetypeId
+          }
         rng = rng
       }
       (initialScenarioId, cmap [ (initialScenarioId, initialScenarioState) ])

@@ -1013,9 +1013,16 @@ module GameState =
 
       for entityId in change.removals do
         scenario.entities.Remove entityId |> ignore
+        scenario.aiControllers.Remove entityId |> ignore
 
       for entityId, controller in change.aiControllers do
         scenario.aiControllers[entityId] <- controller
+
+      let currentEntities = scenario.entities
+
+      EnemyAI.AILifecycle.cleanupDeadControllers
+        scenario.entities
+        scenario.aiControllers
 
       for tp in change.teleports do
         if state.scenarios.ContainsKey tp.ToScenarioId then
@@ -1026,6 +1033,7 @@ module GameState =
               let comps = scState.entities[tp.EntityId]
               moved <- ValueSome comps
               scState.entities.Remove tp.EntityId |> ignore
+              scState.aiControllers.Remove tp.EntityId |> ignore
 
           match moved with
           | ValueSome comps ->

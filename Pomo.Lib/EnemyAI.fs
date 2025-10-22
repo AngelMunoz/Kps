@@ -7,6 +7,7 @@ open Pomo.Lib.Domain
 open Pomo.Lib.Domain.AI
 open Pomo.Lib.Domain.Components
 open Pomo.Lib.Domain.Rules
+open Pomo.Lib.Domain.Attributes
 
 module Perception =
   let inline distance (p1: Position) (p2: Position) =
@@ -138,6 +139,32 @@ module Decision =
     | Ignore -> ValueNone
 
 
+module AILifecycle =
+  let createController
+    (entityId: Guid<EntityId>)
+    (archetypeId: int<AiArchetypeId>)
+    (currentTime: TimeSpan)
+    : AIController =
+    {
+      controlledEntityId = entityId
+      archetypeId = archetypeId
+      currentState = Idle
+      currentTarget = ValueNone
+      lastDecisionTime = currentTime
+      memories = HashMap.empty
+      waypointIndex = 0
+      stateEnterTime = currentTime
+    }
+
+  let cleanupDeadControllers
+    (entities: cmap<Guid<EntityId>, EntityComponents>)
+    (controllers: cmap<Guid<EntityId>, AIController>)
+    =
+    transact(fun _ ->
+      for entityId, components in entities do
+        if components.Resources.Status.IsDead then
+          controllers.Remove entityId |> ignore)
+
 module AISystem =
 
   let generateCommand
@@ -147,9 +174,9 @@ module AISystem =
     (currentTick: TimeSpan)
     =
     adaptive {
-      if
-        currentTick - controller.lastDecisionTime < archetype.decisionInterval
-      then
+      let timeSinceLastDecision = currentTick - controller.lastDecisionTime
+
+      if timeSinceLastDecision < archetype.decisionInterval then
         return ValueNone
       else
         let! controllerEntity =
@@ -184,33 +211,21 @@ module AISystem =
     (currentTick: TimeSpan)
     =
     adaptive {
-      if
-        currentTick - controller.lastDecisionTime < archetype.decisionInterval
-      then
-        return controller
-      else
+      let! controllerEntity =
+        entities |> AMap.tryFind controller.controlledEntityId
 
-        let! controllerEntity =
-          entities |> AMap.tryFind controller.controlledEntityId
+      match controllerEntity with
+      | None -> return controller
+      | Some entity ->
+        let! struct (_, updatedMemories) =
+          Perception.gatherCues controller archetype entities entity currentTick
 
-        match controllerEntity with
-        | None -> return controller
-        | Some entity ->
-          let! struct (_, updatedMemories) =
-            Perception.gatherCues
-              controller
-              archetype
-              entities
-              entity
-              currentTick
+        let updatedController = {
+          controller with
+              memories = updatedMemories
+        }
 
-          let updatedController = {
-            controller with
-                lastDecisionTime = currentTick
-                memories = updatedMemories
-          }
-
-          return updatedController
+        return updatedController
     }
 
   let processAllControllers

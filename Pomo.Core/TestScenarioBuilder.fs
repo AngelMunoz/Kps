@@ -10,6 +10,7 @@ open Pomo.Lib.Content
 open Pomo.Lib.Operations
 open Pomo.Lib.Pathfinding
 open Pomo.Lib.Gameplay
+open Pomo.Lib.Rules
 open FSharp.Data.Adaptive
 
 module ScenarioLoader =
@@ -47,6 +48,34 @@ module CharacterBuilder =
     GameState.apply state change
     entityId
 
+  let createAICharacter
+    (state: GameState)
+    (archetypeId: int<AiArchetypeId>)
+    (position: Position)
+    : Guid<EntityId> =
+    let archetype = state.services.aiArchetypeStore.find archetypeId
+    let kit = archetype.characterKit
+
+    let entityId = Guid.NewGuid() |> UMX.tag
+
+    let components =
+      kit
+      |> GameState.createEntity(fun stats -> {
+        stats with
+            Position = position
+            Factions = HashSet.ofList [ Enemy; AIControlled ]
+      })
+
+    let spawnData: Rules.SpawnEntityData = {
+      components = components.additions |> HashMap.toValueArray |> Array.head
+      archetypeId = ValueSome archetypeId
+    }
+
+    let cmd = Rules.AddEntitiesWithAI(HashMap.single entityId spawnData)
+    let change = CommandHandler.evaluate state cmd |> AVal.force
+    GameState.apply state change
+    entityId
+
 module TestScenarioBuilder =
 
   type TestScenarioData = {
@@ -69,10 +98,9 @@ module TestScenarioBuilder =
         { X = 100f; Y = 400f }
 
     let enemyId =
-      CharacterBuilder.createCharacter
+      CharacterBuilder.createAICharacter
         state
-        { Family = Charm; Stage = First }
-        Enemy
+        2<AiArchetypeId>
         { X = 300f; Y = 400f }
 
     {
