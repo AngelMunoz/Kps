@@ -144,6 +144,39 @@ match someValue with
 | Case3 -> handleCase3 someValue
 ```
 
+### Match Expressions Should Be Exhaustive
+
+For user authored types, try to ensure that all cases are handled explicitly.
+
+DO: ✅
+
+```fsharp
+match someValue with
+| Case1 -> ...
+| Case2 -> ...
+| Case3 -> ...
+```
+
+DO NOT: ❌
+
+```fsharp
+match someValue with
+| Case1 -> ...
+| Case2 -> ...
+| _ -> ...
+```
+
+In special cases we may need to use a wildcard pattern, if we truly know there's no logical way for other cases to occur.
+
+```fsharp
+match someValue with
+| ValueSome Case1 when someCondition -> ...
+| ValueSome Case2 -> ...
+| _ -> () // logically unreachable
+```
+
+However, avoid this pattern when possible.
+
 ### Avoid Deep Nesting
 
 Where possible use inline'able Active patterns, Partial Active Patterns and function composition to flatten nested logic.
@@ -171,5 +204,5 @@ let processEffect effect =
    match effect with
    | ActiveEffect EffectType.Damage dmgEffect -> handleDamageEffect dmgEffect
    | ActiveEffect EffectType.Heal healEffect -> handleHealEffect healEffect
-   | _ -> handleOtherEffect effect
+   | effect -> handleOtherEffect effect
 ```
