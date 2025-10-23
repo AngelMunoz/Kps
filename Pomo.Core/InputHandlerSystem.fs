@@ -375,6 +375,96 @@ module InputHandlerSystem =
 
     struct (newInputState, newConfig, result)
 
+  let handleVirtualButtonInput
+    (state: GameState)
+    (playerId: Guid<EntityId>)
+    (scenario: ScenarioState)
+    (virtualButtons: VirtualInputSystem.VirtualButton[])
+    (inputState: InputManager.InputState)
+    (keybindingConfig: KeybindingSystem.KeybindingConfig)
+    =
+    let mutable newInputState = inputState
+    let mutable result = KeybindingSystem.NoAction
+
+    for button in virtualButtons do
+      let wasDown =
+        match button.Action with
+        | KeybindingSystem.Q -> inputState.PrevButtonQDown
+        | KeybindingSystem.W -> inputState.PrevButtonWDown
+        | KeybindingSystem.E -> inputState.PrevButtonEDown
+        | KeybindingSystem.R -> inputState.PrevButtonRDown
+        | _ -> false
+
+      if button.IsPressed && not wasDown then
+        let action =
+          KeybindingSystem.getSlotAction button.Action keybindingConfig
+
+        match action with
+        | KeybindingSystem.ActivateAbility abilityId ->
+          match
+            KeybindingSystem.getAbilityTargetingMode
+              state.services.abilityStore
+              abilityId
+          with
+          | ValueSome targetingMode ->
+            result <-
+              KeybindingSystem.EnterAbilityTargeting(abilityId, targetingMode)
+
+            Debug.WriteLine(
+              $"[Virtual Button] {button.Action} entering targeting for ability {abilityId}"
+            )
+          | ValueNone ->
+            result <- KeybindingSystem.ExecuteSelfAbility abilityId
+
+            Debug.WriteLine(
+              $"[Virtual Button] {button.Action} executing self ability {abilityId}"
+            )
+        | KeybindingSystem.UseItem itemId ->
+          result <- KeybindingSystem.UseItemAction itemId
+
+          Debug.WriteLine(
+            $"[Virtual Button] {button.Action} used item {itemId}"
+          )
+        | KeybindingSystem.Empty -> ()
+
+      newInputState <-
+        match button.Action with
+        | KeybindingSystem.Q -> {
+            newInputState with
+                PrevButtonQDown = button.IsPressed
+          }
+        | KeybindingSystem.W -> {
+            newInputState with
+                PrevButtonWDown = button.IsPressed
+          }
+        | KeybindingSystem.E -> {
+            newInputState with
+                PrevButtonEDown = button.IsPressed
+          }
+        | KeybindingSystem.R -> {
+            newInputState with
+                PrevButtonRDown = button.IsPressed
+          }
+        | _ -> newInputState
+
+    match result with
+    | KeybindingSystem.ExecuteSelfAbility abilityId ->
+      let stateChange =
+        GameState.activateAbility playerId abilityId [| playerId |] state
+        |> AVal.force
+
+      AudioSystem.processAudioChanges
+        state.services.audioStore
+        scenario
+        stateChange.audioChanges
+
+      GameState.apply state stateChange
+    | KeybindingSystem.NoAction
+    | KeybindingSystem.EnterAbilityTargeting _
+    | KeybindingSystem.UseItemAction _ -> ()
+
+    struct (newInputState, result)
+
   type InputUpdateResult = {
     InputState: InputManager.InputState
     UIState: UISystem.UIState
@@ -401,6 +491,8 @@ module InputHandlerSystem =
     (currentPath: Position[])
     (pathPreview: PathPreview.PathSegment[])
     (clickThrottle: InputManager.ClickThrottleState)
+    (virtualInputState: VirtualInputSystem.VirtualInputState voption)
+    (virtualButtonPressed: bool)
     =
     let mutable result = {
       InputState = inputState
@@ -416,6 +508,20 @@ module InputHandlerSystem =
     let rightMouseDown = InputManager.isRightClickPressed()
     let mouseDown = InputManager.isLeftClickPressed()
     let keyboardState = Keyboard.GetState()
+
+    let mousePos = InputManager.getMousePosition()
+
+    let isClickOnVirtualControls =
+      virtualInputState
+      |> ValueOption.map(fun vinput ->
+        let onJoystick =
+          Vector2.DistanceSquared(mousePos, vinput.Joystick.Center) < (vinput.Joystick.Radius * vinput.Joystick.Radius)
+
+        let onButtons =
+          vinput.Buttons |> Array.exists(fun b -> b.Bounds.Contains(mousePos))
+
+        onJoystick || onButtons)
+      |> ValueOption.defaultValue false
 
     InputManager.updateThrottle clickThrottle gameTime.ElapsedGameTime
 
@@ -445,7 +551,7 @@ module InputHandlerSystem =
           }
     }
 
-    if mouseDown && not inputState.PrevMouseDown then
+    if mouseDown && not inputState.PrevMouseDown && not isClickOnVirtualControls && not virtualButtonPressed then
       let clickResult = handleLeftClick state playerId world scenario inputMode
 
       match clickResult with

@@ -6,11 +6,13 @@
   <ItemGroup>
     <Compile Include="Localization/LocalizationManager.fs" />
     <Compile Include="LibExtensions.fs" />
+    <Compile Include="Platform.fs" />
     <Compile Include="InputManager.fs" />
     <Compile Include="CameraSystem.fs" />
     <Compile Include="KeybindingSystem.fs" />
     <Compile Include="RenderSystem.fs" />
     <Compile Include="UISystem.fs" />
+    <Compile Include="VirtualInputSystem.fs" />
     <Compile Include="AudioSystem.fs" />
     <Compile Include="GameUpdateSystem.fs" />
     <Compile Include="InputHandlerSystem.fs" />

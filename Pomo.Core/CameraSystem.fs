@@ -40,6 +40,8 @@ module CameraSystem =
     else
       state
 
+  let setZoom (zoom: float32) (state: CameraState) = { state with Zoom = zoom }
+
   let setPosition (position: Vector2) (state: CameraState) = {
     state with
         Position = position

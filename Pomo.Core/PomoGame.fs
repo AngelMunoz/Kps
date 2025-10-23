@@ -51,6 +51,9 @@ type PomoGame() as this =
   let mutable inputMode: InputManager.InputMode = InputManager.InputMode.Normal
   let mutable mouseWorldPos: Vector2 = Vector2.Zero
 
+  let mutable virtualInputState: VirtualInputSystem.VirtualInputState voption =
+    ValueNone
+
   let mutable keybindingConfig: KeybindingSystem.KeybindingConfig =
     KeybindingSystem.createDefault()
 
@@ -122,6 +125,15 @@ type PomoGame() as this =
     camera <- CameraSystem.createCamera()
     RenderSystem.init this.GraphicsDevice
     AudioSystem.load this.Content
+
+    if Platform.IsMobile() then
+      camera <- CameraSystem.setZoom 2.5f camera
+      let uiScale = 2.0f
+
+      virtualInputState <-
+        ValueSome(
+          VirtualInputSystem.create this.GraphicsDevice.Viewport uiScale
+        )
 
 
   override this.Update gameTime =
@@ -206,6 +218,61 @@ type PomoGame() as this =
         let world = InputManager.screenToWorld mouseScreen view
         mouseWorldPos <- world
 
+        virtualInputState <-
+          virtualInputState
+          |> ValueOption.map(fun vs ->
+            let touchState =
+              Microsoft.Xna.Framework.Input.Touch.TouchPanel.GetState()
+
+            VirtualInputSystem.update vs touchState)
+
+        let mutable tempInputState = inputState
+        let mutable tempInputMode = inputMode
+        let mutable virtualButtonPressed = false
+
+        virtualInputState
+        |> ValueOption.iter(fun vinput ->
+          match VirtualInputSystem.getJoystickDirection vinput with
+          | ValueSome direction ->
+            let playerComp = scenario.entities[playerId]
+            let velocity = direction * playerComp.Movement.Speed
+            let elapsed = float32 gameTime.ElapsedGameTime.TotalSeconds
+
+            let moveCmd =
+              Rules.AdvancePosition {
+                actor = playerId
+                velocity = { X = velocity.X; Y = velocity.Y }
+                elapsed = elapsed
+              }
+
+            let stateChange =
+              CommandHandler.evaluate state moveCmd |> AVal.force
+
+            GameState.apply state stateChange
+          | ValueNone -> ()
+
+          let struct (newInputState, vbuttonResult) =
+            InputHandlerSystem.handleVirtualButtonInput
+              state
+              playerId
+              scenario
+              vinput.Buttons
+              tempInputState
+              keybindingConfig
+
+          tempInputState <- newInputState
+
+          match vbuttonResult with
+          | KeybindingSystem.EnterAbilityTargeting(abilityId, targetingMode) ->
+            tempInputMode <-
+              InputManager.InputMode.AbilityTargeting(abilityId, targetingMode)
+
+            virtualButtonPressed <- true
+          | _ -> ())
+
+        inputState <- tempInputState
+        inputMode <- tempInputMode
+
         let inputResult =
           InputHandlerSystem.handleAllInput
             state
@@ -222,6 +289,8 @@ type PomoGame() as this =
             currentPath
             pathPreview
             clickThrottle
+            virtualInputState
+            virtualButtonPressed
 
         inputState <- inputResult.InputState
         uiState <- inputResult.UIState
@@ -320,6 +389,16 @@ type PomoGame() as this =
           uiState
           drawCtx
           this.GraphicsDevice.Viewport)
+
+      virtualInputState
+      |> ValueOption.iter(fun vinput ->
+        spriteBatch.Begin()
+
+        hudOpt
+        |> ValueOption.iter(fun font ->
+          VirtualInputSystem.draw spriteBatch pixel font vinput)
+
+        spriteBatch.End())
     | _ -> ()
 
     base.Draw(gameTime)
