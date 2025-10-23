@@ -39,7 +39,6 @@ module RenderSystem =
   type EntityContext = {
     Entities: struct (Guid<EntityId> * Components.EntityComponents) array
     Derived: HashMap<Guid<EntityId>, DerivedStats>
-    Selected: Guid<EntityId> voption
     Hud: SpriteFont voption
   }
 
@@ -255,7 +254,6 @@ module RenderSystem =
   let private drawEntity
     (sb: SpriteBatch)
     (pixel: Texture2D)
-    (selected: Guid<EntityId> voption)
     (derived: HashMap<Guid<EntityId>, DerivedStats>)
     (id: Guid<EntityId>)
     (comp: Components.EntityComponents)
@@ -276,17 +274,6 @@ module RenderSystem =
       let x = pos.X - w * 0.5f
       let y = pos.Y - h * 0.5f
       sb.Draw(circle, Vector2(x, y), color)
-
-      match selected with
-      | ValueSome sid when sid = id ->
-        let scale = 1.25f
-        let sw = w * scale
-        let sh = h * scale
-        let sx = pos.X - sw * 0.5f
-        let sy = pos.Y - sh * 0.5f
-        let dest = Rectangle(int sx, int sy, int sw, int sh)
-        sb.Draw(circle, dest, Color(255, 255, 0, 120))
-      | _ -> ()
     else
       let w, h = 24f, 24f
       sb.Draw(pixel, Rectangle(int pos.X, int pos.Y, int w, int h), color)
@@ -543,7 +530,7 @@ module RenderSystem =
 
   let drawEntitiesPhase sb pixel (ctx: EntityContext) =
     for struct (id, comp) in ctx.Entities do
-      drawEntity sb pixel ctx.Selected ctx.Derived id comp
+      drawEntity sb pixel ctx.Derived id comp
 
   let drawEffectsPhase sb pixel (ctx: EffectsContext) =
     drawFloatingTexts sb pixel ctx.Hud ctx.FloatingTexts ctx.GameTime

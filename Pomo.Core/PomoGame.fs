@@ -40,17 +40,15 @@ type PomoGame() as this =
   let mutable spriteBatch: SpriteBatch = null
   let mutable pixel: Texture2D = null
   let mutable hudFont: SpriteFont = null
-  let mutable camera: CameraSystem.CameraState = CameraSystem.createCamera()
-  let mutable selected: Guid<EntityId> voption = ValueNone
+  let mutable camera = CameraSystem.createCamera()
 
-  let mutable actionInputManager: ActionInputManager.State =
-    Unchecked.defaultof<_>
+  let mutable actionInputManager = Unchecked.defaultof<ActionInputManager.State>
 
   let mutable actionInputMap: InputMap = HashMap.empty
 
-  let mutable inputMode: InputMode = InputMode.Normal
+  let mutable inputMode = Normal
 
-  let mutable showPathfindingGrid: bool = false
+  let mutable showPathfindingGrid = false
   let mutable currentPath: Position[] = Array.empty
   let mutable pathPreview: PathPreview.PathSegment[] = Array.empty
   let mutable uiState: UISystem.UIState = UISystem.createUIState()
@@ -63,14 +61,13 @@ type PomoGame() as this =
     : VirtualInputSystem.VirtualInputState voption =
     ValueNone
 
-  let mutable keybindingConfig: KeybindingSystem.KeybindingConfig =
-    KeybindingSystem.createDefault()
+  let mutable keybindingConfig = KeybindingSystem.createDefault()
 
   let mutable navigationDebugGrid: Pomo.Lib.Pathfinding.PathfindingGrid voption =
     ValueNone
 
-  let mutable terrainVersion: int64 = 0L
-  let mutable isGridDirty: bool = true
+  let mutable terrainVersion = 0L
+  let mutable isGridDirty = true
 
   do
     base.Services.AddService(
@@ -87,14 +84,14 @@ type PomoGame() as this =
       DisplayOrientation.LandscapeLeft ||| DisplayOrientation.LandscapeRight
 
 
-  override this.Initialize() =
+  override _.Initialize() =
     base.Initialize()
 
     actionInputManager <-
       ActionInputManager.create(
         Keyboard.GetState(),
         Mouse.GetState(),
-        GamePad.GetState(PlayerIndex.One),
+        GamePad.GetState PlayerIndex.One,
         TouchPanel.GetState()
       )
 
@@ -113,7 +110,7 @@ type PomoGame() as this =
       }
       |> ScenarioState.create(fun sc -> {
         sc with
-            scenario.EngagementMode = EngagementMode.AlwaysOn
+            scenario.EngagementMode = AlwaysOn
       })
 
     let scenarios = cmap [ initialScenarioId, initialScenarioState ]
@@ -127,15 +124,15 @@ type PomoGame() as this =
 
     gameState <- ValueSome state
 
-    Debug.WriteLine("Game initialized")
+    Debug.WriteLine "Game initialized"
 
 
   override this.LoadContent() =
     base.LoadContent()
     spriteBatch <- new SpriteBatch(this.GraphicsDevice)
     pixel <- new Texture2D(this.GraphicsDevice, 1, 1)
-    pixel.SetData<Color>([| Color.White |])
-    hudFont <- this.Content.Load<SpriteFont>("Fonts/Hud")
+    pixel.SetData<Color> [| Color.White |]
+    hudFont <- this.Content.Load<SpriteFont> "Fonts/Hud"
     camera <- CameraSystem.createCamera()
     RenderSystem.init this.GraphicsDevice
     AudioSystem.load this.Content
@@ -160,252 +157,37 @@ type PomoGame() as this =
         gameTime
         (Keyboard.GetState(),
          Mouse.GetState(),
-         GamePad.GetState(PlayerIndex.One),
+         GamePad.GetState PlayerIndex.One,
          touchState)
 
     match gameState with
-    | ValueNone -> base.Update(gameTime)
+    | ValueNone -> base.Update gameTime
     | ValueSome state ->
 
+      // PHASE 1: AUTOMATED & PRE-UPDATE SYSTEMS
       GameUpdateSystem.updateGameTick state gameTime.ElapsedGameTime
 
-      let scenario = Scenario.ActiveScenario state |> AVal.force
+      let mutable scenario = Scenario.ActiveScenario state |> AVal.force
 
-      let view =
-        CameraSystem.createViewMatrix camera this.GraphicsDevice.Viewport
+      // Update navigation grid based on state at start of frame
+      let struct (newVer, newDirty, gridOpt) =
+        GameUpdateSystem.updateNavigationGrid
+          scenario.scenario
+          terrainVersion
+          isGridDirty
 
-      let mouseState = Mouse.GetState()
-      let mouseScreen = Vector2(float32 mouseState.X, float32 mouseState.Y)
-      mouseWorldPos <- CameraSystem.screenToWorld mouseScreen view
+      terrainVersion <- newVer
+      isGridDirty <- newDirty
+      gridOpt |> ValueOption.iter(fun g -> navigationDebugGrid <- ValueSome g)
 
-      match actionInputManager with
-      | PressedActions actions ->
-        for action in actions do
-          match action with
-          | GameAction.ToggleCharacterSheet ->
-            uiState <- UISystem.togglePanel UISystem.CharacterSheet uiState
-          | GameAction.ToggleAbilities ->
-            uiState <- UISystem.togglePanel UISystem.AbilityList uiState
-          | GameAction.ToggleInventory ->
-            uiState <- UISystem.togglePanel UISystem.EquipmentView uiState
-          | GameAction.DebugAction4 ->
-            showPathfindingGrid <- not showPathfindingGrid
-          | GameAction.DebugAction5 ->
-            let replenishCmd =
-              Rules.ReplenishResources [|
-                {
-                  Actor = playerId
-                  ResourceType = ResourceType.MP
-                  Amount = 1000
-                }
-              |]
+      // Update camera zoom
+      camera <- CameraSystem.updateZoom camera
 
-            let stateChange =
-              CommandHandler.evaluate state replenishCmd |> AVal.force
+      // PHASE 2: COMMAND GENERATION
+      let commandList = ResizeArray<Rules.Command>()
 
-            AudioSystem.processAudioChanges
-              state.services.audioStore
-              scenario
-              stateChange.audioChanges
-
-            GameState.apply state stateChange
-            Debug.WriteLine("[Debug] MP replenished via new input system")
-          | GameAction.SwitchToActionSet1 ->
-            keybindingConfig <-
-              KeybindingSystem.setActiveSet
-                KeybindingSystem.Set1
-                keybindingConfig
-          | GameAction.SwitchToActionSet2 ->
-            keybindingConfig <-
-              KeybindingSystem.setActiveSet
-                KeybindingSystem.Set2
-                keybindingConfig
-          | GameAction.SwitchToActionSet3 ->
-            keybindingConfig <-
-              KeybindingSystem.setActiveSet
-                KeybindingSystem.Set3
-                keybindingConfig
-          | GameAction.SwitchToActionSet4 ->
-            keybindingConfig <-
-              KeybindingSystem.setActiveSet
-                KeybindingSystem.Set4
-                keybindingConfig
-          | GameAction.SwitchToActionSet5 ->
-            keybindingConfig <-
-              KeybindingSystem.setActiveSet
-                KeybindingSystem.Set5
-                keybindingConfig
-          | GameAction.UseQuickSlot1
-          | GameAction.UseQuickSlot2
-          | GameAction.UseQuickSlot3
-          | GameAction.UseQuickSlot4
-          | GameAction.UseQuickSlot5
-          | GameAction.UseQuickSlot6
-          | GameAction.UseQuickSlot7
-          | GameAction.UseQuickSlot8 ->
-            let keybindingResult =
-              KeybindingSystem.processSlotAction
-                action
-                keybindingConfig
-                state
-                playerId
-
-            match keybindingResult with
-            | KeybindingSystem.EnterAbilityTargeting(abilityId, targetingMode) ->
-              inputMode <- InputMode.AbilityTargeting(abilityId, targetingMode)
-            | _ -> ()
-          | GameAction.PrimaryAction ->
-            let mutable pointerWorldPos = mouseWorldPos
-
-            if Platform.IsMobile() && touchState.Count > 0 then
-              let touchPos = touchState[0].Position
-              pointerWorldPos <- CameraSystem.screenToWorld touchPos view
-
-            let entities = scenario.entities |> AMap.force |> HashMap.toArrayV
-
-            let inline radiusOfStage s =
-              match s with
-              | First -> 12f
-              | Second -> 16f
-              | Third -> 20f
-
-            let mutable found: Guid<EntityId> voption = ValueNone
-
-            for struct (id, comp) in entities do
-              let dx = pointerWorldPos.X - comp.Position.X
-              let dy = pointerWorldPos.Y - comp.Position.Y
-              let r = radiusOfStage comp.Identity.Stage
-              let dist2 = dx * dx + dy * dy
-              let inside = dist2 <= r * r
-
-              if inside then
-                found <- ValueSome id
-
-            match inputMode with
-            | InputMode.Normal ->
-              match found with
-              | ValueSome sid ->
-                Debug.WriteLine($"[Input] Selected {sid}")
-                selected <- ValueSome sid
-              | ValueNone ->
-                Debug.WriteLine("[Input] Selection cleared")
-                selected <- ValueNone
-            | InputMode.AbilityTargeting(abilityId,
-                                         TargetingMode.EntityTargeting) ->
-              match found with
-              | ValueSome targetId ->
-                let stateChange =
-                  GameState.activateAbility
-                    playerId
-                    abilityId
-                    [| targetId |]
-                    state
-                  |> AVal.force
-
-                AudioSystem.processAudioChanges
-                  state.services.audioStore
-                  scenario
-                  stateChange.audioChanges
-
-                GameState.apply state stateChange
-
-                Debug.WriteLine(
-                  $"[Ability] Activated {abilityId} on {targetId}"
-                )
-
-                inputMode <- InputMode.Normal
-              | ValueNone ->
-                Debug.WriteLine("[Ability] No target selected.")
-                inputMode <- InputMode.Normal
-            | InputMode.AbilityTargeting(abilityId,
-                                         TargetingMode.GroundTargeting _) ->
-              let targetPos = {
-                X = pointerWorldPos.X
-                Y = pointerWorldPos.Y
-              }
-
-              let stateChange =
-                GameState.activateAbilityAtPosition
-                  playerId
-                  abilityId
-                  targetPos
-                  state
-                |> AVal.force
-
-              AudioSystem.processAudioChanges
-                state.services.audioStore
-                scenario
-                stateChange.audioChanges
-
-              GameState.apply state stateChange
-
-              Debug.WriteLine(
-                $"[Ability] Activated {abilityId} at position ({targetPos.X}, {targetPos.Y})"
-              )
-
-              inputMode <- InputMode.Normal
-          | GameAction.SecondaryAction ->
-            let mutable pointerWorldPos = mouseWorldPos
-
-            if Platform.IsMobile() && touchState.Count > 0 then
-              let touchPos = touchState[0].Position
-              pointerWorldPos <- CameraSystem.screenToWorld touchPos view
-
-            if inputMode <> InputMode.Normal then
-              inputMode <- InputMode.Normal
-            else
-              let moveCmd =
-                Rules.Navigate {
-                  actor = playerId
-                  destination = {
-                    X = pointerWorldPos.X
-                    Y = pointerWorldPos.Y
-                  }
-                }
-
-              let stateChange =
-                CommandHandler.evaluate state moveCmd |> AVal.force
-
-              AudioSystem.processAudioChanges
-                state.services.audioStore
-                scenario
-                stateChange.audioChanges
-
-              GameState.apply state stateChange
-
-              let playerComp = scenario.entities[playerId]
-
-              let entityRadius =
-                match playerComp.Identity.Stage with
-                | First -> 12f
-                | Second -> 16f
-                | Third -> 20f
-
-              match playerComp.Movement.Path with
-              | [] ->
-                currentPath <- Array.empty
-                pathPreview <- Array.empty
-              | waypoints ->
-                let fullPath =
-                  Array.concat [|
-                    [| playerComp.Position |]
-                    waypoints |> List.toArray
-                  |]
-
-                let preview =
-                  PathPreview.generatePreview
-                    scenario.scenario
-                    fullPath
-                    entityRadius
-
-                Debug.WriteLine(
-                  $"[Pathfinding] Preview generated for {fullPath.Length} points"
-                )
-
-                currentPath <- fullPath
-                pathPreview <- preview
-          | _ -> ()
-
+      // --- AI Commands ---
+      // AI runs first, based on the state after the game tick.
       let struct (updatedControllers, aiCommands) =
         AISystem.processAllControllersAndCommands
           scenario.entities
@@ -415,62 +197,35 @@ type PomoGame() as this =
           scenario.aiControllers
         |> AVal.force
 
+      // Apply AI controller changes immediately, as they are not command-based.
       let controllerChange = {
         StateChange.empty with
             aiControllers = updatedControllers
       }
 
       GameState.apply state controllerChange
+      // Refresh scenario after this change so user input processing has latest state
+      scenario <- Scenario.ActiveScenario state |> AVal.force
 
-      for cmd in aiCommands do
-        match cmd with
-        | Rules.Command.UseAbility ability ->
-          Debug.WriteLine(
-            $"AI {ability.actor} using ability {ability.abilityId} against {ability.target}"
-          )
-        | Rules.Command.Navigate nav ->
-          Debug.WriteLine($"AI {nav.actor} navigating to %A{nav.destination}")
-        | others -> Debug.WriteLine($"AI using command: %A{others}")
+      commandList.AddRange aiCommands
 
+      // --- User Commands ---
+      // User input is processed based on the state after AI controller updates.
+      let view =
+        CameraSystem.createViewMatrix camera this.GraphicsDevice.Viewport
 
+      let mouseState = Mouse.GetState()
+      let mouseScreen = Vector2(float32 mouseState.X, float32 mouseState.Y)
+      mouseWorldPos <- CameraSystem.screenToWorld mouseScreen view
 
-        let stateChange = CommandHandler.evaluate state cmd |> AVal.force
-
-        AudioSystem.processAudioChanges
-          state.services.audioStore
-          scenario
-          stateChange.audioChanges
-
-        GameState.apply state stateChange
-
-      camera <- CameraSystem.updateZoom camera
-
-      let struct (newVer, newDirty, gridOpt) =
-        GameUpdateSystem.updateNavigationGrid
-          scenario.scenario
-          terrainVersion
-          isGridDirty
-
-      terrainVersion <- newVer
-      isGridDirty <- newDirty
-
-      gridOpt |> ValueOption.iter(fun g -> navigationDebugGrid <- ValueSome g)
-
-      GameUpdateSystem.checkScenarioTransitions scenario
-
-      let playerComps = scenario.entities[playerId]
-
-      camera <-
-        CameraSystem.setPosition
-          (Position.toVector2 playerComps.Position)
-          camera
-
+      // Virtual Input processing (generates commands)
       virtualInputState <-
         virtualInputState
         |> ValueOption.map(fun vs -> VirtualInputSystem.update vs touchState)
 
       virtualInputState
       |> ValueOption.iter(fun vinput ->
+        // Joystick movement
         match VirtualInputSystem.getJoystickDirection vinput with
         | ValueSome direction ->
           let playerComp = scenario.entities[playerId]
@@ -484,11 +239,10 @@ type PomoGame() as this =
               elapsed = elapsed
             }
 
-          let stateChange = CommandHandler.evaluate state moveCmd |> AVal.force
-
-          GameState.apply state stateChange
+          commandList.Add moveCmd
         | ValueNone -> ()
 
+        // Virtual buttons
         let prevButtons =
           prevVirtualInputState
           |> ValueOption.map(fun pvs -> pvs.Buttons)
@@ -515,23 +269,238 @@ type PomoGame() as this =
 
             match kbResult with
             | KeybindingSystem.EnterAbilityTargeting(abilityId, targetingMode) ->
-              inputMode <- InputMode.AbilityTargeting(abilityId, targetingMode)
+              inputMode <- AbilityTargeting(abilityId, targetingMode)
+            // For now, assuming quick slots generate commands via the main input handler below
             | _ -> ())
 
       prevVirtualInputState <- virtualInputState
 
-      match selected with
-      | ValueSome entityId when not(uiState.SelectedEntity = ValueSome entityId) ->
-        uiState <- UISystem.setSelectedEntity entityId uiState
-      | ValueNone when not(uiState.SelectedEntity = ValueSome playerId) ->
-        uiState <- UISystem.setSelectedEntity playerId uiState
-      | _ -> ()
+      // Keyboard/Mouse Input processing (generates commands or updates local UI state)
+      match actionInputManager with
+      | PressedActions actions ->
+        for action in actions do
+          match action with
+          | ToggleCharacterSheet ->
+            uiState <- UISystem.togglePanel UISystem.CharacterSheet uiState
+          | ToggleAbilities ->
+            uiState <- UISystem.togglePanel UISystem.AbilityList uiState
+          | ToggleInventory ->
+            uiState <- UISystem.togglePanel UISystem.EquipmentView uiState
+          | DebugAction4 -> showPathfindingGrid <- not showPathfindingGrid
+          | DebugAction5 ->
+            let replenishCmd =
+              Rules.ReplenishResources [|
+                {
+                  Actor = playerId
+                  ResourceType = ResourceType.MP
+                  Amount = 1000
+                }
+              |]
 
-      base.Update(gameTime)
+            commandList.Add replenishCmd
+          | SwitchToActionSet1 ->
+            keybindingConfig <-
+              KeybindingSystem.setActiveSet
+                KeybindingSystem.Set1
+                keybindingConfig
+          | SwitchToActionSet2 ->
+            keybindingConfig <-
+              KeybindingSystem.setActiveSet
+                KeybindingSystem.Set2
+                keybindingConfig
+          | SwitchToActionSet3 ->
+            keybindingConfig <-
+              KeybindingSystem.setActiveSet
+                KeybindingSystem.Set3
+                keybindingConfig
+          | SwitchToActionSet4 ->
+            keybindingConfig <-
+              KeybindingSystem.setActiveSet
+                KeybindingSystem.Set4
+                keybindingConfig
+          | SwitchToActionSet5 ->
+            keybindingConfig <-
+              KeybindingSystem.setActiveSet
+                KeybindingSystem.Set5
+                keybindingConfig
+          | UseQuickSlot1
+          | UseQuickSlot2
+          | UseQuickSlot3
+          | UseQuickSlot4
+          | UseQuickSlot5
+          | UseQuickSlot6
+          | UseQuickSlot7
+          | UseQuickSlot8 ->
+            let keybindingResult =
+              KeybindingSystem.processSlotAction
+                action
+                keybindingConfig
+                state
+                playerId
+
+            match keybindingResult with
+            | KeybindingSystem.EnterAbilityTargeting(abilityId, targetingMode) ->
+              inputMode <- AbilityTargeting(abilityId, targetingMode)
+            | _ -> ()
+          | PrimaryAction ->
+            let mutable pointerWorldPos = mouseWorldPos
+
+            if Platform.IsMobile() && touchState.Count > 0 then
+              let touchPos = touchState[0].Position
+              pointerWorldPos <- CameraSystem.screenToWorld touchPos view
+
+            let entities = scenario.entities |> AMap.force |> HashMap.toArrayV
+
+            let inline radiusOfStage s =
+              match s with
+              | First -> 12f
+              | Second -> 16f
+              | Third -> 20f
+
+            let mutable found: Guid<EntityId> voption = ValueNone
+
+            for struct (id, comp) in entities do
+              let dx = pointerWorldPos.X - comp.Position.X
+              let dy = pointerWorldPos.Y - comp.Position.Y
+              let r = radiusOfStage comp.Identity.Stage
+              let dist2 = dx * dx + dy * dy
+
+              if dist2 <= r * r then
+                found <- ValueSome id
+
+            match inputMode with
+            | Normal -> ()
+            | AbilityTargeting(abilityId, EntityTargeting) ->
+              match found with
+              | ValueSome targetId ->
+                let cmd =
+                  Rules.Command.UseAbility {
+                    actor = playerId
+                    abilityId = abilityId
+                    target = Rules.AbilityTarget.EntityTargets [| targetId |]
+                  }
+
+                commandList.Add cmd
+                Debug.WriteLine $"[Ability] Queued {abilityId} on {targetId}"
+              | _ -> Debug.WriteLine "[Ability] No target selected."
+
+              inputMode <- Normal
+            | AbilityTargeting(abilityId, GroundTargeting _) ->
+              let targetPos = {
+                X = pointerWorldPos.X
+                Y = pointerWorldPos.Y
+              }
+
+              let cmd =
+                Rules.Command.UseAbility {
+                  actor = playerId
+                  abilityId = abilityId
+                  target = Rules.AbilityTarget.PositionTarget targetPos
+                }
+
+              commandList.Add cmd
+
+              Debug.WriteLine
+                $"[Ability] Queued {abilityId} at position ({targetPos.X}, {targetPos.Y})"
+
+              inputMode <- Normal
+          | SecondaryAction ->
+            if inputMode <> Normal then
+              inputMode <- Normal
+            else
+              let mutable pointerWorldPos = mouseWorldPos
+
+              if Platform.IsMobile() && touchState.Count > 0 then
+                let touchPos = touchState[0].Position
+                pointerWorldPos <- CameraSystem.screenToWorld touchPos view
+
+              let moveCmd =
+                Rules.Navigate {
+                  actor = playerId
+                  destination = {
+                    X = pointerWorldPos.X
+                    Y = pointerWorldPos.Y
+                  }
+                }
+
+              commandList.Add moveCmd
+          | _ -> ()
+
+      // PHASE 3: COMMAND EXECUTION
+      // All commands from AI and Player are executed here sequentially.
+      let mutable playerNavigated = false
+
+      for cmd in commandList do
+        // Track if player navigated to update path preview later
+        match cmd with
+        | Rules.Command.Navigate nav when nav.actor = playerId ->
+          playerNavigated <- true
+        | _ -> ()
+
+        let stateChange = CommandHandler.evaluate state cmd |> AVal.force
+
+        let currentScenario = Scenario.ActiveScenario state |> AVal.force
+
+        AudioSystem.processAudioChanges
+          state.services.audioStore
+          currentScenario
+          stateChange.audioChanges
+
+        GameState.apply state stateChange
+
+      // PHASE 4: POST-UPDATE & FINALIZATION
+      // All state changes are done. Get the final state for this frame.
+      let finalScenario = Scenario.ActiveScenario state |> AVal.force
+
+      // Update path preview if the player navigated
+      if playerNavigated then
+        let playerComp = finalScenario.entities[playerId]
+
+        let entityRadius =
+          match playerComp.Identity.Stage with
+          | First -> 12f
+          | Second -> 16f
+          | Third -> 20f
+
+        match playerComp.Movement.Path with
+        | [] ->
+          currentPath <- Array.empty
+          pathPreview <- Array.empty
+        | waypoints ->
+          let fullPath =
+            Array.concat [|
+              [| playerComp.Position |]
+              waypoints |> List.toArray
+            |]
+
+          let preview =
+            PathPreview.generatePreview
+              finalScenario.scenario
+              fullPath
+              entityRadius
+
+          Debug.WriteLine
+            $"[Pathfinding] Preview generated for {fullPath.Length} points"
+
+          currentPath <- fullPath
+          pathPreview <- preview
+
+      // Update scenario transitions
+      GameUpdateSystem.checkScenarioTransitions finalScenario
+
+      // Update camera position to follow player
+      let playerComps = finalScenario.entities[playerId]
+
+      camera <-
+        CameraSystem.setPosition
+          (Position.toVector2 playerComps.Position)
+          camera
+
+      base.Update gameTime
 
 
-  override this.Draw(gameTime) =
-    base.GraphicsDevice.Clear(Color.CornflowerBlue)
+  override this.Draw gameTime =
+    base.GraphicsDevice.Clear Color.CornflowerBlue
 
     match gameState with
     | ValueSome state when not(isNull spriteBatch) && not(isNull pixel) ->
@@ -557,48 +526,46 @@ type PomoGame() as this =
       )
 
       RenderSystem.drawWorld spriteBatch pixel {
-        RenderSystem.WorldContext.Bounds = {
+        Bounds = {
           Width = drawCtx.Scenario.BoundsWidth
           Height = drawCtx.Scenario.BoundsHeight
           CenterX = drawCtx.Scenario.BoundsWidth * 0.5f
           CenterY = drawCtx.Scenario.BoundsHeight * 0.5f
         }
-        RenderSystem.WorldContext.TerrainScenario = drawCtx.Scenario
+        TerrainScenario = drawCtx.Scenario
       }
 
       RenderSystem.drawNavigation spriteBatch pixel {
-        RenderSystem.NavigationContext.ShowGrid = showPathfindingGrid
-        RenderSystem.NavigationContext.PathPreview = pathPreview
-        RenderSystem.NavigationContext.CurrentPath = currentPath
-        RenderSystem.NavigationContext.Grid = navigationDebugGrid
+        ShowGrid = showPathfindingGrid
+        PathPreview = pathPreview
+        CurrentPath = currentPath
+        Grid = navigationDebugGrid
       }
 
-      let entityCtx = {
-        RenderSystem.EntityContext.Entities =
-          drawCtx.Entities |> HashMap.toArrayV
-        RenderSystem.EntityContext.Derived = drawCtx.DerivedStats
-        RenderSystem.EntityContext.Selected = selected
-        RenderSystem.EntityContext.Hud = hudOpt
+      let entityCtx: RenderSystem.EntityContext = {
+        Entities = drawCtx.Entities |> HashMap.toArrayV
+        Derived = drawCtx.DerivedStats
+        Hud = hudOpt
       }
 
       RenderSystem.drawEntitiesPhase spriteBatch pixel entityCtx
 
       RenderSystem.drawEffectsPhase spriteBatch pixel {
-        RenderSystem.EffectsContext.FloatingTexts = drawCtx.FloatingTexts
-        RenderSystem.EffectsContext.Projectiles = drawCtx.Projectiles
-        RenderSystem.EffectsContext.Aoes = drawCtx.Aoes
-        RenderSystem.EffectsContext.Impacts = drawCtx.Impacts
-        RenderSystem.EffectsContext.GameTime = drawCtx.GameTime
-        RenderSystem.EffectsContext.Services = state.services
-        RenderSystem.EffectsContext.Hud = hudOpt
+        FloatingTexts = drawCtx.FloatingTexts
+        Projectiles = drawCtx.Projectiles
+        Aoes = drawCtx.Aoes
+        Impacts = drawCtx.Impacts
+        GameTime = drawCtx.GameTime
+        Services = state.services
+        Hud = hudOpt
       }
 
       RenderSystem.drawInputPhase
         spriteBatch
         pixel
         {
-          RenderSystem.InputContext.InputMode = inputMode
-          RenderSystem.InputContext.MouseWorldPos = mouseWorldPos
+          InputMode = inputMode
+          MouseWorldPos = mouseWorldPos
         }
         entityCtx
 
@@ -634,4 +601,4 @@ type PomoGame() as this =
         spriteBatch.End())
     | _ -> ()
 
-    base.Draw(gameTime)
+    base.Draw gameTime
