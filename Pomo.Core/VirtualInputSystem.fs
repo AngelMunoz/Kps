@@ -1,10 +1,13 @@
 namespace Pomo.Core
 
-open System
 open Microsoft.Xna.Framework
 open Microsoft.Xna.Framework.Graphics
 open Microsoft.Xna.Framework.Input.Touch
+open FSharp.UMX
 open Pomo.Lib.Domain
+open Pomo.Lib.Domain.State
+open Pomo.Lib.Domain.Scenario
+open System.Collections.Generic
 
 module VirtualInputSystem =
 
@@ -27,6 +30,24 @@ module VirtualInputSystem =
   type VirtualInputState = {
     Joystick: VirtualJoystick
     Buttons: VirtualButton[]
+  }
+
+  type VirtualInputContext = {
+    VirtualInputState: VirtualInputState voption
+    PrevVirtualInputState: VirtualInputState voption
+    TouchState: TouchCollection
+    Scenario: ScenarioState
+    PlayerId: Guid<EntityId>
+    GameTime: GameTime
+    KeybindingConfig: KeybindingSystem.KeybindingConfig
+    State: GameState
+    InputMode: InputMode
+  }
+
+  type VirtualInputResult = {
+    Commands: List<Rules.Command>
+    NewInputMode: InputMode
+    NewVirtualInputState: VirtualInputState voption
   }
 
   let create (viewport: Viewport) (scale: float32) =
@@ -54,10 +75,10 @@ module VirtualInputSystem =
 
     let buttons =
       [|
-        GameAction.UseQuickSlot1, 0
-        GameAction.UseQuickSlot2, 1
-        GameAction.UseQuickSlot3, 2
-        GameAction.UseQuickSlot4, 3
+        UseQuickSlot1, 0
+        UseQuickSlot2, 1
+        UseQuickSlot3, 2
+        UseQuickSlot4, 3
       |]
       |> Array.map(fun (action, index) ->
         let x = screenWidth - (buttonSize + buttonPadding) * (index + 1)
@@ -90,7 +111,7 @@ module VirtualInputSystem =
           let delta = thumbPos - joystick.Center
 
           if delta.LengthSquared() > joystick.Radius * joystick.Radius then
-            let d = Vector2.Normalize(delta)
+            let d = Vector2.Normalize delta
             thumbPos <- joystick.Center + d * joystick.Radius
 
           {
@@ -128,7 +149,7 @@ module VirtualInputSystem =
       |> Array.map(fun button ->
         let isPressed =
           touchState
-          |> Seq.exists(fun touch -> button.Bounds.Contains(touch.Position))
+          |> Seq.exists(fun touch -> button.Bounds.Contains touch.Position)
 
         { button with IsPressed = isPressed })
 
@@ -142,7 +163,7 @@ module VirtualInputSystem =
       let delta = state.Joystick.ThumbPosition - state.Joystick.Center
 
       if delta.LengthSquared() > 0.01f then
-        ValueSome(Vector2.Normalize(delta))
+        ValueSome(Vector2.Normalize delta)
       else
         ValueNone
     else
@@ -153,13 +174,76 @@ module VirtualInputSystem =
     |> Array.filter(fun b -> b.IsPressed)
     |> Array.map(fun b -> b.Action)
 
-  let private gameActionToLabel (action: GameAction) =
-      match action with
-      | GameAction.UseQuickSlot1 -> "Q"
-      | GameAction.UseQuickSlot2 -> "W"
-      | GameAction.UseQuickSlot3 -> "E"
-      | GameAction.UseQuickSlot4 -> "R"
-      | _ -> ""
+  let private gameActionToLabel(action: GameAction) =
+    match action with
+    | UseQuickSlot1 -> "Q"
+    | UseQuickSlot2 -> "W"
+    | UseQuickSlot3 -> "E"
+    | UseQuickSlot4 -> "R"
+    | _ -> ""
+
+  let processInput(ctx: VirtualInputContext) : VirtualInputResult =
+    let newVirtualInputState =
+      ctx.VirtualInputState
+      |> ValueOption.map(fun vs -> update vs ctx.TouchState)
+
+    let commandList = List<Rules.Command>()
+    let mutable inputMode = ctx.InputMode
+
+    newVirtualInputState
+    |> ValueOption.iter(fun vinput ->
+      // Joystick movement
+      match getJoystickDirection vinput with
+      | ValueSome direction ->
+        let playerComp = ctx.Scenario.entities[ctx.PlayerId]
+        let velocity = direction * playerComp.Movement.Speed
+        let elapsed = float32 ctx.GameTime.ElapsedGameTime.TotalSeconds
+
+        let moveCmd =
+          Rules.AdvancePosition {
+            actor = ctx.PlayerId
+            velocity = { X = velocity.X; Y = velocity.Y }
+            elapsed = elapsed
+          }
+
+        commandList.Add moveCmd
+      | ValueNone -> ()
+
+      // Virtual buttons
+      let prevButtons =
+        ctx.PrevVirtualInputState
+        |> ValueOption.map(fun pvs -> pvs.Buttons)
+        |> ValueOption.defaultValue Array.empty
+
+      for i in 0 .. vinput.Buttons.Length - 1 do
+        let button = vinput.Buttons[i]
+
+        let prevButton =
+          prevButtons |> Array.tryFind(fun pb -> pb.Action = button.Action)
+
+        let wasPressed =
+          prevButton
+          |> Option.map(fun pb -> pb.IsPressed)
+          |> Option.defaultValue false
+
+        if button.IsPressed && not wasPressed then
+          let kbResult =
+            KeybindingSystem.processSlotAction
+              button.Action
+              ctx.KeybindingConfig
+              ctx.State
+              ctx.PlayerId
+
+          match kbResult with
+          | KeybindingSystem.EnterAbilityTargeting(abilityId, targetingMode) ->
+            inputMode <- AbilityTargeting(abilityId, targetingMode)
+          | _ -> ())
+
+    {
+      Commands = commandList
+      NewInputMode = inputMode
+      NewVirtualInputState = newVirtualInputState
+    }
 
   let draw
     (sb: SpriteBatch)
@@ -202,13 +286,10 @@ module VirtualInputSystem =
     // Draw buttons
     for button in state.Buttons do
       let mutable color =
-        if button.IsPressed then
-          buttonPressedColor
-        else
-          buttonColor
+        if button.IsPressed then buttonPressedColor else buttonColor
 
       match inputMode with
-      | InputMode.AbilityTargeting(abilityId, _) ->
+      | AbilityTargeting(abilityId, _) ->
         let slotAction =
           KeybindingSystem.getSlotAction button.Action keybindingConfig
 
@@ -221,6 +302,17 @@ module VirtualInputSystem =
 
       sb.Draw(pixel, button.Bounds, color)
       let label = gameActionToLabel button.Action
-      let labelSize = font.MeasureString(label) * scale
+      let labelSize = font.MeasureString label * scale
       let labelPos = button.Bounds.Center.ToVector2() - labelSize * 0.5f
-      sb.DrawString(font, label, labelPos, textColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f)
+
+      sb.DrawString(
+        font,
+        label,
+        labelPos,
+        textColor,
+        0f,
+        Vector2.Zero,
+        scale,
+        SpriteEffects.None,
+        0f
+      )

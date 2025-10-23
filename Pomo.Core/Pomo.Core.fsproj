@@ -17,6 +17,7 @@
     <Compile Include="GameUpdateSystem.fs" />
     <Compile Include="ServiceFactory.fs" />
     <Compile Include="TestScenarioBuilder.fs" />
+    <Compile Include="GameInput.fs" />
     <Compile Include="PomoGame.fs" />
   </ItemGroup>
   <ItemGroup>

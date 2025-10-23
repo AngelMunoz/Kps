@@ -15,6 +15,7 @@ open FSharp.Data.Adaptive
 
 open Pomo.Core.Localization
 open Pomo.Core.InputActionPatterns
+open Pomo.Core.GameInput
 open Pomo.Lib.Gameplay
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Scenario
@@ -147,7 +148,7 @@ type PomoGame() as this =
         )
 
 
-  override this.Update gameTime =
+  override _.Update gameTime =
     let touchState = TouchPanel.GetState()
 
     actionInputManager <-
@@ -159,6 +160,12 @@ type PomoGame() as this =
          Mouse.GetState(),
          GamePad.GetState PlayerIndex.One,
          touchState)
+
+    let view = CameraSystem.createViewMatrix camera this.GraphicsDevice.Viewport
+
+    let mouseState = Mouse.GetState()
+    let mouseScreen = Vector2(float32 mouseState.X, float32 mouseState.Y)
+    mouseWorldPos <- CameraSystem.screenToWorld mouseScreen view
 
     match gameState with
     | ValueNone -> base.Update gameTime
@@ -211,220 +218,47 @@ type PomoGame() as this =
 
       // --- User Commands ---
       // User input is processed based on the state after AI controller updates.
-      let view =
-        CameraSystem.createViewMatrix camera this.GraphicsDevice.Viewport
-
-      let mouseState = Mouse.GetState()
-      let mouseScreen = Vector2(float32 mouseState.X, float32 mouseState.Y)
-      mouseWorldPos <- CameraSystem.screenToWorld mouseScreen view
 
       // Virtual Input processing (generates commands)
-      virtualInputState <-
-        virtualInputState
-        |> ValueOption.map(fun vs -> VirtualInputSystem.update vs touchState)
+      let virtualInputCtx: VirtualInputSystem.VirtualInputContext = {
+        VirtualInputState = virtualInputState
+        PrevVirtualInputState = prevVirtualInputState
+        TouchState = touchState
+        Scenario = scenario
+        PlayerId = playerId
+        GameTime = gameTime
+        KeybindingConfig = keybindingConfig
+        State = state
+        InputMode = inputMode
+      }
 
-      virtualInputState
-      |> ValueOption.iter(fun vinput ->
-        // Joystick movement
-        match VirtualInputSystem.getJoystickDirection vinput with
-        | ValueSome direction ->
-          let playerComp = scenario.entities[playerId]
-          let velocity = direction * playerComp.Movement.Speed
-          let elapsed = float32 gameTime.ElapsedGameTime.TotalSeconds
-
-          let moveCmd =
-            Rules.AdvancePosition {
-              actor = playerId
-              velocity = { X = velocity.X; Y = velocity.Y }
-              elapsed = elapsed
-            }
-
-          commandList.Add moveCmd
-        | ValueNone -> ()
-
-        // Virtual buttons
-        let prevButtons =
-          prevVirtualInputState
-          |> ValueOption.map(fun pvs -> pvs.Buttons)
-          |> ValueOption.defaultValue Array.empty
-
-        for i in 0 .. vinput.Buttons.Length - 1 do
-          let button = vinput.Buttons[i]
-
-          let prevButton =
-            prevButtons |> Array.tryFind(fun pb -> pb.Action = button.Action)
-
-          let wasPressed =
-            prevButton
-            |> Option.map(fun pb -> pb.IsPressed)
-            |> Option.defaultValue false
-
-          if button.IsPressed && not wasPressed then
-            let kbResult =
-              KeybindingSystem.processSlotAction
-                button.Action
-                keybindingConfig
-                state
-                playerId
-
-            match kbResult with
-            | KeybindingSystem.EnterAbilityTargeting(abilityId, targetingMode) ->
-              inputMode <- AbilityTargeting(abilityId, targetingMode)
-            // For now, assuming quick slots generate commands via the main input handler below
-            | _ -> ())
-
+      let virtualInputResult = VirtualInputSystem.processInput virtualInputCtx
+      commandList.AddRange virtualInputResult.Commands
+      inputMode <- virtualInputResult.NewInputMode
       prevVirtualInputState <- virtualInputState
+      virtualInputState <- virtualInputResult.NewVirtualInputState
 
       // Keyboard/Mouse Input processing (generates commands or updates local UI state)
-      match actionInputManager with
-      | PressedActions actions ->
-        for action in actions do
-          match action with
-          | ToggleCharacterSheet ->
-            uiState <- UISystem.togglePanel UISystem.CharacterSheet uiState
-          | ToggleAbilities ->
-            uiState <- UISystem.togglePanel UISystem.AbilityList uiState
-          | ToggleInventory ->
-            uiState <- UISystem.togglePanel UISystem.EquipmentView uiState
-          | DebugAction4 -> showPathfindingGrid <- not showPathfindingGrid
-          | DebugAction5 ->
-            let replenishCmd =
-              Rules.ReplenishResources [|
-                {
-                  Actor = playerId
-                  ResourceType = ResourceType.MP
-                  Amount = 1000
-                }
-              |]
+      let inputCtx = {
+        ActionInputManager = actionInputManager
+        KeybindingConfig = keybindingConfig
+        GameState = state
+        PlayerId = playerId
+        Scenario = scenario
+        MouseWorldPos = mouseWorldPos
+        TouchState = touchState
+        View = view
+        InputMode = inputMode
+        UiState = uiState
+        ShowPathfindingGrid = showPathfindingGrid
+      }
 
-            commandList.Add replenishCmd
-          | SwitchToActionSet1 ->
-            keybindingConfig <-
-              KeybindingSystem.setActiveSet
-                KeybindingSystem.Set1
-                keybindingConfig
-          | SwitchToActionSet2 ->
-            keybindingConfig <-
-              KeybindingSystem.setActiveSet
-                KeybindingSystem.Set2
-                keybindingConfig
-          | SwitchToActionSet3 ->
-            keybindingConfig <-
-              KeybindingSystem.setActiveSet
-                KeybindingSystem.Set3
-                keybindingConfig
-          | SwitchToActionSet4 ->
-            keybindingConfig <-
-              KeybindingSystem.setActiveSet
-                KeybindingSystem.Set4
-                keybindingConfig
-          | SwitchToActionSet5 ->
-            keybindingConfig <-
-              KeybindingSystem.setActiveSet
-                KeybindingSystem.Set5
-                keybindingConfig
-          | UseQuickSlot1
-          | UseQuickSlot2
-          | UseQuickSlot3
-          | UseQuickSlot4
-          | UseQuickSlot5
-          | UseQuickSlot6
-          | UseQuickSlot7
-          | UseQuickSlot8 ->
-            let keybindingResult =
-              KeybindingSystem.processSlotAction
-                action
-                keybindingConfig
-                state
-                playerId
-
-            match keybindingResult with
-            | KeybindingSystem.EnterAbilityTargeting(abilityId, targetingMode) ->
-              inputMode <- AbilityTargeting(abilityId, targetingMode)
-            | _ -> ()
-          | PrimaryAction ->
-            let mutable pointerWorldPos = mouseWorldPos
-
-            if Platform.IsMobile() && touchState.Count > 0 then
-              let touchPos = touchState[0].Position
-              pointerWorldPos <- CameraSystem.screenToWorld touchPos view
-
-            let entities = scenario.entities |> AMap.force |> HashMap.toArrayV
-
-            let inline radiusOfStage s =
-              match s with
-              | First -> 12f
-              | Second -> 16f
-              | Third -> 20f
-
-            let mutable found: Guid<EntityId> voption = ValueNone
-
-            for struct (id, comp) in entities do
-              let dx = pointerWorldPos.X - comp.Position.X
-              let dy = pointerWorldPos.Y - comp.Position.Y
-              let r = radiusOfStage comp.Identity.Stage
-              let dist2 = dx * dx + dy * dy
-
-              if dist2 <= r * r then
-                found <- ValueSome id
-
-            match inputMode with
-            | Normal -> ()
-            | AbilityTargeting(abilityId, EntityTargeting) ->
-              match found with
-              | ValueSome targetId ->
-                let cmd =
-                  Rules.Command.UseAbility {
-                    actor = playerId
-                    abilityId = abilityId
-                    target = Rules.AbilityTarget.EntityTargets [| targetId |]
-                  }
-
-                commandList.Add cmd
-                Debug.WriteLine $"[Ability] Queued {abilityId} on {targetId}"
-              | _ -> Debug.WriteLine "[Ability] No target selected."
-
-              inputMode <- Normal
-            | AbilityTargeting(abilityId, GroundTargeting _) ->
-              let targetPos = {
-                X = pointerWorldPos.X
-                Y = pointerWorldPos.Y
-              }
-
-              let cmd =
-                Rules.Command.UseAbility {
-                  actor = playerId
-                  abilityId = abilityId
-                  target = Rules.AbilityTarget.PositionTarget targetPos
-                }
-
-              commandList.Add cmd
-
-              Debug.WriteLine
-                $"[Ability] Queued {abilityId} at position ({targetPos.X}, {targetPos.Y})"
-
-              inputMode <- Normal
-          | SecondaryAction ->
-            if inputMode <> Normal then
-              inputMode <- Normal
-            else
-              let mutable pointerWorldPos = mouseWorldPos
-
-              if Platform.IsMobile() && touchState.Count > 0 then
-                let touchPos = touchState[0].Position
-                pointerWorldPos <- CameraSystem.screenToWorld touchPos view
-
-              let moveCmd =
-                Rules.Navigate {
-                  actor = playerId
-                  destination = {
-                    X = pointerWorldPos.X
-                    Y = pointerWorldPos.Y
-                  }
-                }
-
-              commandList.Add moveCmd
-          | _ -> ()
+      let inputResult = GameInput.processInputs inputCtx
+      commandList.AddRange inputResult.Commands
+      uiState <- inputResult.NewUiState
+      showPathfindingGrid <- inputResult.ShowPathfindingGrid
+      keybindingConfig <- inputResult.NewKeybindingConfig
+      inputMode <- inputResult.NewInputMode
 
       // PHASE 3: COMMAND EXECUTION
       // All commands from AI and Player are executed here sequentially.
@@ -454,36 +288,11 @@ type PomoGame() as this =
 
       // Update path preview if the player navigated
       if playerNavigated then
-        let playerComp = finalScenario.entities[playerId]
+        let struct (newPath, newPreview) =
+          PathPreview.updatePlayerPathPreview finalScenario playerId
 
-        let entityRadius =
-          match playerComp.Identity.Stage with
-          | First -> 12f
-          | Second -> 16f
-          | Third -> 20f
-
-        match playerComp.Movement.Path with
-        | [] ->
-          currentPath <- Array.empty
-          pathPreview <- Array.empty
-        | waypoints ->
-          let fullPath =
-            Array.concat [|
-              [| playerComp.Position |]
-              waypoints |> List.toArray
-            |]
-
-          let preview =
-            PathPreview.generatePreview
-              finalScenario.scenario
-              fullPath
-              entityRadius
-
-          Debug.WriteLine
-            $"[Pathfinding] Preview generated for {fullPath.Length} points"
-
-          currentPath <- fullPath
-          pathPreview <- preview
+        currentPath <- newPath
+        pathPreview <- newPreview
 
       // Update scenario transitions
       GameUpdateSystem.checkScenarioTransitions finalScenario

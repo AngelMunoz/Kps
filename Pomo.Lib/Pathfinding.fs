@@ -1,6 +1,7 @@
 namespace Pomo.Lib.Pathfinding
 
 open System
+open System.Diagnostics
 open FSharp.UMX
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
@@ -272,3 +273,28 @@ module PathPreview =
           IsValid = isValid
           TerrainType = terrainType
         })
+
+  let updatePlayerPathPreview
+    (scenario: ScenarioState)
+    (playerId: Guid<EntityId>)
+    =
+    let playerComp = scenario.entities[playerId]
+
+    let entityRadius =
+      match playerComp.Identity.Stage with
+      | First -> 12f
+      | Second -> 16f
+      | Third -> 20f
+
+    match playerComp.Movement.Path with
+    | [] -> struct (Array.empty, Array.empty) // returns (currentPath, pathPreview)
+    | waypoints ->
+      let fullPath =
+        Array.concat [| [| playerComp.Position |]; waypoints |> List.toArray |]
+
+      let preview = generatePreview scenario.scenario fullPath entityRadius
+
+      Debug.WriteLine
+        $"[Pathfinding] Preview generated for {fullPath.Length} points"
+
+      struct (fullPath, preview)
