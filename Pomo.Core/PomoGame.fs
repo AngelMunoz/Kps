@@ -404,7 +404,15 @@ type PomoGame() as this =
         hudOpt
         |> ValueOption.iter(fun font ->
           let uiScale = if Platform.IsMobile() then 2.0f else 1.0f
-          VirtualInputSystem.draw spriteBatch pixel font vinput uiScale)
+
+          VirtualInputSystem.draw
+            spriteBatch
+            pixel
+            font
+            vinput
+            uiScale
+            inputMode
+            keybindingConfig)
 
         spriteBatch.End())
     | _ -> ()

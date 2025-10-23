@@ -159,13 +159,16 @@ module VirtualInputSystem =
     (font: SpriteFont)
     (state: VirtualInputState)
     (scale: float32)
+    (inputMode: InputManager.InputMode)
+    (keybindingConfig: KeybindingSystem.KeybindingConfig)
     =
     let joystickColor = Color(128, 128, 128, 150)
     let thumbColor = Color(200, 200, 200, 200)
     let buttonColor = Color(80, 80, 80, 180)
     let buttonPressedColor = Color(120, 120, 120, 220)
+    let buttonTargetingColor = Color(200, 160, 0, 220)
     let textColor = Color.White
-
+    // Draw joystick
     let rect =
       Rectangle(
         int(state.Joystick.Center.X - state.Joystick.Radius),
@@ -188,22 +191,28 @@ module VirtualInputSystem =
 
     sb.Draw(pixel, thumbRect, thumbColor)
 
+    // Draw buttons
     for button in state.Buttons do
-      let color = if button.IsPressed then buttonPressedColor else buttonColor
+      let mutable color =
+        if button.IsPressed then
+          buttonPressedColor
+        else
+          buttonColor
+
+      match inputMode with
+      | InputManager.InputMode.AbilityTargeting(abilityId, _) ->
+        let slotAction =
+          KeybindingSystem.getSlotAction button.Action keybindingConfig
+
+        match slotAction with
+        | KeybindingSystem.ActivateAbility aId when aId = abilityId ->
+          color <- buttonTargetingColor
+        | _ -> ()
+      | _ -> ()
+
 
       sb.Draw(pixel, button.Bounds, color)
       let label = $"{button.Action}"
       let labelSize = font.MeasureString(label) * scale
       let labelPos = button.Bounds.Center.ToVector2() - labelSize * 0.5f
-
-      sb.DrawString(
-        font,
-        label,
-        labelPos,
-        textColor,
-        0f,
-        Vector2.Zero,
-        scale,
-        SpriteEffects.None,
-        0f
-      )
+      sb.DrawString(font, label, labelPos, textColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f)

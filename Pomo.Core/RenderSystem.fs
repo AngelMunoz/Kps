@@ -482,11 +482,20 @@ module RenderSystem =
           sb.Draw(mediumCircle, Vector2(x, y), indicatorColor)
     | InputManager.InputMode.AbilityTargeting(_,
                                               InputManager.TargetingMode.GroundTargeting radius) ->
-      let diameter = int(radius * 2f)
-      let x = int(mouseWorldPos.X - radius)
-      let y = int(mouseWorldPos.Y - radius)
-      let indicatorColor = Color(255, 165, 0, 80)
-      sb.Draw(pixel, Rectangle(x, y, diameter, diameter), indicatorColor)
+      if not (Platform.IsMobile()) then
+        let indicatorColor = Color(255, 165, 0, 80)
+        if not (isNull mediumCircle) then
+          let w = radius * 2f
+          let h = radius * 2f
+          let x = mouseWorldPos.X - w * 0.5f
+          let y = mouseWorldPos.Y - h * 0.5f
+          let dest = Rectangle(int x, int y, int w, int h)
+          sb.Draw(mediumCircle, dest, indicatorColor)
+        else
+          let diameter = int(radius * 2f)
+          let x = int(mouseWorldPos.X - radius)
+          let y = int(mouseWorldPos.Y - radius)
+          sb.Draw(pixel, Rectangle(x, y, diameter, diameter), indicatorColor)
     | _ -> ()
 
   let drawWorld sb pixel (ctx: WorldContext) =
