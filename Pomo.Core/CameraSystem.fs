@@ -54,3 +54,7 @@ module CameraSystem =
     Matrix.CreateTranslation(-state.Position.X, -state.Position.Y, 0f)
     * Matrix.CreateScale(state.Zoom)
     * Matrix.CreateTranslation(halfW, halfH, 0f)
+
+  let screenToWorld (screenPos: Vector2) (viewMatrix: Matrix) =
+    let invertedView = Matrix.Invert(viewMatrix)
+    Vector2.Transform(screenPos, invertedView)

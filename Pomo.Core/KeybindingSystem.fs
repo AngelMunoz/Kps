@@ -1,24 +1,19 @@
 namespace Pomo.Core
 
+open System.Diagnostics
 open Microsoft.Xna.Framework.Input
 open FSharp.UMX
 open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
+open Pomo.Lib.Rules
+open Pomo.Lib.Operations
+open Pomo.Lib.Scenario
+open Pomo.Lib.Gameplay
 
 module KeybindingSystem =
-  open InputManager
+  open Pomo.Lib.Domain.State
 
-  [<Struct>]
-  type QuickSlot =
-    | Q
-    | W
-    | E
-    | R
-    | A
-    | S
-    | D
-    | F
-
+  // --- EXISTING TYPES ---
   [<Struct>]
   type ActionSet =
     | Set1
@@ -34,19 +29,26 @@ module KeybindingSystem =
     | Empty
 
   type KeybindingConfig = {
-    Bindings: HashMap<struct (ActionSet * QuickSlot), SlotAction>
+    Bindings: HashMap<struct (ActionSet * GameAction), SlotAction>
     ActiveSet: ActionSet
   }
 
+  type KeybindingResult =
+    | NoAction
+    | EnterAbilityTargeting of int<AbilityId> * TargetingMode
+    | ExecuteSelfAbility of int<AbilityId>
+    | UseItemAction of int<Inventory.ItemId>
+
+  // --- FUNCTIONS ---
   let createDefault() = {
     Bindings =
       HashMap.ofList [
-        struct (Set1, Q), ActivateAbility 103<AbilityId>
-        struct (Set1, W), Empty
-        struct (Set1, E), Empty
-        struct (Set1, R), Empty
-        struct (Set2, Q), ActivateAbility 104<AbilityId>
-        struct (Set2, W), ActivateAbility 103<AbilityId>
+        struct (Set1, GameAction.UseQuickSlot1), ActivateAbility 103<AbilityId>
+        struct (Set1, GameAction.UseQuickSlot2), Empty
+        struct (Set1, GameAction.UseQuickSlot3), Empty
+        struct (Set1, GameAction.UseQuickSlot4), Empty
+        struct (Set2, GameAction.UseQuickSlot1), ActivateAbility 104<AbilityId>
+        struct (Set2, GameAction.UseQuickSlot2), ActivateAbility 103<AbilityId>
       ]
     ActiveSet = Set1
   }
@@ -56,21 +58,10 @@ module KeybindingSystem =
         ActiveSet = set
   }
 
-  let getSlotAction (slot: QuickSlot) (config: KeybindingConfig) =
+  let getSlotAction (action: GameAction) (config: KeybindingConfig) =
     config.Bindings
-    |> HashMap.tryFindV struct (config.ActiveSet, slot)
+    |> HashMap.tryFindV struct (config.ActiveSet, action)
     |> ValueOption.defaultValue Empty
-
-  let slotToKey =
-    function
-    | Q -> Keys.Q
-    | W -> Keys.W
-    | E -> Keys.E
-    | R -> Keys.R
-    | A -> Keys.A
-    | S -> Keys.S
-    | D -> Keys.D
-    | F -> Keys.F
 
   let setToKey =
     function
@@ -80,14 +71,7 @@ module KeybindingSystem =
     | Set4 -> Keys.D4
     | Set5 -> Keys.D5
 
-  let allSlots = [| Q; W; E; R; A; S; D; F |]
   let allSets = [| Set1; Set2; Set3; Set4; Set5 |]
-
-  type KeybindingResult =
-    | NoAction
-    | EnterAbilityTargeting of int<AbilityId> * InputManager.TargetingMode
-    | ExecuteSelfAbility of int<AbilityId>
-    | UseItemAction of int<Inventory.ItemId>
 
   let getAbilityTargetingMode
     (abilityStore: Services.IAbilityStore)
@@ -104,5 +88,51 @@ module KeybindingSystem =
         | Abilities.GroundTarget radius -> ValueSome(GroundTargeting radius)
         | Abilities.Self -> ValueNone
         | Abilities.MultiTarget _ -> ValueNone
-
       | Abilities.Passive _ -> ValueNone
+
+  let processSlotAction
+    (gameAction: GameAction)
+    (config: KeybindingConfig)
+    (state: GameState)
+    (playerId: Guid<EntityId>)
+    =
+    let action = getSlotAction gameAction config
+    let mutable result = NoAction
+
+    match action with
+    | ActivateAbility abilityId ->
+      match getAbilityTargetingMode state.services.abilityStore abilityId with
+      | ValueSome targetingMode ->
+        result <- EnterAbilityTargeting(abilityId, targetingMode)
+
+        Debug.WriteLine(
+          $"[Keybinding] Slot {gameAction} entering targeting for ability {abilityId}"
+        )
+      | ValueNone ->
+        result <- ExecuteSelfAbility abilityId
+
+        Debug.WriteLine(
+          $"[Keybinding] Slot {gameAction} executing self ability {abilityId}"
+        )
+    | UseItem itemId ->
+      result <- UseItemAction itemId
+      Debug.WriteLine($"[Keybinding] Slot {gameAction} used item {itemId}")
+    | Empty -> ()
+
+    // Automatically handle the execution of self-cast abilities
+    match result with
+    | ExecuteSelfAbility abilityId ->
+      let scenario = Scenario.ActiveScenario state |> AVal.force
+
+      let stateChange =
+        GameState.activateAbility playerId abilityId [| playerId |] state
+        |> AVal.force
+
+      AudioSystem.processAudioChanges
+        state.services.audioStore
+        scenario
+        stateChange.audioChanges
+
+      GameState.apply state stateChange
+      NoAction // Reset result after execution
+    | _ -> result

@@ -1,196 +1,274 @@
 namespace Pomo.Core
 
 open System
+open FSharp.Data.Adaptive
 open Microsoft.Xna.Framework
 open Microsoft.Xna.Framework.Input
 open Pomo.Lib.Domain
 
-module InputManager =
-  [<Struct>]
-  type PointerInput = {
-    Position: Vector2
-    IsPressed: bool
+[<Struct>]
+type TargetingMode =
+  | EntityTargeting
+  | GroundTargeting of radius: float32
+
+[<Struct>]
+type InputMode =
+  | Normal
+  | AbilityTargeting of abilityId: int<AbilityId> * mode: TargetingMode
+
+[<Struct>]
+type GameAction =
+  | PrimaryAction
+  | SecondaryAction
+  | Move
+  | View
+  | UseQuickSlot1
+  | UseQuickSlot2
+  | UseQuickSlot3
+  | UseQuickSlot4
+  | UseQuickSlot5
+  | UseQuickSlot6
+  | UseQuickSlot7
+  | UseQuickSlot8
+  | SwitchToActionSet1
+  | SwitchToActionSet2
+  | SwitchToActionSet3
+  | SwitchToActionSet4
+  | SwitchToActionSet5
+  | ToggleInventory
+  | ToggleCharacterSheet
+  | ToggleAbilities
+  | ToggleJournal
+  | Cancel
+  | DebugAction1
+  | DebugAction2
+  | DebugAction3
+  | DebugAction4
+  | DebugAction5
+  | DebugAction6
+  | DebugAction7
+  | DebugAction8
+
+[<Struct>]
+type MouseButton =
+  | Left
+  | Right
+  | Middle
+
+[<Struct>]
+type Side =
+  | Left
+  | Right
+
+[<Struct>]
+type RawInput =
+  | Key of key: Keys
+  | MouseButton of mouseBtn: MouseButton
+  | GamePadButton of btn: Buttons
+  | GamePadTrigger of PlayerIndex * side: Side
+  | GamePadThumbStick of PlayerIndex * side: Side
+
+
+[<Struct>]
+type ActionState =
+  | JustPressed
+  | Held
+  | JustReleased
+  | Analog of Vector2
+
+type InputMap = HashMap<RawInput, GameAction>
+
+module ActionInputManager =
+
+  type State = {
+    mutable ActionStates: HashMap<GameAction, ActionState>
+    PrevKeyboardState: KeyboardState
+    PrevMouseState: MouseState
+    PrevGamePadState: GamePadState
   }
 
-  [<Struct>]
-  type TargetingMode =
-    | EntityTargeting
-    | GroundTargeting of radius: float32
-
-  [<Struct>]
-  type InputMode =
-    | Normal
-    | AbilityTargeting of abilityId: int<AbilityId> * mode: TargetingMode
-
-  type PlayerInputState = {
-    MoveDirection: Vector2
-    Velocity: Vector2
-    IsAccelerating: bool
-    TimeSinceLastInput: float32
-  }
-
-  type ClickThrottleState = { mutable ThrottleTimer: TimeSpan }
-
-  type InputState = {
-    PrevMouseDown: bool
-    PrevRightMouseDown: bool
-    PrevKey1Down: bool
-    PrevKey2Down: bool
-    PrevKey3Down: bool
-    PrevKey4Down: bool
-    PrevKey5Down: bool
-    PrevKeyVDown: bool
-    PrevKeyEDown: bool
-    PrevKeyADown: bool
-    PrevKeyRDown: bool
-    PrevKeyQDown: bool
-    PrevKeyWDown: bool
-    PrevKeyEKeyDown: bool
-    PrevKeyRKeyDown: bool
-    PrevKeyAKeyDown: bool
-    PrevKeySDown: bool
-    PrevKeyDDown: bool
-    PrevKeyFDown: bool
-    PrevButtonQDown: bool
-    PrevButtonWDown: bool
-    PrevButtonEDown: bool
-    PrevButtonRDown: bool
-  }
-
-  let createInputState() = {
-    PrevMouseDown = false
-    PrevRightMouseDown = false
-    PrevKey1Down = false
-    PrevKey2Down = false
-    PrevKey3Down = false
-    PrevKey4Down = false
-    PrevKey5Down = false
-    PrevKeyVDown = false
-    PrevKeyEDown = false
-    PrevKeyADown = false
-    PrevKeyRDown = false
-    PrevKeyQDown = false
-    PrevKeyWDown = false
-    PrevKeyEKeyDown = false
-    PrevKeyRKeyDown = false
-    PrevKeyAKeyDown = false
-    PrevKeySDown = false
-    PrevKeyDDown = false
-    PrevKeyFDown = false
-    PrevButtonQDown = false
-    PrevButtonWDown = false
-    PrevButtonEDown = false
-    PrevButtonRDown = false
-  }
-
-  let createInitialState() = {
-    MoveDirection = Vector2.Zero
-    Velocity = Vector2.Zero
-    IsAccelerating = false
-    TimeSinceLastInput = 0.0f
-  }
-
-  let createThrottleState() = { ThrottleTimer = TimeSpan.Zero }
-
-  let updateThrottle (state: ClickThrottleState) (elapsed: TimeSpan) =
-    if state.ThrottleTimer > TimeSpan.Zero then
-      state.ThrottleTimer <- state.ThrottleTimer - elapsed
-
-      if state.ThrottleTimer < TimeSpan.Zero then
-        state.ThrottleTimer <- TimeSpan.Zero
-
-  let tryThrottleClick (state: ClickThrottleState) (clickPos: Vector2 voption) =
-    match clickPos with
-    | ValueSome pos when state.ThrottleTimer = TimeSpan.Zero ->
-      state.ThrottleTimer <- TimeSpan.FromMilliseconds(300.0)
-      ValueSome pos
-    | _ -> ValueNone
-
-  let updateMovement
-    (state: PlayerInputState)
-    (keyboard: KeyboardState)
-    (gameTime: GameTime)
-    (maxSpeed: float32)
+  let create
+    (keyboard: KeyboardState, mouse: MouseState, gamePad: GamePadState)
     =
-    let mutable moveDirection = Vector2.Zero
+    {
+      ActionStates = HashMap.empty
+      PrevKeyboardState = keyboard
+      PrevMouseState = mouse
+      PrevGamePadState = gamePad
+    }
 
-    if keyboard.IsKeyDown(Keys.Up) then
-      moveDirection.Y <- moveDirection.Y - 1.0f
+  let private updateActionStates
+    (currentStates: HashMap<GameAction, ActionState>)
+    =
+    let newStates = HashMap.empty
 
-    if keyboard.IsKeyDown(Keys.Down) then
-      moveDirection.Y <- moveDirection.Y + 1.0f
+    currentStates
+    |> HashMap.fold
+      (fun (acc: HashMap<_, _>) key value ->
+        match value with
+        | JustPressed -> acc.Add(key, Held)
+        | Held -> acc.Add(key, Held)
+        | Analog v -> acc.Add(key, Analog v)
+        | JustReleased -> acc)
+      newStates
 
-    if keyboard.IsKeyDown(Keys.Left) then
-      moveDirection.X <- moveDirection.X - 1.0f
+  let private isKeyJustPressed
+    (prev: KeyboardState)
+    (curr: KeyboardState)
+    (key: Keys)
+    =
+    curr.IsKeyDown(key) && prev.IsKeyUp(key)
 
-    if keyboard.IsKeyDown(Keys.Right) then
-      moveDirection.X <- moveDirection.X + 1.0f
+  let private isKeyJustReleased
+    (prev: KeyboardState)
+    (curr: KeyboardState)
+    (key: Keys)
+    =
+    curr.IsKeyUp(key) && prev.IsKeyDown(key)
 
-    let isAccelerating = moveDirection.LengthSquared() > 0.0f
-    let deltaTime = float32 gameTime.ElapsedGameTime.TotalSeconds
+  let private isMouseButtonJustPressed
+    (prev: MouseState)
+    (curr: MouseState)
+    (btn: MouseButton)
+    =
+    match btn with
+    | MouseButton.Left ->
+      curr.LeftButton = ButtonState.Pressed
+      && prev.LeftButton = ButtonState.Released
+    | MouseButton.Right ->
+      curr.RightButton = ButtonState.Pressed
+      && prev.RightButton = ButtonState.Released
+    | MouseButton.Middle ->
+      curr.MiddleButton = ButtonState.Pressed
+      && prev.MiddleButton = ButtonState.Released
 
-    let newState =
-      if isAccelerating then
-        moveDirection.Normalize()
+  let private isMouseButtonJustReleased
+    (prev: MouseState)
+    (curr: MouseState)
+    (btn: MouseButton)
+    =
+    match btn with
+    | MouseButton.Left ->
+      curr.LeftButton = ButtonState.Released
+      && prev.LeftButton = ButtonState.Pressed
+    | MouseButton.Right ->
+      curr.RightButton = ButtonState.Released
+      && prev.RightButton = ButtonState.Pressed
+    | MouseButton.Middle ->
+      curr.MiddleButton = ButtonState.Released
+      && prev.MiddleButton = ButtonState.Pressed
 
-        {
-          state with
-              MoveDirection = moveDirection
-              IsAccelerating = true
-              TimeSinceLastInput = 0.0f
-        }
-      else
-        {
-          state with
-              IsAccelerating = false
-              TimeSinceLastInput = state.TimeSinceLastInput + deltaTime
-        }
+  let private isMouseButtonDown (curr: MouseState) (btn: MouseButton) =
+    match btn with
+    | MouseButton.Left -> curr.LeftButton = ButtonState.Pressed
+    | MouseButton.Right -> curr.RightButton = ButtonState.Pressed
+    | MouseButton.Middle -> curr.MiddleButton = ButtonState.Pressed
 
-    // Acceleration and Deceleration logic
-    let mutable velocity = state.Velocity
-    let acceleration = maxSpeed * 1.5f
-    let deceleration = maxSpeed * 2.0f
+  let update
+    (inputMap: InputMap)
+    (state: State)
+    (keyboard: KeyboardState, mouse: MouseState, gamePad: GamePadState)
+    =
+    let mutable newStates = updateActionStates state.ActionStates
 
-    if newState.IsAccelerating then
-      velocity <- velocity + newState.MoveDirection * acceleration * deltaTime
+    for rawInput, gameAction in inputMap do
 
-      if velocity.LengthSquared() > maxSpeed * maxSpeed then
-        velocity.Normalize()
-        velocity <- velocity * maxSpeed
-    else if velocity.LengthSquared() > 0.0f then
-      let mutable decel = deceleration
-      // Faster deceleration for quick taps
-      if state.TimeSinceLastInput < 0.1f then
-        decel <- decel * 3.0f
+      let isDown, isJustPressed, isJustReleased =
+        match rawInput with
+        | Key k ->
+          keyboard.IsKeyDown(k),
+          isKeyJustPressed state.PrevKeyboardState keyboard k,
+          isKeyJustReleased state.PrevKeyboardState keyboard k
+        | MouseButton mb ->
+          isMouseButtonDown mouse mb,
+          isMouseButtonJustPressed state.PrevMouseState mouse mb,
+          isMouseButtonJustReleased state.PrevMouseState mouse mb
+        | GamePadButton b ->
+          gamePad.IsButtonDown(b),
+          gamePad.IsButtonDown(b) && state.PrevGamePadState.IsButtonUp(b),
+          gamePad.IsButtonUp(b) && state.PrevGamePadState.IsButtonDown(b)
+        | _ -> false, false, false
 
-      let currentSpeed = velocity.Length()
-      let newSpeed = max 0.0f (currentSpeed - decel * deltaTime)
+      if isJustPressed then
+        newStates <- newStates |> HashMap.add gameAction JustPressed
+      elif isJustReleased then
+        if newStates |> HashMap.containsKey gameAction |> not then
+          newStates <- newStates |> HashMap.add gameAction JustReleased
+        else
+          ()
+      elif isDown then
+        if newStates |> HashMap.containsKey gameAction |> not then
+          newStates <- newStates |> HashMap.add gameAction Held
 
-      if newSpeed > 0.0f then
-        velocity.Normalize()
-        velocity <- velocity * newSpeed
-      else
-        velocity <- Vector2.Zero
+    let leftStick = gamePad.ThumbSticks.Left
 
-    { newState with Velocity = velocity }
+    if leftStick.LengthSquared() > 0.01f then
+      newStates <- newStates |> HashMap.add GameAction.Move (Analog leftStick)
 
-  let inline screenToWorld (screenPos: Vector2) (view: Matrix) =
-    Vector2.Transform(screenPos, Matrix.Invert view)
+    let rightStick = gamePad.ThumbSticks.Right
 
-  let inline isLeftClickPressed() =
-    Mouse.GetState().LeftButton = ButtonState.Pressed
+    if rightStick.LengthSquared() > 0.01f then
+      newStates <- newStates |> HashMap.add GameAction.View (Analog rightStick)
 
-  let inline isRightClickPressed() =
-    Mouse.GetState().RightButton = ButtonState.Pressed
+    state.ActionStates <- newStates
 
-  let inline isLeftClickReleased() =
-    Mouse.GetState().LeftButton = ButtonState.Released
+    {
+      state with
+          PrevKeyboardState = keyboard
+          PrevMouseState = mouse
+          PrevGamePadState = gamePad
+    }
 
-  let inline isRightClickReleased() =
-    Mouse.GetState().RightButton = ButtonState.Released
+  let inline getActionState (action: GameAction) (state: State) =
+    state.ActionStates |> HashMap.tryFindV(action)
 
-  let inline getMousePosition() =
-    let ms = Mouse.GetState()
-    Vector2(float32 ms.X, float32 ms.Y)
+  let isActionPressed (action: GameAction) (state: State) =
+    match getActionState action state with
+    | ValueSome JustPressed -> true
+    | _ -> false
 
-  let inline isKeyPressed(key: Keys) = Keyboard.GetState() |> _.IsKeyDown(key)
+  let isActionHeld (action: GameAction) (state: State) =
+    match getActionState action state with
+    | ValueSome JustPressed
+    | ValueSome Held -> true
+    | _ -> false
+
+  let isActionReleased (action: GameAction) (state: State) =
+    match getActionState action state with
+    | ValueSome JustReleased -> true
+    | _ -> false
+
+  let getActionAnalog (action: GameAction) (state: State) =
+    match getActionState action state with
+    | ValueSome(Analog v) -> Some v
+    | _ -> None
+
+  let createDefaultMap() =
+    HashMap.ofList [
+      MouseButton MouseButton.Left, PrimaryAction
+      MouseButton MouseButton.Right, SecondaryAction
+
+      Key Keys.Q, UseQuickSlot1
+      Key Keys.W, UseQuickSlot2
+      Key Keys.E, UseQuickSlot3
+      Key Keys.R, UseQuickSlot4
+      Key Keys.A, UseQuickSlot5
+      Key Keys.S, UseQuickSlot6
+      Key Keys.D, UseQuickSlot7
+      Key Keys.F, UseQuickSlot8
+      Key Keys.D1, SwitchToActionSet1
+      Key Keys.D2, SwitchToActionSet2
+      Key Keys.D3, SwitchToActionSet3
+      Key Keys.D4, SwitchToActionSet4
+      Key Keys.D5, SwitchToActionSet5
+      Key Keys.Z, ToggleInventory
+      Key Keys.X, ToggleCharacterSheet
+      Key Keys.C, ToggleAbilities
+      Key Keys.V, ToggleJournal
+      Key Keys.Escape, Cancel
+      Key Keys.F1, DebugAction1
+      Key Keys.F2, DebugAction2
+      Key Keys.F3, DebugAction3
+      Key Keys.F4, DebugAction4
+      Key Keys.F5, DebugAction5
+    ]

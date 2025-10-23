@@ -56,7 +56,7 @@ module RenderSystem =
 
   [<Struct>]
   type InputContext = {
-    InputMode: InputManager.InputMode
+    InputMode: InputMode
     MouseWorldPos: Vector2
   }
 
@@ -446,13 +446,12 @@ module RenderSystem =
   let private drawTargetingIndicator
     (sb: SpriteBatch)
     (pixel: Texture2D)
-    (inputMode: InputManager.InputMode)
+    (inputMode: InputMode)
     (mouseWorldPos: Vector2)
     (entityCtx: EntityContext)
     =
     match inputMode with
-    | InputManager.InputMode.AbilityTargeting(_,
-                                              InputManager.TargetingMode.EntityTargeting) ->
+    | InputMode.AbilityTargeting(_, TargetingMode.EntityTargeting) ->
       if Platform.IsMobile() then
         // On mobile, highlight all valid targets
         for struct (id, comp) in entityCtx.Entities do
@@ -480,11 +479,11 @@ module RenderSystem =
 
         if not(isNull mediumCircle) then
           sb.Draw(mediumCircle, Vector2(x, y), indicatorColor)
-    | InputManager.InputMode.AbilityTargeting(_,
-                                              InputManager.TargetingMode.GroundTargeting radius) ->
-      if not (Platform.IsMobile()) then
+    | InputMode.AbilityTargeting(_, TargetingMode.GroundTargeting radius) ->
+      if not(Platform.IsMobile()) then
         let indicatorColor = Color(255, 165, 0, 80)
-        if not (isNull mediumCircle) then
+
+        if not(isNull mediumCircle) then
           let w = radius * 2f
           let h = radius * 2f
           let x = mouseWorldPos.X - w * 0.5f

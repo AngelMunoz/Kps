@@ -21,7 +21,7 @@ module VirtualInputSystem =
   type VirtualButton = {
     Bounds: Rectangle
     IsPressed: bool
-    Action: KeybindingSystem.QuickSlot
+    Action: GameAction
   }
 
   type VirtualInputState = {
@@ -54,19 +54,19 @@ module VirtualInputSystem =
 
     let buttons =
       [|
-        KeybindingSystem.Q, 0
-        KeybindingSystem.W, 1
-        KeybindingSystem.E, 2
-        KeybindingSystem.R, 3
+        GameAction.UseQuickSlot1, 0
+        GameAction.UseQuickSlot2, 1
+        GameAction.UseQuickSlot3, 2
+        GameAction.UseQuickSlot4, 3
       |]
-      |> Array.map(fun (slot, index) ->
+      |> Array.map(fun (action, index) ->
         let x = screenWidth - (buttonSize + buttonPadding) * (index + 1)
         let y = screenHeight - (buttonSize + buttonPadding)
 
         {
           Bounds = Rectangle(x, y, buttonSize, buttonSize)
           IsPressed = false
-          Action = slot
+          Action = action
         })
 
     {
@@ -153,13 +153,21 @@ module VirtualInputSystem =
     |> Array.filter(fun b -> b.IsPressed)
     |> Array.map(fun b -> b.Action)
 
+  let private gameActionToLabel (action: GameAction) =
+      match action with
+      | GameAction.UseQuickSlot1 -> "Q"
+      | GameAction.UseQuickSlot2 -> "W"
+      | GameAction.UseQuickSlot3 -> "E"
+      | GameAction.UseQuickSlot4 -> "R"
+      | _ -> ""
+
   let draw
     (sb: SpriteBatch)
     (pixel: Texture2D)
     (font: SpriteFont)
     (state: VirtualInputState)
     (scale: float32)
-    (inputMode: InputManager.InputMode)
+    (inputMode: InputMode)
     (keybindingConfig: KeybindingSystem.KeybindingConfig)
     =
     let joystickColor = Color(128, 128, 128, 150)
@@ -200,7 +208,7 @@ module VirtualInputSystem =
           buttonColor
 
       match inputMode with
-      | InputManager.InputMode.AbilityTargeting(abilityId, _) ->
+      | InputMode.AbilityTargeting(abilityId, _) ->
         let slotAction =
           KeybindingSystem.getSlotAction button.Action keybindingConfig
 
@@ -212,7 +220,7 @@ module VirtualInputSystem =
 
 
       sb.Draw(pixel, button.Bounds, color)
-      let label = $"{button.Action}"
+      let label = gameActionToLabel button.Action
       let labelSize = font.MeasureString(label) * scale
       let labelPos = button.Bounds.Center.ToVector2() - labelSize * 0.5f
       sb.DrawString(font, label, labelPos, textColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f)
