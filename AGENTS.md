@@ -3,9 +3,7 @@
 ## Quick Start
 
 - Read this file completely before making any code changes
-- Check `docs/` directory for domain-specific details:
-  - `docs/game-definitions.md` - Authoritative domain type definitions
-  - `docs/Core-Game-Plan.md` - Development roadmap and progress tracking
+- Tasks and plans are handled in github, use the `gh` CLI to interact with issues and gather context
 - Follow F# conventions and Data Oriented Programming principles strictly
 - When in doubt, ask clarifying questions
 
@@ -14,7 +12,7 @@
 - **Do not add extra comments to the code**
 - Follow the coding style and conventions used in the existing codebase
 - Avoid aggressive refactors; always do small, methodical, incremental, and verifiable changes
-- If working on an implementation that is part of the current plan (either outlined in `docs/*.md` or by the user prompt), always update the corresponding document to reflect the current progress
+- If working on an implementation that is part of the current plan (either outlined in the current `gh` cli pulled issue or by the user prompt), always update the corresponding document to reflect the current progress
 
 ## 🤖 PROGRAMMING PARADIGM HIERARCHY 🤖
 
@@ -43,12 +41,6 @@
    - Never expose mutable state outside function boundaries
 
 ## Domain Type Modifications
-
-**CRITICAL RULES:**
-
-- `docs/game-definitions.md` is VITAL when modifying domain types
-- Any deviation from `game-definitions.md` requires explicit user confirmation
-- If user accepts deviation, `docs/game-definitions.md` MUST be updated with the changes
 
 ## Data Oriented Programming with FSharp.Data.Adaptive (DOP + FDA)
 
