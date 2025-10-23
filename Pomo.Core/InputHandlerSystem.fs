@@ -480,7 +480,6 @@ module InputHandlerSystem =
     (state: GameState)
     (playerId: Guid<EntityId>)
     (scenario: ScenarioState)
-    (world: Vector2)
     (gameTime: GameTime)
     (inputState: InputManager.InputState)
     (uiState: UISystem.UIState)
@@ -493,6 +492,8 @@ module InputHandlerSystem =
     (clickThrottle: InputManager.ClickThrottleState)
     (virtualInputState: VirtualInputSystem.VirtualInputState voption)
     (virtualButtonPressed: bool)
+    (touchState: Microsoft.Xna.Framework.Input.Touch.TouchCollection)
+    (view: Matrix)
     =
     let mutable result = {
       InputState = inputState
@@ -506,22 +507,70 @@ module InputHandlerSystem =
     }
 
     let rightMouseDown = InputManager.isRightClickPressed()
-    let mouseDown = InputManager.isLeftClickPressed()
     let keyboardState = Keyboard.GetState()
 
-    let mousePos = InputManager.getMousePosition()
+    let pointerInputs: InputManager.PointerInput seq =
+      if Platform.IsMobile() then
+        touchState
+        |> Seq.map(fun touch -> {
+          Position = touch.Position
+          IsPressed = touch.State = Touch.TouchLocationState.Pressed
+        })
+      else
+        let mouseState = Mouse.GetState()
 
-    let isClickOnVirtualControls =
-      virtualInputState
-      |> ValueOption.map(fun vinput ->
-        let onJoystick =
-          Vector2.DistanceSquared(mousePos, vinput.Joystick.Center) < (vinput.Joystick.Radius * vinput.Joystick.Radius)
+        [
+          {
+            Position = Vector2(float32 mouseState.X, float32 mouseState.Y)
+            IsPressed = mouseState.LeftButton = ButtonState.Pressed
+          }
+        ]
 
-        let onButtons =
-          vinput.Buttons |> Array.exists(fun b -> b.Bounds.Contains(mousePos))
+    let mutable mouseDown = false
 
-        onJoystick || onButtons)
-      |> ValueOption.defaultValue false
+    for pointer in pointerInputs do
+      let isClickOnVirtualControls =
+        virtualInputState
+        |> ValueOption.map(fun vinput ->
+          let onJoystick =
+            Vector2.DistanceSquared(pointer.Position, vinput.Joystick.Center) < (vinput.Joystick.Radius
+                                                                                 * vinput.Joystick.Radius)
+
+          let onButtons =
+            vinput.Buttons
+            |> Array.exists(fun b -> b.Bounds.Contains(pointer.Position))
+
+          onJoystick || onButtons)
+        |> ValueOption.defaultValue false
+
+      if
+        pointer.IsPressed
+        && not inputState.PrevMouseDown
+        && not isClickOnVirtualControls
+        && not virtualButtonPressed
+      then
+        let clickWorld = InputManager.screenToWorld pointer.Position view
+
+        let clickResult =
+          handleLeftClick state playerId clickWorld scenario inputMode
+
+        match clickResult with
+        | EntitySelected entityId ->
+          result <- {
+            result with
+                Selected = ValueSome entityId
+          }
+        | SelectionCleared -> result <- { result with Selected = ValueNone }
+        | AbilityActivatedOnEntity _
+        | AbilityActivatedAtPosition _
+        | AbilityTargetMissed ->
+          result <- {
+            result with
+                InputMode = ValueSome InputManager.InputMode.Normal
+          }
+        | NoAction -> ()
+
+      mouseDown <- mouseDown || pointer.IsPressed
 
     InputManager.updateThrottle clickThrottle gameTime.ElapsedGameTime
 
@@ -532,9 +581,15 @@ module InputHandlerSystem =
               InputMode = ValueSome InputManager.InputMode.Normal
         }
       else
-        match InputManager.tryThrottleClick clickThrottle (ValueSome world) with
-        | ValueSome clickWorld ->
-          let navResult = handleRightClick state playerId clickWorld scenario
+        let mousePos = InputManager.getMousePosition()
+        let clickWorld = InputManager.screenToWorld mousePos view
+
+        match
+          InputManager.tryThrottleClick clickThrottle (ValueSome clickWorld)
+        with
+        | ValueSome throttledWorld ->
+          let navResult =
+            handleRightClick state playerId throttledWorld scenario
 
           result <- {
             result with
@@ -548,32 +603,6 @@ module InputHandlerSystem =
           InputState = {
             result.InputState with
                 PrevRightMouseDown = rightMouseDown
-          }
-    }
-
-    if mouseDown && not inputState.PrevMouseDown && not isClickOnVirtualControls && not virtualButtonPressed then
-      let clickResult = handleLeftClick state playerId world scenario inputMode
-
-      match clickResult with
-      | EntitySelected entityId ->
-        result <- {
-          result with
-              Selected = ValueSome entityId
-        }
-      | SelectionCleared -> result <- { result with Selected = ValueNone }
-      | AbilityActivatedOnEntity _
-      | AbilityActivatedAtPosition _
-      | AbilityTargetMissed ->
-        result <- {
-          result with
-              InputMode = ValueSome InputManager.InputMode.Normal
-        }
-      | NoAction -> ()
-
-    result <- {
-      result with
-          InputState = {
-            result.InputState with
                 PrevMouseDown = mouseDown
           }
     }

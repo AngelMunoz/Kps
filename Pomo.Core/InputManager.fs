@@ -7,6 +7,12 @@ open Pomo.Lib.Domain
 
 module InputManager =
   [<Struct>]
+  type PointerInput = {
+    Position: Vector2
+    IsPressed: bool
+  }
+
+  [<Struct>]
   type TargetingMode =
     | EntityTargeting
     | GroundTargeting of radius: float32

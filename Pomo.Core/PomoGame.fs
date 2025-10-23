@@ -214,17 +214,17 @@ type PomoGame() as this =
         let view =
           CameraSystem.createViewMatrix camera this.GraphicsDevice.Viewport
 
+        let touchState =
+          Microsoft.Xna.Framework.Input.Touch.TouchPanel.GetState()
+
         let mouseScreen = InputManager.getMousePosition()
         let world = InputManager.screenToWorld mouseScreen view
         mouseWorldPos <- world
 
         virtualInputState <-
           virtualInputState
-          |> ValueOption.map(fun vs ->
-            let touchState =
-              Microsoft.Xna.Framework.Input.Touch.TouchPanel.GetState()
+          |> ValueOption.map(fun vs -> VirtualInputSystem.update vs touchState)
 
-            VirtualInputSystem.update vs touchState)
 
         let mutable tempInputState = inputState
         let mutable tempInputMode = inputMode
@@ -278,7 +278,6 @@ type PomoGame() as this =
             state
             playerId
             scenario
-            world
             gameTime
             inputState
             uiState
@@ -291,6 +290,8 @@ type PomoGame() as this =
             clickThrottle
             virtualInputState
             virtualButtonPressed
+            touchState
+            view
 
         inputState <- inputResult.InputState
         uiState <- inputResult.UIState
@@ -355,13 +356,15 @@ type PomoGame() as this =
         RenderSystem.NavigationContext.Grid = navigationDebugGrid
       }
 
-      RenderSystem.drawEntitiesPhase spriteBatch pixel {
+      let entityCtx = {
         RenderSystem.EntityContext.Entities =
           drawCtx.Entities |> HashMap.toArrayV
         RenderSystem.EntityContext.Derived = drawCtx.DerivedStats
         RenderSystem.EntityContext.Selected = selected
         RenderSystem.EntityContext.Hud = hudOpt
       }
+
+      RenderSystem.drawEntitiesPhase spriteBatch pixel entityCtx
 
       RenderSystem.drawEffectsPhase spriteBatch pixel {
         RenderSystem.EffectsContext.FloatingTexts = drawCtx.FloatingTexts
@@ -373,10 +376,14 @@ type PomoGame() as this =
         RenderSystem.EffectsContext.Hud = hudOpt
       }
 
-      RenderSystem.drawInputPhase spriteBatch pixel {
-        RenderSystem.InputContext.InputMode = inputMode
-        RenderSystem.InputContext.MouseWorldPos = mouseWorldPos
-      }
+      RenderSystem.drawInputPhase
+        spriteBatch
+        pixel
+        {
+          RenderSystem.InputContext.InputMode = inputMode
+          RenderSystem.InputContext.MouseWorldPos = mouseWorldPos
+        }
+        entityCtx
 
       spriteBatch.End()
 
@@ -396,7 +403,8 @@ type PomoGame() as this =
 
         hudOpt
         |> ValueOption.iter(fun font ->
-          VirtualInputSystem.draw spriteBatch pixel font vinput)
+          let uiScale = if Platform.IsMobile() then 2.0f else 1.0f
+          VirtualInputSystem.draw spriteBatch pixel font vinput uiScale)
 
         spriteBatch.End())
     | _ -> ()

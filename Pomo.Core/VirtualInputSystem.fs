@@ -29,7 +29,7 @@ module VirtualInputSystem =
     Buttons: VirtualButton[]
   }
 
-  let create(viewport: Viewport) (scale: float32) =
+  let create (viewport: Viewport) (scale: float32) =
     let joystickRadius = 80f * scale
     let joystickPadding = 50f * scale
 
@@ -47,8 +47,8 @@ module VirtualInputSystem =
       TouchId = ValueNone
     }
 
-    let buttonSize = int (80f * scale)
-    let buttonPadding = int (25f * scale)
+    let buttonSize = int(80f * scale)
+    let buttonPadding = int(25f * scale)
     let screenWidth = viewport.Width
     let screenHeight = viewport.Height
 
@@ -158,13 +158,14 @@ module VirtualInputSystem =
     (pixel: Texture2D)
     (font: SpriteFont)
     (state: VirtualInputState)
+    (scale: float32)
     =
     let joystickColor = Color(128, 128, 128, 150)
     let thumbColor = Color(200, 200, 200, 200)
     let buttonColor = Color(80, 80, 80, 180)
     let buttonPressedColor = Color(120, 120, 120, 220)
     let textColor = Color.White
-    // Draw joystick
+
     let rect =
       Rectangle(
         int(state.Joystick.Center.X - state.Joystick.Radius),
@@ -187,12 +188,22 @@ module VirtualInputSystem =
 
     sb.Draw(pixel, thumbRect, thumbColor)
 
-    // Draw buttons
     for button in state.Buttons do
       let color = if button.IsPressed then buttonPressedColor else buttonColor
 
       sb.Draw(pixel, button.Bounds, color)
       let label = $"{button.Action}"
-      let labelSize = font.MeasureString(label)
+      let labelSize = font.MeasureString(label) * scale
       let labelPos = button.Bounds.Center.ToVector2() - labelSize * 0.5f
-      sb.DrawString(font, label, labelPos, textColor)
+
+      sb.DrawString(
+        font,
+        label,
+        labelPos,
+        textColor,
+        0f,
+        Vector2.Zero,
+        scale,
+        SpriteEffects.None,
+        0f
+      )

@@ -21,6 +21,44 @@ module RenderSystem =
 
   let mutable effectIcon: Texture2D = null
 
+  [<Struct>]
+  type WorldContext = {
+    Bounds: Pomo.Lib.Domain.ScenarioBounds
+    TerrainScenario: Scenario
+  }
+
+  [<Struct>]
+  type NavigationContext = {
+    ShowGrid: bool
+    PathPreview: Pomo.Lib.Pathfinding.PathPreview.PathSegment[]
+    CurrentPath: Position[]
+    Grid: Pomo.Lib.Pathfinding.PathfindingGrid voption
+  }
+
+  [<Struct>]
+  type EntityContext = {
+    Entities: struct (Guid<EntityId> * Components.EntityComponents) array
+    Derived: HashMap<Guid<EntityId>, DerivedStats>
+    Selected: Guid<EntityId> voption
+    Hud: SpriteFont voption
+  }
+
+  [<Struct>]
+  type EffectsContext = {
+    FloatingTexts: Pomo.Lib.Domain.VisualEffects.FloatingText[]
+    Projectiles: ActiveProjectile[]
+    Aoes: ActiveAoe[]
+    Impacts: ActiveImpact[]
+    GameTime: TimeSpan
+    Services: EngineServices
+    Hud: SpriteFont voption
+  }
+
+  [<Struct>]
+  type InputContext = {
+    InputMode: InputManager.InputMode
+    MouseWorldPos: Vector2
+  }
 
 
   let private makeCircle (gd: GraphicsDevice) (radius: int) =
@@ -410,19 +448,38 @@ module RenderSystem =
     (pixel: Texture2D)
     (inputMode: InputManager.InputMode)
     (mouseWorldPos: Vector2)
+    (entityCtx: EntityContext)
     =
     match inputMode with
     | InputManager.InputMode.AbilityTargeting(_,
                                               InputManager.TargetingMode.EntityTargeting) ->
-      let radius = 16f
-      let w = radius * 2f
-      let h = radius * 2f
-      let x = mouseWorldPos.X - w * 0.5f
-      let y = mouseWorldPos.Y - h * 0.5f
-      let indicatorColor = Color(255, 0, 0, 100)
+      if Platform.IsMobile() then
+        // On mobile, highlight all valid targets
+        for struct (id, comp) in entityCtx.Entities do
+          if comp.Factions |> HashSet.contains Enemy then
+            let circle = circleForStage comp.Identity.Stage
 
-      if not(isNull mediumCircle) then
-        sb.Draw(mediumCircle, Vector2(x, y), indicatorColor)
+            if not(isNull circle) then
+              let w = float32 circle.Width
+              let h = float32 circle.Height
+              let scale = 1.25f
+              let sw = w * scale
+              let sh = h * scale
+              let sx = comp.Position.X - sw * 0.5f
+              let sy = comp.Position.Y - sh * 0.5f
+              let dest = Rectangle(int sx, int sy, int sw, int sh)
+              sb.Draw(circle, dest, Color(255, 255, 255, 100))
+      else
+        // On desktop, show indicator at mouse position
+        let radius = 16f
+        let w = radius * 2f
+        let h = radius * 2f
+        let x = mouseWorldPos.X - w * 0.5f
+        let y = mouseWorldPos.Y - h * 0.5f
+        let indicatorColor = Color(255, 0, 0, 100)
+
+        if not(isNull mediumCircle) then
+          sb.Draw(mediumCircle, Vector2(x, y), indicatorColor)
     | InputManager.InputMode.AbilityTargeting(_,
                                               InputManager.TargetingMode.GroundTargeting radius) ->
       let diameter = int(radius * 2f)
@@ -431,45 +488,6 @@ module RenderSystem =
       let indicatorColor = Color(255, 165, 0, 80)
       sb.Draw(pixel, Rectangle(x, y, diameter, diameter), indicatorColor)
     | _ -> ()
-
-  [<Struct>]
-  type WorldContext = {
-    Bounds: Pomo.Lib.Domain.ScenarioBounds
-    TerrainScenario: Scenario
-  }
-
-  [<Struct>]
-  type NavigationContext = {
-    ShowGrid: bool
-    PathPreview: Pomo.Lib.Pathfinding.PathPreview.PathSegment[]
-    CurrentPath: Position[]
-    Grid: Pomo.Lib.Pathfinding.PathfindingGrid voption
-  }
-
-  [<Struct>]
-  type EntityContext = {
-    Entities: struct (Guid<EntityId> * Components.EntityComponents) array
-    Derived: HashMap<Guid<EntityId>, DerivedStats>
-    Selected: Guid<EntityId> voption
-    Hud: SpriteFont voption
-  }
-
-  [<Struct>]
-  type EffectsContext = {
-    FloatingTexts: Pomo.Lib.Domain.VisualEffects.FloatingText[]
-    Projectiles: ActiveProjectile[]
-    Aoes: ActiveAoe[]
-    Impacts: ActiveImpact[]
-    GameTime: TimeSpan
-    Services: EngineServices
-    Hud: SpriteFont voption
-  }
-
-  [<Struct>]
-  type InputContext = {
-    InputMode: InputManager.InputMode
-    MouseWorldPos: Vector2
-  }
 
   let drawWorld sb pixel (ctx: WorldContext) =
     drawScenarioBounds sb pixel ctx.Bounds
@@ -525,5 +543,5 @@ module RenderSystem =
     drawAoes sb pixel ctx.Aoes ctx.Services
     drawImpacts sb pixel ctx.Impacts ctx.Services ctx.GameTime
 
-  let drawInputPhase sb pixel (ctx: InputContext) =
-    drawTargetingIndicator sb pixel ctx.InputMode ctx.MouseWorldPos
+  let drawInputPhase sb pixel (ctx: InputContext) (entityCtx: EntityContext) =
+    drawTargetingIndicator sb pixel ctx.InputMode ctx.MouseWorldPos entityCtx
