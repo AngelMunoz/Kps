@@ -67,6 +67,8 @@ type RawInput =
   | GamePadButton of btn: Buttons
   | GamePadTrigger of PlayerIndex * side: Side
   | GamePadThumbStick of PlayerIndex * side: Side
+  | Touch
+  | LongPress of duration: float32
 
 
 [<Struct>]
@@ -79,22 +81,36 @@ type ActionState =
 type InputMap = HashMap<RawInput, GameAction>
 
 module ActionInputManager =
+  open Microsoft.Xna.Framework.Input.Touch
+
+  type TouchInfo = {
+    StartTime: TimeSpan
+    mutable LongPressTriggered: bool
+  }
 
   type State = {
     mutable ActionStates: HashMap<GameAction, ActionState>
     PrevKeyboardState: KeyboardState
     PrevMouseState: MouseState
     PrevGamePadState: GamePadState
+    PrevTouchCollection: TouchCollection
+    ActiveTouches: HashMap<int, TouchInfo>
   }
 
   let create
-    (keyboard: KeyboardState, mouse: MouseState, gamePad: GamePadState)
-    =
+    (
+      keyboard: KeyboardState,
+      mouse: MouseState,
+      gamePad: GamePadState,
+      touch: TouchCollection
+    ) =
     {
       ActionStates = HashMap.empty
       PrevKeyboardState = keyboard
       PrevMouseState = mouse
       PrevGamePadState = gamePad
+      PrevTouchCollection = touch
+      ActiveTouches = HashMap.empty
     }
 
   let private updateActionStates
@@ -164,12 +180,47 @@ module ActionInputManager =
     | MouseButton.Right -> curr.RightButton = ButtonState.Pressed
     | MouseButton.Middle -> curr.MiddleButton = ButtonState.Pressed
 
+  let private isTouchDown(touchState: TouchCollection) = touchState.Count > 0
+
+  let private isTouchJustPressed
+    (prevState: TouchCollection)
+    (currState: TouchCollection)
+    =
+    currState.Count > 0 && prevState.Count = 0
+
+  let private isTouchJustReleased
+    (prevState: TouchCollection)
+    (currState: TouchCollection)
+    =
+    currState.Count = 0 && prevState.Count > 0
+
   let update
     (inputMap: InputMap)
     (state: State)
-    (keyboard: KeyboardState, mouse: MouseState, gamePad: GamePadState)
-    =
+    (gameTime: GameTime)
+    (
+      keyboard: KeyboardState,
+      mouse: MouseState,
+      gamePad: GamePadState,
+      touch: TouchCollection
+    ) =
     let mutable newStates = updateActionStates state.ActionStates
+    let mutable activeTouches = state.ActiveTouches
+
+    for t in touch do
+      if not(activeTouches.ContainsKey(t.Id)) then
+        activeTouches <-
+          activeTouches.Add(
+            t.Id,
+            {
+              StartTime = gameTime.TotalGameTime
+              LongPressTriggered = false
+            }
+          )
+
+    for t in state.PrevTouchCollection do
+      if not(touch.Contains t) then
+        activeTouches <- activeTouches.Remove t.Id
 
     for rawInput, gameAction in inputMap do
 
@@ -187,6 +238,23 @@ module ActionInputManager =
           gamePad.IsButtonDown(b),
           gamePad.IsButtonDown(b) && state.PrevGamePadState.IsButtonUp(b),
           gamePad.IsButtonUp(b) && state.PrevGamePadState.IsButtonDown(b)
+        | Touch ->
+          isTouchDown touch,
+          isTouchJustPressed state.PrevTouchCollection touch,
+          isTouchJustReleased state.PrevTouchCollection touch
+        | LongPress duration ->
+          let mutable longPressJustTriggered = false
+
+          for _, touchInfo in activeTouches do
+            if not touchInfo.LongPressTriggered then
+              let elapsed =
+                (gameTime.TotalGameTime - touchInfo.StartTime).TotalSeconds
+
+              if elapsed > float duration then
+                longPressJustTriggered <- true
+                touchInfo.LongPressTriggered <- true
+
+          false, longPressJustTriggered, false
         | _ -> false, false, false
 
       if isJustPressed then
@@ -217,6 +285,8 @@ module ActionInputManager =
           PrevKeyboardState = keyboard
           PrevMouseState = mouse
           PrevGamePadState = gamePad
+          PrevTouchCollection = touch
+          ActiveTouches = activeTouches
     }
 
   let inline getActionState (action: GameAction) (state: State) =
@@ -244,10 +314,13 @@ module ActionInputManager =
     | _ -> None
 
   let createDefaultMap() =
-    HashMap.ofList [
-      MouseButton MouseButton.Left, PrimaryAction
-      MouseButton MouseButton.Right, SecondaryAction
-
+    HashMap.ofSeqV [
+      if Platform.IsMobile() then
+        Touch, PrimaryAction
+        LongPress 0.5f, SecondaryAction
+      else
+        MouseButton MouseButton.Left, PrimaryAction
+        MouseButton MouseButton.Right, SecondaryAction
       Key Keys.Q, UseQuickSlot1
       Key Keys.W, UseQuickSlot2
       Key Keys.E, UseQuickSlot3
@@ -272,3 +345,14 @@ module ActionInputManager =
       Key Keys.F4, DebugAction4
       Key Keys.F5, DebugAction5
     ]
+
+
+module InputActionPatterns =
+
+  let (|PressedActions|)(state: ActionInputManager.State) =
+    state.ActionStates
+    |> HashMap.chooseV(fun action actionState ->
+      match actionState with
+      | JustPressed -> ValueSome action
+      | _ -> ValueNone)
+    |> HashMap.toValueArray
