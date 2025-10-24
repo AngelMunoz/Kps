@@ -369,7 +369,7 @@ module UISystem =
     (pixel: Texture2D)
     (font: SpriteFont)
     (entityId: Guid<EntityId>)
-    (entities: HashMap<Guid<EntityId>, EntityComponents>)
+    (entityItems: HashMap<Guid<EntityId>, HashMap<Slot, ItemDefinition>>)
     (x: int)
     (y: int)
     =
@@ -379,31 +379,65 @@ module UISystem =
 
     drawPanel sb pixel font x y width height "Equipment"
 
-    match entities |> HashMap.tryFindV entityId with
-    | ValueSome entity ->
-      let startY = float32 y + 40f
-      let lineHeight = 20f
-      let leftX = float32 x + 10f
-
-      let slots = [| Head; Chest; Legs; Hands; Weapon1; Weapon2; Accessory |]
-
-      for i in 0 .. slots.Length - 1 do
-        let slot = slots.[i]
-        let slotY = startY + float32 i * lineHeight
-
-        match entity.Equipment |> HashMap.tryFindV slot with
-        | ValueSome equipment ->
-          drawStatLine sb font leftX slotY $"{slot}:" equipment.Name
-        | ValueNone -> drawStatLine sb font leftX slotY $"{slot}:" "(Empty)"
-
+    match entityItems |> HashMap.tryFindV entityId with
     | ValueNone ->
       drawStatLine
         sb
         font
         (float32 x + 10f)
         (float32 y + 40f)
-        "Entity not found"
+        "No equipment found"
         ""
+    | ValueSome wearableItems ->
+      let drawEmptySlot slotName slotY =
+        let startY = float32 y + 40f
+        let lineHeight = 20f
+        let leftX = float32 x + 10f
+        let slotY = startY + slotY * lineHeight
+        drawStatLine sb font leftX slotY $"{slotName}:" "Empty"
+
+      let drawSlot slotY slotName itemDef =
+        let startY = float32 y + 40f
+        let lineHeight = 20f
+        let leftX = float32 x + 10f
+        let slotY = startY + slotY * lineHeight
+        drawStatLine sb font leftX slotY $"{slotName}:" itemDef.Name
+
+
+      wearableItems
+      |> HashMap.tryFindV Head
+      |> ValueOption.map(drawSlot 0f Head)
+      |> ValueOption.defaultWith(fun () -> drawEmptySlot Head 0f)
+
+      wearableItems
+      |> HashMap.tryFindV Chest
+      |> ValueOption.map(drawSlot 1f Chest)
+      |> ValueOption.defaultWith(fun () -> drawEmptySlot Chest 1f)
+
+      wearableItems
+      |> HashMap.tryFindV Hands
+      |> ValueOption.map(drawSlot 2f Hands)
+      |> ValueOption.defaultWith(fun () -> drawEmptySlot Hands 2f)
+
+      wearableItems
+      |> HashMap.tryFindV Weapon1
+      |> ValueOption.map(drawSlot 3f Weapon1)
+      |> ValueOption.defaultWith(fun () -> drawEmptySlot Weapon1 3f)
+
+      wearableItems
+      |> HashMap.tryFindV Weapon2
+      |> ValueOption.map(drawSlot 4f Weapon2)
+      |> ValueOption.defaultWith(fun () -> drawEmptySlot Weapon2 4f)
+
+      wearableItems
+      |> HashMap.tryFindV Accessory
+      |> ValueOption.map(drawSlot 5f Accessory)
+      |> ValueOption.defaultWith(fun () -> drawEmptySlot Accessory 5f)
+
+      wearableItems
+      |> HashMap.tryFindV Legs
+      |> ValueOption.map(drawSlot 6f Legs)
+      |> ValueOption.defaultWith(fun () -> drawEmptySlot Legs 6f)
 
   let private drawAbilityList
     (sb: SpriteBatch)
@@ -464,7 +498,6 @@ module UISystem =
     (font: SpriteFont)
     (uiState: UIState)
     (drawCtx: DrawingContext)
-    (viewport: Viewport)
     =
 
     match uiState.SelectedEntity with
@@ -492,7 +525,7 @@ module UISystem =
             x
             y
         | EquipmentView ->
-          drawEquipmentView sb pixel font entityId drawCtx.Entities x y
+          drawEquipmentView sb pixel font entityId drawCtx.WearableItems x y
         | AbilityList ->
           drawAbilityList
             sb

@@ -118,8 +118,9 @@ module GameState =
       Effects = passiveEffects
       Abilities = kit.StarterAbilities
       AbilityCooldowns = HashMap.empty
-      Equipment = HashMap.empty
       PartyId = ValueNone
+      Inventory = HashMap.empty
+      EquippedItems = HashMap.empty
     }
 
     {
@@ -140,117 +141,6 @@ module GameState =
     }
     |> AVal.force
 
-
-  /// Equips an item to the specified slot.
-  /// Returns StateChange or error (entity not found, invalid slot).
-  let equipItem
-    entityId
-    (slot: Slot)
-    (equipment: Equipment)
-    (state: GameState)
-    =
-
-    let entitiesMap =
-      adaptive {
-        let! scenario = Scenario.ActiveScenario state
-        return! scenario.entities |> AMap.toAVal
-      }
-      |> AVal.force
-
-    match entitiesMap |> HashMap.tryFindV entityId with
-    | ValueNone -> Error EntityNotFound
-    | ValueSome components ->
-      // Check if equipment is compatible with slot
-      let isCompatible =
-        match slot, equipment.Slot with
-        | Weapon1, Weapon1 -> true
-        | Weapon2, Weapon2 -> true
-        | Head, Head -> true
-        | Chest, Chest -> true
-        | Hands, Hands -> true
-        | Legs, Legs -> true
-        | Accessory, Accessory -> true
-        | _ -> false
-
-      if not isCompatible then
-        Error(OperationError.EquipError IncompatibleEquipment)
-      else
-        let updatedEquipment =
-          components.Equipment |> HashMap.add slot equipment
-
-        let updatedComponents = {
-          components with
-              Equipment = updatedEquipment
-        }
-
-        Ok {
-          StateChange.empty with
-              updates = HashMap.ofList [ entityId, updatedComponents ]
-        }
-
-  /// Removes equipment from the specified slot.
-  /// Returns StateChange with equipment removed.
-  let unequipItem
-    entityId
-    (slot: Slot)
-    (entities: amap<Guid<EntityId>, EntityComponents>)
-    =
-    let found = entities |> AMap.tryFind entityId |> AVal.force
-
-    match found with
-    | None -> Error EntityNotFound
-    | Some components ->
-      let updatedEquipment = components.Equipment |> HashMap.remove slot
-
-      let updatedComponents = {
-        components with
-            Equipment = updatedEquipment
-      }
-
-
-      Ok {
-        StateChange.empty with
-            updates = HashMap.ofList [ entityId, updatedComponents ]
-      }
-
-
-  /// Swaps equipment between two slots (e.g., Weapon1 ↔ Weapon2).
-  /// Single atomic StateChange for both slot modifications.
-  let swapEquipment entityId (slot1: Slot) (slot2: Slot) (state: GameState) =
-
-    let entitiesMap =
-      adaptive {
-        let! scenario = Scenario.ActiveScenario state
-        return! scenario.entities |> AMap.toAVal
-      }
-      |> AVal.force
-
-    match entitiesMap |> HashMap.tryFindV entityId with
-    | ValueNone -> Error EntityNotFound
-    | ValueSome components ->
-      let equipment1 = components.Equipment |> HashMap.tryFindV slot1
-      let equipment2 = components.Equipment |> HashMap.tryFindV slot2
-
-      let updatedEquipment =
-        components.Equipment
-        |> (fun eq ->
-          match equipment2 with
-          | ValueSome e2 -> HashMap.add slot1 e2 eq
-          | ValueNone -> HashMap.remove slot1 eq)
-        |> (fun eq ->
-          match equipment1 with
-          | ValueSome e1 -> HashMap.add slot2 e1 eq
-          | ValueNone -> HashMap.remove slot2 eq)
-
-      let updatedComponents = {
-        components with
-            Equipment = updatedEquipment
-      }
-
-      Ok {
-        StateChange.empty with
-            updates = HashMap.ofList [ entityId, updatedComponents ]
-      }
 
   let activateAbility
     entityId

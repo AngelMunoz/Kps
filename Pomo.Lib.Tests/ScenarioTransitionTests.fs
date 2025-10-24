@@ -43,7 +43,8 @@ type ``Scenario Transition Tests``() =
     }
     Factions = HashSet.ofList [ Player ]
     Abilities = HashSet.empty
-    Equipment = HashMap.empty
+    EquippedItems = HashMap.empty
+    Inventory = HashMap.empty
     PartyId = ValueNone
   }
 

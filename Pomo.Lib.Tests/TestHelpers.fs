@@ -72,7 +72,8 @@ module TestHelpers =
     Effects = HashMap.empty
     Factions = HashSet.ofList [ Classification.Player ]
     Abilities = HashSet.empty
-    Equipment = HashMap.empty
+    EquippedItems = HashMap.empty
+    Inventory = HashMap.empty
     PartyId = ValueNone
   }
 

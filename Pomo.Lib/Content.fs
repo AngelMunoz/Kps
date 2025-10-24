@@ -15,8 +15,8 @@ open Pomo.Lib.Domain.Services
 
 
 module ProjectileStore =
-  let definitions: Map<int<ProjectileId>, ProjectileDefinition> =
-    Map.ofList [
+  let definitions: HashMap<int<ProjectileId>, ProjectileDefinition> =
+    HashMap.ofList [
       1<ProjectileId>,
       {
         Id = 1<ProjectileId>
@@ -68,8 +68,8 @@ module ProjectileStore =
     ]
 
 module AoeStore =
-  let definitions: Map<int<AoeId>, AoeDefinition> =
-    Map.ofList [
+  let definitions: HashMap<int<AoeId>, AoeDefinition> =
+    HashMap.ofList [
       1<AoeId>,
       {
         Id = 1<AoeId>
@@ -81,8 +81,8 @@ module AoeStore =
     ]
 
 module ImpactStore =
-  let definitions: Map<int<ImpactId>, ImpactDefinition> =
-    Map.ofList [
+  let definitions: HashMap<int<ImpactId>, ImpactDefinition> =
+    HashMap.ofList [
       1<ImpactId>,
       {
         Id = 1<ImpactId>
@@ -104,8 +104,8 @@ module ImpactStore =
     ]
 
 module EffectStore =
-  let definitions: Map<int<EffectId>, EffectDefinition> =
-    Map.ofList [
+  let definitions: HashMap<int<EffectId>, EffectDefinition> =
+    HashMap.ofList [
       1<EffectId>,
       {
         Id = 1<EffectId>
@@ -304,11 +304,23 @@ module EffectStore =
         |]
         FormulaId = ValueNone
       }
+      305<EffectId>,
+      {
+        Id = 305<EffectId>
+        Name = "Health Potion Effect"
+        Kind = EffectKind.ResourceOverTime
+        Duration = Instant
+        Stacking = StackingRule.NoStack
+        Modifiers = [|
+          EffectModifier.StaticMod(StatModifier.Additive(HP, 50))
+        |]
+        FormulaId = ValueNone
+      }
     ]
 
 module FormulaStore =
-  let definitions: Map<int<FormulaId>, FormulaDefinition> =
-    Map.ofList [
+  let definitions: HashMap<int<FormulaId>, FormulaDefinition> =
+    HashMap.ofList [
       1<FormulaId>,
       {
         Id = 1<FormulaId>
@@ -401,8 +413,8 @@ module FormulaStore =
 
 module AbilityStore =
 
-  let activeDefinitions: Map<int<AbilityId>, ActiveAbilityDefinition> =
-    Map.ofList [
+  let activeDefinitions: HashMap<int<AbilityId>, ActiveAbilityDefinition> =
+    HashMap.ofList [
       1<AbilityId>,
       {
         Id = 1<AbilityId>
@@ -660,10 +672,26 @@ module AbilityStore =
         AoeId = ValueNone
         ImpactId = ValueSome 1<ImpactId>
       }
+      200<AbilityId>,
+      {
+        Id = 200<AbilityId>
+        Name = "Use Health Potion"
+        Intent = AbilityIntent.Support
+        Cost = ValueNone
+        Cooldown = TimeSpan.Zero
+        Targeting = TargetType.Self
+        Range = 0.0f
+        FormulaId = ValueNone
+        Effects = [| 305<EffectId> |] // Assuming a healing effect
+        Requirements = Array.empty
+        ProjectileId = ValueNone
+        AoeId = ValueNone
+        ImpactId = ValueNone
+      }
     ]
 
-  let passiveDefinitions: Map<int<AbilityId>, PassiveAbilityDefinition> =
-    Map.ofList [
+  let passiveDefinitions: HashMap<int<AbilityId>, PassiveAbilityDefinition> =
+    HashMap.ofList [
       1001<AbilityId>,
       {
         Id = 1001<AbilityId>
@@ -691,20 +719,20 @@ module AbilityStore =
     ]
 
   // Unified ability store that returns AbilityKind
-  let definitions: Map<int<AbilityId>, AbilityKind> =
-    let actives = activeDefinitions |> Map.map(fun _ def -> Active def)
+  let definitions: HashMap<int<AbilityId>, AbilityKind> =
+    let actives = activeDefinitions |> HashMap.map(fun _ def -> Active def)
 
-    let passives = passiveDefinitions |> Map.map(fun _ def -> Passive def)
+    let passives = passiveDefinitions |> HashMap.map(fun _ def -> Passive def)
 
-    Map.fold (fun acc k v -> Map.add k v acc) actives passives
+    HashMap.fold (fun acc k v -> HashMap.add k v acc) actives passives
 
 module CharacterKitStore =
   open Pomo.Lib.Domain.Classification
   open Pomo.Lib.Domain.Attributes
   open Pomo.Lib.Domain.CharacterKits
 
-  let definitions: Map<Profession, CharacterKit> =
-    Map.ofList [
+  let definitions: HashMap<Profession, CharacterKit> =
+    HashMap.ofList [
       { Family = Power; Stage = First },
       {
         Profession = { Family = Power; Stage = First }
@@ -910,234 +938,61 @@ module CharacterKitStore =
       }
     ]
 
-module EquipmentStore =
+module ItemStore =
+  open Pomo.Lib.Domain
   open Pomo.Lib.Domain.Inventory
   open Pomo.Lib.Domain.Attributes
   open FSharp.Data.Adaptive
 
-  let definitions: Map<int<ItemId>, Equipment> =
-    Map.ofList [
+  let definitions: HashMap<int<ItemId>, ItemDefinition> =
+    HashMap.ofList [
       1<ItemId>,
       {
         Id = 1<ItemId>
         Name = "Iron Helm"
-        Slot = Head
+        Description = "A sturdy iron helmet."
+        Weight = 5.0f
         Rarity = Common
-        StatBonuses = [| { Stat = DP; Value = 5 }; { Stat = HP; Value = 20 } |]
-        ElementalAttributes = HashMap.empty
-        ElementalResistances = HashMap.empty
+        Kind =
+          Wearable {
+            Slot = Head
+            StatBonuses = [|
+              { Stat = DP; Value = 5 }
+              { Stat = HP; Value = 20 }
+            |]
+            ElementalAttributes = HashMap.empty
+            ElementalResistances = HashMap.empty
+          }
       }
       2<ItemId>,
       {
         Id = 2<ItemId>
-        Name = "Leather Cap"
-        Slot = Head
+        Name = "Health Potion"
+        Description = "A potion that restores a small amount of health."
+        Weight = 0.5f
         Rarity = Common
-        StatBonuses = [| { Stat = HV; Value = 3 }; { Stat = DX; Value = 2 } |]
-        ElementalAttributes = HashMap.empty
-        ElementalResistances = HashMap.empty
+        Kind =
+          Usable {
+            InitialUsageCount = 1
+            AbilityId = 200<AbilityId>
+          }
       }
       3<ItemId>,
       {
         Id = 3<ItemId>
-        Name = "Wizard's Hat"
-        Slot = Head
-        Rarity = Uncommon
-        StatBonuses = [| { Stat = MA; Value = 8 }; { Stat = MP; Value = 30 } |]
-        ElementalAttributes = HashMap.ofList [ Fire, 5.0 ]
-        ElementalResistances = HashMap.empty
-      }
-      4<ItemId>,
-      {
-        Id = 4<ItemId>
-        Name = "Steel Plate Armor"
-        Slot = Chest
-        Rarity = Uncommon
-        StatBonuses = [| { Stat = DP; Value = 15 }; { Stat = HP; Value = 50 } |]
-        ElementalAttributes = HashMap.empty
-        ElementalResistances = HashMap.ofList [ Fire, 0.1; Lightning, 0.15 ]
-      }
-      5<ItemId>,
-      {
-        Id = 5<ItemId>
-        Name = "Mystic Robes"
-        Slot = Chest
-        Rarity = Rare
-        StatBonuses = [|
-          { Stat = MA; Value = 12 }
-          { Stat = MD; Value = 10 }
-          { Stat = MP; Value = 50 }
-        |]
-        ElementalAttributes = HashMap.ofList [ Light, 8.0 ]
-        ElementalResistances = HashMap.ofList [ Dark, 0.2 ]
-      }
-      6<ItemId>,
-      {
-        Id = 6<ItemId>
-        Name = "Ranger's Tunic"
-        Slot = Chest
-        Rarity = Uncommon
-        StatBonuses = [|
-          { Stat = DX; Value = 8 }
-          { Stat = HV; Value = 6 }
-          { Stat = DA; Value = 5 }
-        |]
-        ElementalAttributes = HashMap.empty
-        ElementalResistances = HashMap.ofList [ Earth, 0.15 ]
-      }
-      7<ItemId>,
-      {
-        Id = 7<ItemId>
-        Name = "Chainmail Leggings"
-        Slot = Legs
+        Name = "Useless Rock"
+        Description = "A rock that does nothing."
+        Weight = 1.0f
         Rarity = Common
-        StatBonuses = [| { Stat = DP; Value = 8 }; { Stat = HP; Value = 30 } |]
-        ElementalAttributes = HashMap.empty
-        ElementalResistances = HashMap.empty
-      }
-      8<ItemId>,
-      {
-        Id = 8<ItemId>
-        Name = "Enchanted Greaves"
-        Slot = Legs
-        Rarity = Epic
-        StatBonuses = [|
-          { Stat = DP; Value = 20 }
-          { Stat = MD; Value = 15 }
-          { Stat = HP; Value = 80 }
-        |]
-        ElementalAttributes = HashMap.ofList [ Light, 10.0 ]
-        ElementalResistances = HashMap.ofList [ Fire, 0.25; Dark, 0.25 ]
-      }
-      9<ItemId>,
-      {
-        Id = 9<ItemId>
-        Name = "Leather Gloves"
-        Slot = Hands
-        Rarity = Common
-        StatBonuses = [| { Stat = DX; Value = 3 }; { Stat = AC; Value = 2 } |]
-        ElementalAttributes = HashMap.empty
-        ElementalResistances = HashMap.empty
-      }
-      10<ItemId>,
-      {
-        Id = 10<ItemId>
-        Name = "Gauntlets of Strength"
-        Slot = Hands
-        Rarity = Rare
-        StatBonuses = [| { Stat = AP; Value = 15 }; { Stat = AC; Value = 10 } |]
-        ElementalAttributes = HashMap.ofList [ Fire, 12.0 ]
-        ElementalResistances = HashMap.empty
-      }
-      11<ItemId>,
-      {
-        Id = 11<ItemId>
-        Name = "Iron Sword"
-        Slot = Weapon1
-        Rarity = Common
-        StatBonuses = [| { Stat = AP; Value = 10 }; { Stat = AC; Value = 5 } |]
-        ElementalAttributes = HashMap.empty
-        ElementalResistances = HashMap.empty
-      }
-      12<ItemId>,
-      {
-        Id = 12<ItemId>
-        Name = "Flamebrand"
-        Slot = Weapon1
-        Rarity = Epic
-        StatBonuses = [| { Stat = AP; Value = 25 }; { Stat = AC; Value = 15 } |]
-        ElementalAttributes = HashMap.ofList [ Fire, 20.0 ]
-        ElementalResistances = HashMap.empty
-      }
-      13<ItemId>,
-      {
-        Id = 13<ItemId>
-        Name = "Staff of Arcane Power"
-        Slot = Weapon1
-        Rarity = Legendary
-        StatBonuses = [|
-          { Stat = MA; Value = 35 }
-          { Stat = MP; Value = 100 }
-          { Stat = LK; Value = 10 }
-        |]
-        ElementalAttributes = HashMap.ofList [ Light, 25.0; Fire, 15.0 ]
-        ElementalResistances = HashMap.ofList [ Dark, 0.3 ]
-      }
-      14<ItemId>,
-      {
-        Id = 14<ItemId>
-        Name = "Wooden Shield"
-        Slot = Weapon2
-        Rarity = Common
-        StatBonuses = [| { Stat = DP; Value = 8 }; { Stat = HV; Value = 3 } |]
-        ElementalAttributes = HashMap.empty
-        ElementalResistances = HashMap.empty
-      }
-      15<ItemId>,
-      {
-        Id = 15<ItemId>
-        Name = "Tower Shield"
-        Slot = Weapon2
-        Rarity = Rare
-        StatBonuses = [| { Stat = DP; Value = 20 }; { Stat = HP; Value = 60 } |]
-        ElementalAttributes = HashMap.empty
-        ElementalResistances = HashMap.ofList [ Fire, 0.2; Water, 0.15 ]
-      }
-      16<ItemId>,
-      {
-        Id = 16<ItemId>
-        Name = "Lucky Charm"
-        Slot = Accessory
-        Rarity = Uncommon
-        StatBonuses = [| { Stat = LK; Value = 8 }; { Stat = HV; Value = 5 } |]
-        ElementalAttributes = HashMap.empty
-        ElementalResistances = HashMap.empty
-      }
-      17<ItemId>,
-      {
-        Id = 17<ItemId>
-        Name = "Amulet of Vitality"
-        Slot = Accessory
-        Rarity = Rare
-        StatBonuses = [|
-          { Stat = HP; Value = 100 }
-          { Stat = DP; Value = 10 }
-          { Stat = MD; Value = 10 }
-        |]
-        ElementalAttributes = HashMap.empty
-        ElementalResistances =
-          HashMap.ofList [ Fire, 0.15; Water, 0.15; Earth, 0.15; Air, 0.15 ]
-      }
-      18<ItemId>,
-      {
-        Id = 18<ItemId>
-        Name = "Ring of Elements"
-        Slot = Accessory
-        Rarity = Legendary
-        StatBonuses = [| { Stat = MA; Value = 20 }; { Stat = DA; Value = 15 } |]
-        ElementalAttributes =
-          HashMap.ofList [
-            Fire, 10.0
-            Water, 10.0
-            Earth, 10.0
-            Air, 10.0
-            Lightning, 10.0
-          ]
-        ElementalResistances =
-          HashMap.ofList [
-            Fire, 0.25
-            Water, 0.25
-            Earth, 0.25
-            Air, 0.25
-            Lightning, 0.25
-          ]
+        Kind = NonUsable
       }
     ]
 
+
 module AudioStore =
 
-  let definitions: Map<int<AudioClipId>, Audio.AudioClip> =
-    Map.ofList [
+  let definitions: HashMap<int<AudioClipId>, Audio.AudioClip> =
+    HashMap.ofList [
       1<AudioClipId>,
       {
         Id = 1<AudioClipId>
@@ -1190,24 +1045,24 @@ module AudioStore =
       }
     ]
 
-  let triggerMap: Map<Audio.AudioTrigger, int<AudioClipId>[]> =
-    Map.ofList [
+  let triggerMap: HashMap<Audio.AudioTrigger, int<AudioClipId>[]> =
+    HashMap.ofList [
       Audio.AudioTrigger.AbilityCast 2<AbilityId>,
       [| 2<AudioClipId>; 3<AudioClipId> |]
       Audio.AudioTrigger.DamageTaken false, [| 5<AudioClipId> |]
       Audio.AudioTrigger.DamageTaken true, [| 4<AudioClipId> |]
     ]
 
-  let scenarioMusicMap: Map<string, int<AudioClipId>> =
-    Map.ofList [ "Test Scenario", 1<AudioClipId> ]
+  let scenarioMusicMap: HashMap<string, int<AudioClipId>> =
+    HashMap.ofList [ "Test Scenario", 1<AudioClipId> ]
 
 module AIArchetypeStore =
   open Pomo.Lib.Domain.CharacterKits
   open Pomo.Lib.Domain.Classification
   open Pomo.Lib.Domain.AI
 
-  let definitions: Map<int<AiArchetypeId>, AI.AIArchetype> =
-    Map.ofList [
+  let definitions: HashMap<int<AiArchetypeId>, AI.AIArchetype> =
+    HashMap.ofList [
       1<AiArchetypeId>,
       {
         id = 1<AiArchetypeId>
@@ -1611,76 +1466,63 @@ module GameState =
         effectStore =
           { new IEffectStore with
               member _.tryFind effectId =
-                EffectStore.definitions
-                |> Map.tryFind effectId
-                |> ValueOption.ofOption
+                EffectStore.definitions |> HashMap.tryFindV effectId
 
               member _.find effectId =
-                EffectStore.definitions |> Map.find effectId
+                EffectStore.definitions |> HashMap.find effectId
           }
         abilityStore =
           { new IAbilityStore with
               member _.tryFind abilityId =
-                AbilityStore.definitions
-                |> Map.tryFind abilityId
-                |> ValueOption.ofOption
+                AbilityStore.definitions |> HashMap.tryFindV abilityId
 
               member _.find abilityId =
-                AbilityStore.definitions |> Map.find abilityId
+                AbilityStore.definitions |> HashMap.find abilityId
           }
         formulaStore =
           { new IFormulaStore with
               member _.tryFind formulaId =
-                FormulaStore.definitions
-                |> Map.tryFind formulaId
-                |> ValueOption.ofOption
+                FormulaStore.definitions |> HashMap.tryFindV formulaId
 
               member _.find formulaId =
-                FormulaStore.definitions |> Map.find formulaId
+                FormulaStore.definitions |> HashMap.find formulaId
           }
         projectileStore =
           { new IProjectileStore with
               member _.tryFind projectileId =
-                ProjectileStore.definitions
-                |> Map.tryFind projectileId
-                |> ValueOption.ofOption
+                ProjectileStore.definitions |> HashMap.tryFindV projectileId
 
               member _.find projectileId =
-                ProjectileStore.definitions |> Map.find projectileId
+                ProjectileStore.definitions |> HashMap.find projectileId
           }
         aoeStore =
           { new IAoeStore with
               member _.tryFind aoeId =
-                AoeStore.definitions
-                |> Map.tryFind aoeId
-                |> ValueOption.ofOption
+                AoeStore.definitions |> HashMap.tryFindV aoeId
 
-              member _.find aoeId = AoeStore.definitions |> Map.find aoeId
+              member _.find aoeId =
+                AoeStore.definitions |> HashMap.find aoeId
           }
         impactStore =
           { new IImpactStore with
               member _.tryFind impactId =
-                ImpactStore.definitions
-                |> Map.tryFind impactId
-                |> ValueOption.ofOption
+                ImpactStore.definitions |> HashMap.tryFindV impactId
 
               member _.find impactId =
-                ImpactStore.definitions |> Map.find impactId
+                ImpactStore.definitions |> HashMap.find impactId
           }
         audioStore =
           { new IAudioStore with
               member _.tryFind clipId =
-                AudioStore.definitions
-                |> Map.tryFind clipId
-                |> ValueOption.ofOption
+                AudioStore.definitions |> HashMap.tryFindV clipId
 
               member _.find clipId =
-                AudioStore.definitions |> Map.find clipId
+                AudioStore.definitions |> HashMap.find clipId
 
               member _.findByTrigger trigger =
                 AudioStore.triggerMap
-                |> Map.tryFind trigger
-                |> Option.defaultValue Array.empty
+                |> HashMap.tryFindV trigger
+                |> ValueOption.defaultValue Array.empty
 
               member _.findMusicForScenario scenarioId =
                 let scenario =
@@ -1690,19 +1532,23 @@ module GameState =
 
                 scenario
                 |> ValueOption.bind(fun s ->
-                  AudioStore.scenarioMusicMap
-                  |> Map.tryFind s.Name
-                  |> ValueOption.ofOption)
+                  AudioStore.scenarioMusicMap |> HashMap.tryFindV s.Name)
           }
         aiArchetypeStore =
           { new IAIArchetypeStore with
               member _.tryFind archetypeId =
-                AIArchetypeStore.definitions
-                |> Map.tryFind archetypeId
-                |> ValueOption.ofOption
+                AIArchetypeStore.definitions |> HashMap.tryFindV archetypeId
 
               member _.find archetypeId =
-                AIArchetypeStore.definitions |> Map.find archetypeId
+                AIArchetypeStore.definitions |> HashMap.find archetypeId
+          }
+        itemStore =
+          { new IItemStore with
+              member _.tryFind itemId =
+                ItemStore.definitions |> HashMap.tryFindV itemId
+
+              member _.find itemId =
+                ItemStore.definitions |> HashMap.find itemId
           }
         rng = fun () -> System.Random().NextDouble()
       }

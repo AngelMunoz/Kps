@@ -50,6 +50,9 @@ type AudioEventId
 [<Measure>]
 type AiArchetypeId
 
+[<Measure>]
+type InventoryItemInstanceId
+
 [<Struct>]
 type Position = { X: float32; Y: float32 }
 
@@ -384,15 +387,36 @@ module Inventory =
   [<Struct>]
   type ItemStatBonus = { Stat: Stat; Value: int }
 
-  [<Struct>]
-  type Equipment = {
-    Id: int<ItemId>
-    Name: string
+  type UsableItemDefinition = {
+    InitialUsageCount: int
+    AbilityId: int<AbilityId>
+  }
+
+  type EquipmentProperties = {
     Slot: Slot
-    Rarity: Rarity
     StatBonuses: ItemStatBonus[]
     ElementalAttributes: HashMap<Attributes.Element, float>
     ElementalResistances: HashMap<Attributes.Element, float>
+  }
+
+  type ItemKind =
+    | Usable of UsableItemDefinition
+    | Wearable of EquipmentProperties
+    | NonUsable
+
+  type ItemDefinition = {
+    Id: int<ItemId>
+    Name: string
+    Description: string
+    Weight: float32
+    Rarity: Rarity
+    Kind: ItemKind
+  }
+
+  type InventoryItem = {
+    InstanceId: Guid<InventoryItemInstanceId>
+    ItemId: int<ItemId>
+    CurrentUsageCount: int voption
   }
 
 module Effects =
@@ -677,8 +701,9 @@ module Components =
     Effects: HashMap<int<EffectId>, ActiveEffect>
     Factions: Classification.Faction HashSet
     Abilities: int<AbilityId> HashSet
-    Equipment: HashMap<Slot, Equipment>
     PartyId: Guid<PartyId> voption
+    Inventory: HashMap<Guid<InventoryItemInstanceId>, InventoryItem>
+    EquippedItems: HashMap<Slot, Guid<InventoryItemInstanceId>>
   }
 
 module Rules =
@@ -735,6 +760,25 @@ module Rules =
   }
 
   [<Struct>]
+  type UseItemAction = {
+    actor: Guid<EntityId>
+    itemInstanceId: Guid<InventoryItemInstanceId>
+  }
+
+  [<Struct>]
+  type EquipItemAction = {
+    actor: Guid<EntityId>
+    itemInstanceId: Guid<InventoryItemInstanceId>
+    slot: Inventory.Slot
+  }
+
+  [<Struct>]
+  type UnequipItemAction = {
+    actor: Guid<EntityId>
+    slot: Inventory.Slot
+  }
+
+  [<Struct>]
   type Command =
     | UseAbility of abilityAction: UseAbilityAction
     | Navigate of navigateAction: NavigateAction
@@ -747,6 +791,9 @@ module Rules =
       addEntitiesWithAI: HashMap<Guid<EntityId>, SpawnEntityData>
     | Teleport of teleportChange: TeleportChange
     | ReplenishResources of replenishEntries: ResourceReplenishment[]
+    | UseItem of useItemAction: UseItemAction
+    | EquipItem of equipItemAction: EquipItemAction
+    | UnequipItem of unequipItemAction: UnequipItemAction
 
 
 
@@ -967,6 +1014,12 @@ module Services =
     abstract member tryFind: int<AiArchetypeId> -> AI.AIArchetype voption
     abstract member find: int<AiArchetypeId> -> AI.AIArchetype
 
+  type IItemStore =
+    abstract member tryFind:
+      int<Inventory.ItemId> -> Inventory.ItemDefinition voption
+
+    abstract member find: int<Inventory.ItemId> -> Inventory.ItemDefinition
+
   type EngineServices = {
     abilityStore: IAbilityStore
     effectStore: IEffectStore
@@ -976,6 +1029,7 @@ module Services =
     impactStore: IImpactStore
     audioStore: IAudioStore
     aiArchetypeStore: IAIArchetypeStore
+    itemStore: IItemStore
     rng: unit -> float
   }
 

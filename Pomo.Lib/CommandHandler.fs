@@ -229,7 +229,10 @@ module CommandHandler =
               abilityDef.Requirements
 
           let inRange =
-            ValidateAction.checkRange actor.Position target.Position abilityDef.Range
+            ValidateAction.checkRange
+              actor.Position
+              target.Position
+              abilityDef.Range
 
           if isStunned then
             return Stunned
@@ -905,7 +908,9 @@ module CommandHandler =
             let newControllers =
               match spawnData.archetypeId with
               | ValueSome archetypeId ->
-                match resolverParams.services.aiArchetypeStore.tryFind archetypeId with
+                match
+                  resolverParams.services.aiArchetypeStore.tryFind archetypeId
+                with
                 | ValueSome archetype ->
                   let controller =
                     EnemyAI.AILifecycle.createController
@@ -933,4 +938,7 @@ module CommandHandler =
         StateChange.empty with
             teleports = [| tp |]
       }
+    | UseItem useItemAction -> return failwith "Not Implemented"
+    | EquipItem equipItemAction -> return failwith "Not Implemented"
+    | UnequipItem unequipItemAction -> return failwith "Not Implemented"
   }

@@ -125,6 +125,11 @@ type PomoGame() as this =
 
     gameState <- ValueSome state
 
+    uiState <- {
+      uiState with
+          SelectedEntity = ValueSome playerId
+    }
+
     Debug.WriteLine "Game initialized"
 
 
@@ -382,13 +387,7 @@ type PomoGame() as this =
 
       hudOpt
       |> ValueOption.iter(fun font ->
-        UISystem.draw
-          spriteBatch
-          pixel
-          font
-          uiState
-          drawCtx
-          this.GraphicsDevice.Viewport)
+        UISystem.draw spriteBatch pixel font uiState drawCtx)
 
       virtualInputState
       |> ValueOption.iter(fun vinput ->

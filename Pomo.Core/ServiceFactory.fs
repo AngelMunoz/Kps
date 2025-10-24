@@ -11,72 +11,63 @@ module ServiceFactory =
     effectStore =
       { new IEffectStore with
           member _.tryFind effectId =
-            EffectStore.definitions
-            |> Map.tryFind effectId
-            |> ValueOption.ofOption
+            EffectStore.definitions |> HashMap.tryFindV effectId
 
           member _.find effectId =
-            EffectStore.definitions |> Map.find effectId
+            EffectStore.definitions |> HashMap.find effectId
       }
     abilityStore =
       { new IAbilityStore with
           member _.tryFind abilityId =
-            AbilityStore.definitions
-            |> Map.tryFind abilityId
-            |> ValueOption.ofOption
+            AbilityStore.definitions |> HashMap.tryFindV abilityId
 
           member _.find abilityId =
-            AbilityStore.definitions |> Map.find abilityId
+            AbilityStore.definitions |> HashMap.find abilityId
       }
     formulaStore =
       { new IFormulaStore with
           member _.tryFind formulaId =
-            FormulaStore.definitions
-            |> Map.tryFind formulaId
-            |> ValueOption.ofOption
+            FormulaStore.definitions |> HashMap.tryFindV formulaId
 
           member _.find formulaId =
-            FormulaStore.definitions |> Map.find formulaId
+            FormulaStore.definitions |> HashMap.find formulaId
       }
     projectileStore =
       { new IProjectileStore with
           member _.tryFind projectileId =
-            ProjectileStore.definitions
-            |> Map.tryFind projectileId
-            |> ValueOption.ofOption
+            ProjectileStore.definitions |> HashMap.tryFindV projectileId
 
           member _.find projectileId =
-            ProjectileStore.definitions |> Map.find projectileId
+            ProjectileStore.definitions |> HashMap.find projectileId
       }
     aoeStore =
       { new IAoeStore with
           member _.tryFind aoeId =
-            AoeStore.definitions |> Map.tryFind aoeId |> ValueOption.ofOption
+            AoeStore.definitions |> HashMap.tryFindV aoeId
 
-          member _.find aoeId = AoeStore.definitions |> Map.find aoeId
+          member _.find aoeId =
+            AoeStore.definitions |> HashMap.find aoeId
       }
     impactStore =
       { new IImpactStore with
           member _.tryFind impactId =
-            ImpactStore.definitions
-            |> Map.tryFind impactId
-            |> ValueOption.ofOption
+            ImpactStore.definitions |> HashMap.tryFindV impactId
 
           member _.find impactId =
-            ImpactStore.definitions |> Map.find impactId
+            ImpactStore.definitions |> HashMap.find impactId
       }
     audioStore =
       { new IAudioStore with
           member _.tryFind clipId =
-            AudioStore.definitions |> Map.tryFind clipId |> ValueOption.ofOption
+            AudioStore.definitions |> HashMap.tryFindV clipId
 
           member _.find clipId =
-            AudioStore.definitions |> Map.find clipId
+            AudioStore.definitions |> HashMap.find clipId
 
           member _.findByTrigger trigger =
             AudioStore.triggerMap
-            |> Map.tryFind trigger
-            |> Option.defaultValue Array.empty
+            |> HashMap.tryFindV trigger
+            |> ValueOption.defaultValue Array.empty
 
           member _.findMusicForScenario scenarioId =
             let scenario =
@@ -86,19 +77,23 @@ module ServiceFactory =
 
             scenario
             |> ValueOption.bind(fun s ->
-              AudioStore.scenarioMusicMap
-              |> Map.tryFind s.Name
-              |> ValueOption.ofOption)
+              AudioStore.scenarioMusicMap |> HashMap.tryFindV s.Name)
       }
     aiArchetypeStore =
       { new IAIArchetypeStore with
           member _.tryFind archetypeId =
-            AIArchetypeStore.definitions
-            |> Map.tryFind archetypeId
-            |> ValueOption.ofOption
+            AIArchetypeStore.definitions |> HashMap.tryFindV archetypeId
 
           member _.find archetypeId =
-            AIArchetypeStore.definitions |> Map.find archetypeId
+            AIArchetypeStore.definitions |> HashMap.find archetypeId
       }
-    rng = fun () -> System.Random.Shared.NextDouble()
+    itemStore =
+      { new IItemStore with
+          member _.tryFind itemId =
+            ItemStore.definitions |> HashMap.tryFindV itemId
+
+          member _.find itemId =
+            ItemStore.definitions |> HashMap.find itemId
+      }
+    rng = fun () -> System.Random().NextDouble()
   }

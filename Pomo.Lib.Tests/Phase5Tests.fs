@@ -1,6 +1,7 @@
 module Pomo.Lib.Tests.Phase5Tests
 
 open Xunit
+open FSharp.Data.Adaptive
 open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Classification
 open Pomo.Lib.Domain.CharacterKits
@@ -8,7 +9,7 @@ open Pomo.Lib.Content.CharacterKitStore
 
 [<Fact>]
 let ``CharacterKitStore should contain 12 character base kits``() =
-  let kitCount = definitions |> Map.count
+  let kitCount = definitions |> HashMap.count
   Assert.Equal(12, kitCount)
 
 [<Fact>]
@@ -19,7 +20,7 @@ let ``All 12 profession combinations should be present``() =
   for family in families do
     for stage in stages do
       let profession = { Family = family; Stage = stage }
-      let kitExists = definitions |> Map.containsKey profession
+      let kitExists = definitions |> HashMap.containsKey profession
       Assert.True(kitExists, $"Missing kit for {family} {stage}")
 
 [<Theory>]
@@ -55,7 +56,7 @@ let ``Each character kit should have valid base stats``
     | _ -> failwith "Invalid stage"
 
   let profession = { Family = family; Stage = stage }
-  let kit = definitions |> Map.find profession
+  let kit = definitions |> HashMap.find profession
 
   Assert.True(kit.BaseStats.Power > 0, "Power should be positive")
   Assert.True(kit.BaseStats.Magic > 0, "Magic should be positive")
@@ -96,7 +97,7 @@ let ``Primary stat should match expected value for stage``
     | _ -> failwith "Invalid stage"
 
   let profession = { Family = family; Stage = stage }
-  let kit = definitions |> Map.find profession
+  let kit = definitions |> HashMap.find profession
 
   let primaryStat =
     match family with
@@ -109,8 +110,7 @@ let ``Primary stat should match expected value for stage``
 
 [<Fact>]
 let ``Each character kit should have at least one starter ability``() =
-  for kvp in definitions do
-    let kit = kvp.Value
+  for _, kit in definitions do
 
     Assert.True(
       kit.StarterAbilities.Count > 0,
@@ -121,9 +121,12 @@ let ``Each character kit should have at least one starter ability``() =
 let ``Power family kits should have name containing warrior or fighter or battle``
   ()
   =
-  let powerFirst = definitions |> Map.find { Family = Power; Stage = First }
-  let powerSecond = definitions |> Map.find { Family = Power; Stage = Second }
-  let powerThird = definitions |> Map.find { Family = Power; Stage = Third }
+  let powerFirst = definitions |> HashMap.find { Family = Power; Stage = First }
+
+  let powerSecond =
+    definitions |> HashMap.find { Family = Power; Stage = Second }
+
+  let powerThird = definitions |> HashMap.find { Family = Power; Stage = Third }
 
   Assert.Contains("Warrior", powerFirst.Name)
   Assert.Contains("Fighter", powerSecond.Name)
@@ -133,9 +136,12 @@ let ``Power family kits should have name containing warrior or fighter or battle
 let ``Magic family kits should have name containing mage or sorcerer or arch``
   ()
   =
-  let magicFirst = definitions |> Map.find { Family = Magic; Stage = First }
-  let magicSecond = definitions |> Map.find { Family = Magic; Stage = Second }
-  let magicThird = definitions |> Map.find { Family = Magic; Stage = Third }
+  let magicFirst = definitions |> HashMap.find { Family = Magic; Stage = First }
+
+  let magicSecond =
+    definitions |> HashMap.find { Family = Magic; Stage = Second }
+
+  let magicThird = definitions |> HashMap.find { Family = Magic; Stage = Third }
 
   Assert.Contains("Mage", magicFirst.Name)
   Assert.Contains("Sorcerer", magicSecond.Name)
@@ -143,9 +149,12 @@ let ``Magic family kits should have name containing mage or sorcerer or arch``
 
 [<Fact>]
 let ``Sense family kits should have name containing scout or ranger``() =
-  let senseFirst = definitions |> Map.find { Family = Sense; Stage = First }
-  let senseSecond = definitions |> Map.find { Family = Sense; Stage = Second }
-  let senseThird = definitions |> Map.find { Family = Sense; Stage = Third }
+  let senseFirst = definitions |> HashMap.find { Family = Sense; Stage = First }
+
+  let senseSecond =
+    definitions |> HashMap.find { Family = Sense; Stage = Second }
+
+  let senseThird = definitions |> HashMap.find { Family = Sense; Stage = Third }
 
   Assert.Contains("Scout", senseFirst.Name)
   Assert.Contains("Ranger", senseSecond.Name)
@@ -155,9 +164,12 @@ let ``Sense family kits should have name containing scout or ranger``() =
 let ``Charm family kits should have name containing defender or guardian or protector``
   ()
   =
-  let charmFirst = definitions |> Map.find { Family = Charm; Stage = First }
-  let charmSecond = definitions |> Map.find { Family = Charm; Stage = Second }
-  let charmThird = definitions |> Map.find { Family = Charm; Stage = Third }
+  let charmFirst = definitions |> HashMap.find { Family = Charm; Stage = First }
+
+  let charmSecond =
+    definitions |> HashMap.find { Family = Charm; Stage = Second }
+
+  let charmThird = definitions |> HashMap.find { Family = Charm; Stage = Third }
 
   Assert.Contains("Defender", charmFirst.Name)
   Assert.Contains("Guardian", charmSecond.Name)
