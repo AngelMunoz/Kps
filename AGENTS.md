@@ -14,6 +14,8 @@
 - Avoid aggressive refactors; always do small, methodical, incremental, and verifiable changes
 - If working on an implementation that is part of the current plan (either outlined in the current `gh` cli pulled issue or by the user prompt), always update the corresponding document to reflect the current progress
 
+**IMPORTANT**: You can find suplementary guidelines and conventions in the `.agents` folder in the project root. See [./.agents/README.md](./.agents/README.md) for details.
+
 ## 🤖 PROGRAMMING PARADIGM HIERARCHY 🤖
 
 **MANDATORY PARADIGM ORDER - STRICTLY ENFORCE:**
@@ -89,6 +91,10 @@
 - **FsCheck**: We need to ensure that we're using the right features of the library besides just property testing
 
 ## Code Conventions
+
+Please review the general F# coding conventions defined in [./.agents/fsharp_conventions.md](./.agents/fsharp_conventions.md) before proceeding.
+
+**IMPORTANT**: Guidelines below are particular opinions that take priority for this codebase, anything else not mentioned here should follow the general F# conventions.
 
 ### Functions Must Be Focused
 
