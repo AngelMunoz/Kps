@@ -982,6 +982,21 @@ module ItemStore =
         Rarity = Common
         Kind = NonUsable
       }
+      4<ItemId>,
+      {
+        Id = 4<ItemId>
+        Name = "Magic Ward Amulet"
+        Description = "An amulet that provides protection against magic."
+        Weight = 0.2f
+        Rarity = Uncommon
+        Kind =
+          Wearable {
+            Slot = Accessory
+            StatBonuses = [| { Stat = MD; Value = 10 } |]
+            ElementalAttributes = HashMap.empty
+            ElementalResistances = HashMap.empty
+          }
+      }
     ]
 
 

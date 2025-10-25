@@ -87,7 +87,8 @@ module TestItems =
 
 [<Fact>]
 let ``createItemInstance correctly populates instance from definition``() =
-  let itemInstance = Inventory.createItemInstance TestItems.usablePotionDef
+  let itemInstance =
+    TestItems.usablePotionDef |> Inventory.createItemInstance ValueNone
 
   Assert.Equal(TestItems.usablePotionDef.Id, itemInstance.ItemId)
   Assert.Equal(TestItems.usablePotionDef.Name, itemInstance.Name)
@@ -97,7 +98,9 @@ let ``createItemInstance correctly populates instance from definition``() =
 [<Fact>]
 let ``saveInventoryItem can add an item``() =
   let components = TestHelpers.createTestEntity()
-  let itemInstance = Inventory.createItemInstance TestItems.usablePotionDef
+
+  let itemInstance =
+    TestItems.usablePotionDef |> Inventory.createItemInstance ValueNone
 
   let updatedComponents =
     Inventory.saveInventoryItem
@@ -112,7 +115,9 @@ let ``saveInventoryItem can add an item``() =
 [<Fact>]
 let ``saveInventoryItem can remove an item``() =
   let components = TestHelpers.createTestEntity()
-  let itemInstance = Inventory.createItemInstance TestItems.usablePotionDef
+
+  let itemInstance =
+    TestItems.usablePotionDef |> Inventory.createItemInstance ValueNone
 
   let componentsWithItem =
     Inventory.saveInventoryItem
@@ -133,7 +138,9 @@ let ``saveInventoryItem can remove an item``() =
 [<Fact>]
 let ``useItem successfully consumes a charge``() =
   let components = TestHelpers.createTestEntity()
-  let itemInstance = Inventory.createItemInstance TestItems.usablePotionDef
+
+  let itemInstance =
+    TestItems.usablePotionDef |> Inventory.createItemInstance ValueNone
 
   let componentsWithItem =
     Inventory.saveInventoryItem
@@ -161,7 +168,7 @@ let ``useItem consumes the last charge and removes the item``() =
   let components = TestHelpers.createTestEntity()
 
   let itemInstance = {
-    (Inventory.createItemInstance TestItems.usablePotionDef) with
+    (Inventory.createItemInstance ValueNone TestItems.usablePotionDef) with
         CurrentUsageCount = ValueSome 1
   }
 
@@ -190,7 +197,9 @@ let ``useItem consumes the last charge and removes the item``() =
 [<Fact>]
 let ``useItem fails for a non-usable item``() =
   let components = TestHelpers.createTestEntity()
-  let itemInstance = Inventory.createItemInstance TestItems.junkItemDef
+
+  let itemInstance =
+    TestItems.junkItemDef |> Inventory.createItemInstance ValueNone
 
   let componentsWithItem =
     Inventory.saveInventoryItem
@@ -223,7 +232,9 @@ let ``useItem fails for item not in inventory``() =
 [<Fact>]
 let ``equipItem successfully equips an item``() =
   let components = TestHelpers.createTestEntity()
-  let itemInstance = Inventory.createItemInstance TestItems.wearableHelmetDef
+
+  let itemInstance =
+    TestItems.wearableHelmetDef |> Inventory.createItemInstance ValueNone
 
   let componentsWithItem =
     Inventory.saveInventoryItem
@@ -250,7 +261,9 @@ let ``equipItem successfully equips an item``() =
 [<Fact>]
 let ``equipItem fails for wrong slot``() =
   let components = TestHelpers.createTestEntity()
-  let itemInstance = Inventory.createItemInstance TestItems.wearableHelmetDef
+
+  let itemInstance =
+    TestItems.wearableHelmetDef |> Inventory.createItemInstance ValueNone
 
   let componentsWithItem =
     Inventory.saveInventoryItem
@@ -271,7 +284,9 @@ let ``equipItem fails for wrong slot``() =
 [<Fact>]
 let ``equipItem fails for non-wearable item``() =
   let components = TestHelpers.createTestEntity()
-  let itemInstance = Inventory.createItemInstance TestItems.usablePotionDef
+
+  let itemInstance =
+    TestItems.usablePotionDef |> Inventory.createItemInstance ValueNone
 
   let componentsWithItem =
     Inventory.saveInventoryItem
@@ -306,10 +321,12 @@ let ``equipItem fails for item not in inventory``() =
 [<Fact>]
 let ``equipItem replaces an already equipped item``() =
   let components = TestHelpers.createTestEntity()
-  let helmetInstance = Inventory.createItemInstance TestItems.wearableHelmetDef
+
+  let helmetInstance =
+    TestItems.wearableHelmetDef |> Inventory.createItemInstance ValueNone
 
   let chestInstance = {
-    Inventory.createItemInstance TestItems.wearableChestDef with
+    (TestItems.wearableChestDef |> Inventory.createItemInstance ValueNone) with
         Name = "New Helmet"
   }
 
@@ -354,7 +371,9 @@ let ``equipItem replaces an already equipped item``() =
 [<Fact>]
 let ``unequipItem successfully removes an item from a slot``() =
   let components = TestHelpers.createTestEntity()
-  let itemInstance = Inventory.createItemInstance TestItems.wearableHelmetDef
+
+  let itemInstance =
+    TestItems.wearableHelmetDef |> Inventory.createItemInstance ValueNone
 
   let componentsWithItem =
     Inventory.saveInventoryItem
@@ -383,8 +402,12 @@ let ``unequipItem successfully removes an item from a slot``() =
 [<Fact>]
 let ``calculateCarriedWeight calculates weight correctly``() =
   let components = TestHelpers.createTestEntity()
-  let potionInstance = Inventory.createItemInstance TestItems.usablePotionDef
-  let helmetInstance = Inventory.createItemInstance TestItems.wearableHelmetDef
+
+  let potionInstance =
+    TestItems.usablePotionDef |> Inventory.createItemInstance ValueNone
+
+  let helmetInstance =
+    TestItems.wearableHelmetDef |> Inventory.createItemInstance ValueNone
 
   let componentsWithItems =
     components

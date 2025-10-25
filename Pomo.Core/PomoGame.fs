@@ -62,7 +62,7 @@ type PomoGame() as this =
     : VirtualInputSystem.VirtualInputState voption =
     ValueNone
 
-  let mutable keybindingConfig = KeybindingSystem.createDefault()
+  let mutable keybindingConfig = KeybindingSystem.createDefault []
 
   let mutable navigationDebugGrid: Pomo.Lib.Pathfinding.PathfindingGrid voption =
     ValueNone
@@ -122,6 +122,7 @@ type PomoGame() as this =
     playerId <- testData.PlayerId
     enemyIds <- testData.Enemies
     navigationDebugGrid <- ValueSome testData.NavigationGrid
+    keybindingConfig <- KeybindingSystem.createDefault testData.KeyBindings
 
     gameState <- ValueSome state
 

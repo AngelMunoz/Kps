@@ -13,10 +13,12 @@ open Pomo.Lib.Gameplay
 open Pomo.Lib.Domain.Services
 open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.Abilities
+open Pomo.Lib.Domain.Inventory
 open Pomo.Lib.Domain.Scenario
 open Pomo.Lib.BattleManager
 open Pomo.Lib.Battle
 open Pomo.Lib.EffectApplication
+open Pomo.Lib.InventoryManagement
 
 module CommandHandler =
   open Pomo.Lib.Domain.Effects
@@ -305,7 +307,6 @@ module CommandHandler =
               Color = Evade
               CreationTick = gameTime
             }
-
           else if baseDamageResult.Amount > 0 then
             AddFloatingText {
               Id = Guid.NewGuid() |> UMX.tag
@@ -314,7 +315,43 @@ module CommandHandler =
               Color = if baseDamageResult.IsCritical then Critical else Damage
               CreationTick = gameTime
             }
+
+          for effectId in action.abilityDefinition.Effects do
+            let effectDef = rparams.services.effectStore.find effectId
+
+            for modifier in effectDef.Modifiers do
+              match modifier with
+              | StaticMod(Subtractive(stat, value))
+              | StaticMod(Additive(stat, value)) ->
+                AddFloatingText {
+                  Id = Guid.NewGuid() |> UMX.tag
+                  Text = $"+%d{value}{stat}"
+                  Position = action.targetComponents.Position
+                  Color = if value > 0 then Heal else Damage
+                  CreationTick = gameTime
+                }
+              | ResourceConversion(from, into, rate) ->
+                AddFloatingText {
+                  Id = Guid.NewGuid() |> UMX.tag
+                  Text =
+                    $"{from} -> %d{int(float baseDamageResult.Amount * rate)}{into}"
+                  Position = action.targetComponents.Position
+                  Color = if rate > 0. then Heal else Damage
+                  CreationTick = gameTime
+                }
+              | AbilityDamageMod damage ->
+                AddFloatingText {
+                  Id = Guid.NewGuid() |> UMX.tag
+                  Text = $"- %d{int damage}"
+                  Position = action.targetComponents.Position
+                  Color = Damage
+                  CreationTick = gameTime
+                }
+              | StaticMod(Multiplicative(_, _))
+              | StaticMod(Divisive(_, _))
+              | DynamicMod _ -> ()
         |]
+
 
 
         let finalResources =
@@ -356,10 +393,9 @@ module CommandHandler =
 
         if actorId = targetId then
           let merged = {
-            targetAfterEffects with
-                Resources = finalActor.Resources
-                AbilityCooldowns = finalActor.AbilityCooldowns
-                Movement = finalActor.Movement
+            finalActor with
+                Effects = targetAfterEffects.Effects
+                Resources = targetAfterEffects.Resources
           }
 
           return {
@@ -844,6 +880,115 @@ module CommandHandler =
       }
     }
 
+  let resolveAddEntitiesWithAI
+    (resolverParams: ResolverParams)
+    (entitiesToAddWithAI: HashMap<Guid<EntityId>, _>)
+    : aval<StateChange> =
+    adaptive {
+      let! gameTime = resolverParams.gameTime
+
+      let struct (additions, aiControllers) =
+        entitiesToAddWithAI
+        |> HashMap.fold
+          (fun struct (adds, controllers) entityId spawnData ->
+            let newAdds = HashMap.add entityId spawnData.components adds
+
+            let newControllers =
+              match spawnData.archetypeId with
+              | ValueSome archetypeId ->
+                match
+                  resolverParams.services.aiArchetypeStore.tryFind archetypeId
+                with
+                | ValueSome archetype ->
+                  let controller =
+                    EnemyAI.AILifecycle.createController
+                      entityId
+                      archetypeId
+                      spawnData.components.Position
+                      archetype.patrolWaypoints
+                      gameTime
+
+                  HashMap.add entityId controller controllers
+                | ValueNone -> controllers
+              | ValueNone -> controllers
+
+            struct (newAdds, newControllers))
+          struct (HashMap.empty, HashMap.empty)
+
+      return {
+        StateChange.empty with
+            additions = additions
+            aiControllers = aiControllers
+      }
+    }
+
+  let resolveUseItem
+    (scenarioState: ScenarioState)
+    (action: UseItemAction)
+    (resolverParams: ResolverParams)
+    =
+    adaptive {
+      let! actor = scenarioState.entities |> AMap.tryFind action.actor
+
+      match actor with
+      | None -> return StateChange.empty
+      | Some actor ->
+        let useResult =
+          Inventory.useItem resolverParams.services.itemStore action actor
+
+        match useResult with
+        | Ok useOutput ->
+          let! abilityStateChange =
+            resolveAbility resolverParams useOutput.AbilityId {
+              actor = action.actor
+              target = action.actor
+            }
+
+          return {
+            abilityStateChange with
+                updates =
+                  abilityStateChange.updates
+                  |> HashMap.alterV action.actor (fun components ->
+                    // if components are not present, do not add them
+                    components
+                    |> ValueOption.map(fun components -> {
+                      components with
+                          // in this particular case we know useItem only updates Inventory
+                          // otherwise this merge operation would be tricky
+                          Inventory = useOutput.UpdatedComponents.Inventory
+                    }))
+
+          }
+        | Error e ->
+          // TODO: Create floating text for error
+          return StateChange.empty
+    }
+
+  let resolveEquipItem
+    (scenarioState: ScenarioState)
+    (action: EquipItemAction)
+    (resolverParams: ResolverParams)
+    =
+    adaptive {
+      let! actor = scenarioState.entities |> AMap.tryFind action.actor
+
+      match actor with
+      | None -> return StateChange.empty
+      | Some actor ->
+        let equipResult =
+          Equip.equipItem resolverParams.services.itemStore action actor
+
+        match equipResult with
+        | Ok updatedActor ->
+          return {
+            StateChange.empty with
+                updates = HashMap.single action.actor updatedActor
+          }
+        | Error _ ->
+          // TODO: Create floating text for error
+          return StateChange.empty
+    }
+
   let evaluate (state: GameState) (cmd: Command) : aval<StateChange> = adaptive {
     let! activeScenarioId = state.activeScenarioId
     let! scenarioState = state.scenarios |> AMap.find activeScenarioId
@@ -895,49 +1040,27 @@ module CommandHandler =
         StateChange.empty with
             additions = entitiesToAdd
       }
-    | AddEntitiesWithAI entitiesToAddWithAI ->
-      let! gameTime = resolverParams.gameTime
-
-      let struct (additions, aiControllers) =
-        entitiesToAddWithAI
-        |> HashMap.fold
-          (fun struct (adds, controllers) entityId spawnData ->
-            let newAdds = HashMap.add entityId spawnData.components adds
-
-            let newControllers =
-              match spawnData.archetypeId with
-              | ValueSome archetypeId ->
-                match
-                  resolverParams.services.aiArchetypeStore.tryFind archetypeId
-                with
-                | ValueSome archetype ->
-                  let controller =
-                    EnemyAI.AILifecycle.createController
-                      entityId
-                      archetypeId
-                      spawnData.components.Position
-                      archetype.patrolWaypoints
-                      gameTime
-
-                  HashMap.add entityId controller controllers
-                | ValueNone -> controllers
-              | ValueNone -> controllers
-
-            struct (newAdds, newControllers))
-          struct (HashMap.empty, HashMap.empty)
-
-      return {
-        StateChange.empty with
-            additions = additions
-            aiControllers = aiControllers
-      }
-
     | Teleport tp ->
       return {
         StateChange.empty with
             teleports = [| tp |]
       }
-    | UseItem useItemAction -> return failwith "Not Implemented"
-    | EquipItem equipItemAction -> return failwith "Not Implemented"
-    | UnequipItem unequipItemAction -> return failwith "Not Implemented"
+    | AddEntitiesWithAI entitiesToAddWithAI ->
+      return! resolveAddEntitiesWithAI resolverParams entitiesToAddWithAI
+    | UseItem action ->
+      return! resolveUseItem scenarioState action resolverParams
+    | EquipItem action ->
+      return! resolveEquipItem scenarioState action resolverParams
+    | UnequipItem action ->
+      let! actor = scenarioState.entities |> AMap.tryFind action.actor
+
+      match actor with
+      | None -> return StateChange.empty
+      | Some actor ->
+        let updatedActor = Equip.unequipItem action actor
+
+        return {
+          StateChange.empty with
+              updates = HashMap.single action.actor updatedActor
+        }
   }

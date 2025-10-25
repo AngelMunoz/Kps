@@ -22,8 +22,8 @@ module private Utils =
 
 module Inventory =
   /// Creates a new inventory item instance from an item definition.
-  let createItemInstance(itemDef: ItemDefinition) : InventoryItem =
-    let instanceId = %Guid.NewGuid()
+  let createItemInstance guid (itemDef: ItemDefinition) : InventoryItem =
+    let instanceId = defaultValueArg guid (%Guid.NewGuid())
 
     let usageCount =
       match itemDef.Kind with

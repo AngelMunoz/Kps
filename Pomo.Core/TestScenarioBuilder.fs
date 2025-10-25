@@ -6,12 +6,15 @@ open Pomo.Lib.Domain
 open Pomo.Lib.Domain.Scenario
 open Pomo.Lib.Domain.Classification
 open Pomo.Lib.Domain.State
+open Pomo.Lib.InventoryManagement
+open Pomo.Lib.Domain.Inventory
 open Pomo.Lib.Content
 open Pomo.Lib.Operations
 open Pomo.Lib.Pathfinding
 open Pomo.Lib.Gameplay
 open Pomo.Lib.Rules
 open FSharp.Data.Adaptive
+open Pomo.Core.KeybindingSystem
 
 module ScenarioLoader =
 
@@ -86,6 +89,7 @@ module TestScenarioBuilder =
     PlayerId: Guid<EntityId>
     Enemies: Guid<EntityId>[]
     NavigationGrid: PathfindingGrid
+    KeyBindings: (struct (ActionSet * GameAction) * SlotAction)[]
   }
 
   let createDefaultScenario(state: GameState) : TestScenarioData =
@@ -116,9 +120,96 @@ module TestScenarioBuilder =
       }
     |]
 
+    let potionGuid = Guid.NewGuid() |> UMX.tag
+
+    transact(fun _ ->
+      let scenario = Scenario.ActiveScenario state |> AVal.force
+      let playerComponents = scenario.entities.[playerId]
+
+      let helmDef = state.services.itemStore.find 1<ItemId>
+      let potionDef = state.services.itemStore.find 2<ItemId>
+      let rockDef = state.services.itemStore.find 3<ItemId>
+      let amuletDef = state.services.itemStore.find 4<ItemId>
+      let helmInstance = Inventory.createItemInstance ValueNone helmDef
+
+      let potionInstance1 =
+        Inventory.createItemInstance (ValueSome potionGuid) {
+          potionDef with
+              Kind =
+                Usable {
+                  InitialUsageCount = 10
+                  AbilityId = 200<AbilityId>
+                }
+        }
+
+      let rockInstance = Inventory.createItemInstance ValueNone rockDef
+      let amuletInstance = Inventory.createItemInstance ValueNone amuletDef
+
+      let updatedInventory =
+        playerComponents.Inventory
+        |> HashMap.add helmInstance.InstanceId helmInstance
+        |> HashMap.add potionInstance1.InstanceId potionInstance1
+        |> HashMap.add rockInstance.InstanceId rockInstance
+        |> HashMap.add amuletInstance.InstanceId amuletInstance
+
+      let playerWithItems = {
+        playerComponents with
+            Inventory = updatedInventory
+      }
+
+      let equipAction: Rules.EquipItemAction = {
+        actor = playerId
+        itemInstanceId = helmInstance.InstanceId
+        slot = Head
+      }
+
+      let equipResult =
+        Equip.equipItem state.services.itemStore equipAction playerWithItems
+
+      let finalPlayerComponents =
+        match equipResult with
+        | Ok equippedComponents ->
+          let equipAmuletAction: Rules.EquipItemAction = {
+            actor = playerId
+            itemInstanceId = amuletInstance.InstanceId
+            slot = Accessory
+          }
+
+          let equipAmuletResult =
+            Equip.equipItem
+              state.services.itemStore
+              equipAmuletAction
+              equippedComponents
+
+          match equipAmuletResult with
+          | Ok finalComponents -> finalComponents
+          | Error e ->
+            System.Diagnostics.Debug.WriteLine(
+              sprintf "Failed to equip amulet: %A" e
+            )
+
+            equippedComponents
+        | Error e ->
+          System.Diagnostics.Debug.WriteLine(
+            sprintf "Failed to equip item: %A" e
+          )
+
+          playerWithItems
+
+      scenario.entities.[playerId] <- finalPlayerComponents)
+
+    let keyBindings = [|
+      struct (Set1, GameAction.UseQuickSlot1), ActivateAbility 103<AbilityId>
+      struct (Set1, GameAction.UseQuickSlot2), UseItem potionGuid
+      struct (Set1, GameAction.UseQuickSlot3), Empty
+      struct (Set1, GameAction.UseQuickSlot4), Empty
+      struct (Set2, GameAction.UseQuickSlot1), ActivateAbility 104<AbilityId>
+      struct (Set2, GameAction.UseQuickSlot2), ActivateAbility 103<AbilityId>
+    |]
 
     {
       PlayerId = playerId
       Enemies = enemies
       NavigationGrid = grid
+      KeyBindings = keyBindings
     }

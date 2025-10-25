@@ -127,7 +127,7 @@ module Resolution =
               |> Array.fold
                 (fun modAcc modifier ->
                   match modifier with
-                  | EffectModifier.AbilityDamageMod value -> modAcc + value
+                  | AbilityDamageMod value -> modAcc + value
                   | _ -> modAcc)
                 acc)
             0.0
@@ -231,9 +231,53 @@ module Resolution =
 
     updatedMap
 
+  let applyInstantEffects
+    (target: EntityComponents)
+    (effectDef: EffectDefinition)
+    =
+    let mutable newTarget = target
+
+    for modifier in effectDef.Modifiers do
+      match modifier with
+      | StaticMod(Additive(HP, value)) ->
+        let newHp = newTarget.Resources.HP + value
+
+        newTarget <- {
+          newTarget with
+              Resources = { newTarget.Resources with HP = newHp }
+        }
+      | StaticMod(Additive(MP, value)) ->
+        let newMp = newTarget.Resources.MP + value
+
+        newTarget <- {
+          newTarget with
+              Resources = { newTarget.Resources with MP = newMp }
+        }
+      | StaticMod(Subtractive(HP, value)) ->
+        let newHp = newTarget.Resources.HP - value
+
+        newTarget <- {
+          newTarget with
+              Resources = { newTarget.Resources with HP = newHp }
+        }
+      | StaticMod(Subtractive(MP, value)) ->
+        let newMp = newTarget.Resources.MP - value
+
+        newTarget <- {
+          newTarget with
+              Resources = { newTarget.Resources with MP = newMp }
+        }
+      | DynamicMod _
+      | StaticMod _
+      | ResourceConversion _
+      | AbilityDamageMod _ -> ()
+
+
+    newTarget
+
   let applyAbilityEffects
-    effectStore
-    actorId
+    (effectStore: IEffectStore)
+    (actorId: Guid<EntityId>)
     (abilityDef: ActiveAbilityDefinition)
     (targetComponents: EntityComponents)
     =
@@ -242,8 +286,18 @@ module Resolution =
 
       let effects = processEffects effectStore abilityDef actorId currentEffects
 
+      let mutable targetWithInstantEffects = targetComponents
+
+      abilityDef.Effects
+      |> Array.iter(fun effectId ->
+        let effectDef = effectStore.find effectId
+
+        if effectDef.Duration = Instant then
+          targetWithInstantEffects <-
+            applyInstantEffects targetWithInstantEffects effectDef)
+
       return {
-        targetComponents with
+        targetWithInstantEffects with
             Effects = effects
       }
     }
@@ -276,7 +330,7 @@ module Resolution =
             |> Array.fold
               (fun convAcc modifier ->
                 match modifier with
-                | EffectModifier.ResourceConversion(fromType, toType, ratio) ->
+                | ResourceConversion(fromType, toType, ratio) ->
                   (fromType, toType, ratio) :: convAcc
                 | _ -> convAcc)
               acc)

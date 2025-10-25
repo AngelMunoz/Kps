@@ -25,7 +25,7 @@ module KeybindingSystem =
   [<Struct>]
   type SlotAction =
     | ActivateAbility of ability: int<AbilityId>
-    | UseItem of item: int<Inventory.ItemId>
+    | UseItem of item: Guid<InventoryItemInstanceId>
     | Empty
 
   type KeybindingConfig = {
@@ -37,19 +37,11 @@ module KeybindingSystem =
     | NoAction
     | EnterAbilityTargeting of int<AbilityId> * TargetingMode
     | ExecuteSelfAbility of int<AbilityId>
-    | UseItemAction of int<Inventory.ItemId>
+    | UseItemAction of Guid<InventoryItemInstanceId>
 
   // --- FUNCTIONS ---
-  let createDefault() = {
-    Bindings =
-      HashMap.ofList [
-        struct (Set1, GameAction.UseQuickSlot1), ActivateAbility 103<AbilityId>
-        struct (Set1, GameAction.UseQuickSlot2), Empty
-        struct (Set1, GameAction.UseQuickSlot3), Empty
-        struct (Set1, GameAction.UseQuickSlot4), Empty
-        struct (Set2, GameAction.UseQuickSlot1), ActivateAbility 104<AbilityId>
-        struct (Set2, GameAction.UseQuickSlot2), ActivateAbility 103<AbilityId>
-      ]
+  let createDefault(bindings) = {
+    Bindings = HashMap.ofSeq bindings
     ActiveSet = Set1
   }
 
@@ -105,18 +97,16 @@ module KeybindingSystem =
       | ValueSome targetingMode ->
         result <- EnterAbilityTargeting(abilityId, targetingMode)
 
-        Debug.WriteLine(
+        Debug.WriteLine
           $"[Keybinding] Slot {gameAction} entering targeting for ability {abilityId}"
-        )
       | ValueNone ->
         result <- ExecuteSelfAbility abilityId
 
-        Debug.WriteLine(
+        Debug.WriteLine
           $"[Keybinding] Slot {gameAction} executing self ability {abilityId}"
-        )
-    | UseItem itemId ->
-      result <- UseItemAction itemId
-      Debug.WriteLine($"[Keybinding] Slot {gameAction} used item {itemId}")
+    | UseItem instanceId ->
+      Debug.WriteLine $"[Keybinding] Slot {gameAction} using item {instanceId}"
+      result <- UseItemAction instanceId
     | Empty -> ()
 
     // Automatically handle the execution of self-cast abilities

@@ -105,6 +105,13 @@ module GameInput =
           match keybindingResult with
           | KeybindingSystem.EnterAbilityTargeting(abilityId, targetingMode) ->
             inputMode <- AbilityTargeting(abilityId, targetingMode)
+          | KeybindingSystem.UseItemAction itemInstanceId ->
+            let cmd =
+              Rules.Command.UseItem {
+                actor = ctx.PlayerId
+                itemInstanceId = itemInstanceId
+              }
+            commandList.Add cmd
           | _ -> ()
         | PrimaryAction ->
           let mutable pointerWorldPos = ctx.MouseWorldPos
