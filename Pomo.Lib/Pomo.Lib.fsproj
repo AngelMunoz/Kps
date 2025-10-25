@@ -17,8 +17,8 @@
     <Compile Include="EffectApplication.fs" />
     <Compile Include="Audio.fs" />
     <Compile Include="EnemyAI.fs" />
-    
-    <Compile Include="InventoryManagement.fs" /><Compile Include="Gameplay.fs" />
+    <Compile Include="InventoryManagement.fs" />
+    <Compile Include="Gameplay.fs" />
     <Compile Include="BattleManager.fs" />
     <Compile Include="CommandHandler.fs" />
     <Compile Include="GameStateOperations.fs" />

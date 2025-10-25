@@ -416,6 +416,8 @@ module Inventory =
   type InventoryItem = {
     InstanceId: Guid<InventoryItemInstanceId>
     ItemId: int<ItemId>
+    Name: string
+    Weight: float32
     CurrentUsageCount: int voption
   }
 

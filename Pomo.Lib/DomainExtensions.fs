@@ -127,3 +127,11 @@ module ResizeArray =
     arr
 
   let inline toArray(arr: ResizeArray<'T>) = arr.ToArray()
+
+
+module ValueOption =
+
+  let inline toResult error valueOpt =
+    match valueOpt with
+    | ValueSome v -> Result.Ok v
+    | ValueNone -> Result.Error error

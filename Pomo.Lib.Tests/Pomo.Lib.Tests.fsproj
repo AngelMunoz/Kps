@@ -18,6 +18,7 @@
     <Compile Include="PartyDuelTests.fs" />
     <Compile Include="TeleportTests.fs" />
     <Compile Include="AILifecycleTests.fs" />
+    <Compile Include="InventoryManagementTests.fs" />
     <Compile Include="Tests.fs" />
   </ItemGroup>
   <ItemGroup>
