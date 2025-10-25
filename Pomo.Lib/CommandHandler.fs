@@ -178,6 +178,7 @@ module CommandHandler =
     | IsPassive
     | InvalidTarget
     | OutOfRange
+    | TargetResourceFull
     | ValidAction of ValidatedActionResult
 
   let validateAction
@@ -216,6 +217,24 @@ module CommandHandler =
           return InvalidTarget
         else
           let! actorStats = rparams.derivedStats |> AMap.find ractors.actor
+          let! targetStats = rparams.derivedStats |> AMap.find targetId
+
+          let isResourceFull =
+            if abilityDef.Intent = AbilityIntent.Support then
+              abilityDef.Effects
+              |> Array.exists(fun effectId ->
+                let effectDef = rparams.services.effectStore.find effectId
+
+                effectDef.Modifiers
+                |> Array.exists(fun modifier ->
+                  match modifier with
+                  | StaticMod(Additive(HP, value)) ->
+                    targetComponents.Resources.HP >= targetStats.HP
+                  | StaticMod(Additive(MP, value)) ->
+                    targetComponents.Resources.MP >= targetStats.MP
+                  | _ -> false))
+            else
+              false
 
           let isStunned = ValidateAction.checkStun actor
 
@@ -251,6 +270,8 @@ module CommandHandler =
             return MissingRequirements
           else if not inRange then
             return OutOfRange
+          else if isResourceFull then
+            return TargetResourceFull
           else
             return
               ValidAction {
@@ -368,6 +389,19 @@ module CommandHandler =
             actorId
             action.abilityDefinition
             targetAfterDamage
+
+        let! targetStats = rparams.derivedStats |> AMap.find targetId
+
+        let clampedResources = {
+          targetAfterEffects.Resources with
+              HP = min targetStats.HP targetAfterEffects.Resources.HP
+              MP = min targetStats.MP targetAfterEffects.Resources.MP
+        }
+
+        let targetAfterEffects = {
+          targetAfterEffects with
+              Resources = clampedResources
+        }
 
         let! actorWithCost =
           Resolution.applyResourceCost
@@ -571,6 +605,28 @@ module CommandHandler =
             Id = Guid.NewGuid() |> UMX.tag
             Text = text
             Position = a.Position
+            Color = SystemMessage
+            CreationTick = gameTime
+          })
+        |> Option.toArray
+
+      return {
+        StateChange.empty with
+            visualEffects = floatingText
+      }
+    | TargetResourceFull ->
+      let! gameTime = rparams.gameTime
+
+      let! target =
+        rparams.scenarioState.entities |> AMap.tryFind ractors.target
+
+      let floatingText =
+        target
+        |> Option.map(fun t ->
+          AddFloatingText {
+            Id = Guid.NewGuid() |> UMX.tag
+            Text = "Resource is full"
+            Position = t.Position
             Color = SystemMessage
             CreationTick = gameTime
           })
