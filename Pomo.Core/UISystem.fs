@@ -369,7 +369,7 @@ module UISystem =
     (pixel: Texture2D)
     (font: SpriteFont)
     (entityId: Guid<EntityId>)
-    (entityItems: HashMap<Guid<EntityId>, HashMap<Slot, ItemDefinition>>)
+    (entityItems: HashMap<Guid<EntityId>, HashMap<Slot, InventoryItem>>)
     (x: int)
     (y: int)
     =

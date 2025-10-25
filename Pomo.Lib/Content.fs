@@ -421,7 +421,7 @@ module AbilityStore =
         Name = "Melee Attack"
         Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 10 }
-        Cooldown = TimeSpan.FromMilliseconds(2000.0) // 2 seconds
+        Cooldown = TimeSpan.FromSeconds(1.5)
         Targeting = TargetType.SingleEnemy
         Range = 32.0f // 2 tiles
         FormulaId = ValueSome 1<FormulaId>
@@ -439,7 +439,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 20 }
         Cooldown = TimeSpan.FromSeconds(5.0)
         Targeting = TargetType.SingleEnemy
-        Range = 32f * 3f
+        Range = 32f * 5f
         FormulaId = ValueSome 2<FormulaId>
         Effects = [| 2<EffectId> |]
         Requirements = Array.empty
@@ -664,7 +664,7 @@ module AbilityStore =
         Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
         Cooldown = TimeSpan.FromSeconds(3.0)
         Targeting = GroundTarget(32f * 1f)
-        Range = 32f * 4f
+        Range = 32f * 6f
         FormulaId = ValueSome 3<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
@@ -728,7 +728,6 @@ module AbilityStore =
 
 module CharacterKitStore =
   open Pomo.Lib.Domain.Classification
-  open Pomo.Lib.Domain.Attributes
   open Pomo.Lib.Domain.CharacterKits
 
   let definitions: HashMap<Profession, CharacterKit> =
@@ -939,10 +938,7 @@ module CharacterKitStore =
     ]
 
 module ItemStore =
-  open Pomo.Lib.Domain
   open Pomo.Lib.Domain.Inventory
-  open Pomo.Lib.Domain.Attributes
-  open FSharp.Data.Adaptive
 
   let definitions: HashMap<int<ItemId>, ItemDefinition> =
     HashMap.ofList [
@@ -1057,7 +1053,6 @@ module AudioStore =
     HashMap.ofList [ "Test Scenario", 1<AudioClipId> ]
 
 module AIArchetypeStore =
-  open Pomo.Lib.Domain.CharacterKits
   open Pomo.Lib.Domain.Classification
   open Pomo.Lib.Domain.AI
 

@@ -33,7 +33,7 @@ module Scenario =
     GameTime: TimeSpan
     DerivedStats: HashMap<Guid<EntityId>, DerivedStats>
     WearableItems:
-      HashMap<Guid<EntityId>, HashMap<Inventory.Slot, Inventory.ItemDefinition>>
+      HashMap<Guid<EntityId>, HashMap<Inventory.Slot, Inventory.InventoryItem>>
   }
 
 
@@ -1094,20 +1094,8 @@ module GameState =
         scenarioState.entities
         |> AMap.map(fun _ e ->
           e.EquippedItems
-          |> HashMap.chooseV(fun slot item ->
-            let inventoryItem =
-              e.Inventory
-              |> HashMap.tryFindV item
-              |> ValueOption.bind(fun item ->
-                services.itemStore.tryFind item.ItemId)
-
-            match inventoryItem with
-            | ValueSome itemDef ->
-              match itemDef.Kind with
-              | Inventory.Wearable _ -> ValueSome itemDef
-              | Inventory.Usable _
-              | Inventory.NonUsable -> ValueNone
-            | ValueNone -> ValueNone))
+          |> HashMap.chooseV(fun _ item ->
+            e.Inventory |> HashMap.tryFindV item))
         |> AMap.toAVal
 
       return {
