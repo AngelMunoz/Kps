@@ -351,8 +351,8 @@ module Resolution =
       actorComponents with
           AbilityCooldowns =
             actorComponents.AbilityCooldowns
-            |> HashMap.map(fun k v ->
-              if k = abilityId then gameTime + abilityDef.Cooldown else v)
+            |> HashMap.alterV abilityId (fun _ ->
+              ValueSome(gameTime + abilityDef.Cooldown))
     }
 
   let applyDamage (damage: int) (targetComponents: EntityComponents) =

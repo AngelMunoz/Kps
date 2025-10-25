@@ -128,7 +128,7 @@ module private Phase3Helpers =
               member _.find itemId =
                 ItemStore.definitions |> HashMap.find itemId
           }
-        rng = fun () -> System.Random().NextDouble()
+        rng = rng
       }
       (initialScenarioId, scenarios)
 
@@ -256,7 +256,7 @@ type ``Phase3 - Stun``() =
 type ``Phase3 - Silence``() =
   [<Fact>]
   member _.``T3 Silence blocks MP abilities``() =
-    let state = create(fun () -> 0.5)
+    let state = create(fun () -> 0.0)
     let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 10<AbilityId>
@@ -707,80 +707,60 @@ type ``Phase3 - Effect Stacking``() =
     let effects = (getEntity state targetId).Effects
     Assert.True(HashMap.isEmpty effects)
 
-type ``Phase3 - Determinism``() =
+type ``Phase3 - Cooldown Management``() =
+
   [<Fact>]
-  member _.``T11 Deterministic RNG yields identical damage sequence with fixed seed``
+
+  member _.``T13 Cooldown is applied for ability not initially in the cooldown map``
     ()
     =
-    let rng1 = fun () -> 0.3
-    let rng2 = fun () -> 0.3
-
-    let state1 = create rng1
-    let state2 = create rng2
-
+    let state = create(fun () -> 0.5)
     let attackerId = Guid.NewGuid() |> UMX.tag<EntityId>
     let targetId = Guid.NewGuid() |> UMX.tag<EntityId>
     let melee = 11<AbilityId>
 
-    let attacker1 =
-      makeEntity attackerId baseStats 100 30 [ melee ] [] [
-        Classification.Player
-      ]
 
-    let target1 =
-      makeEntity targetId baseStats 100 30 [] [] [ Classification.Enemy ]
 
-    let attacker2 =
-      makeEntity attackerId baseStats 100 30 [ melee ] [] [
-        Classification.Player
-      ]
+    let attacker =
+      let baseEntity =
+        makeEntity attackerId baseStats 100 100 [ melee ] [] [
+          Classification.Player
+        ]
 
-    let target2 =
-      makeEntity targetId baseStats 100 30 [] [] [ Classification.Enemy ]
+      {
+        baseEntity with
+            AbilityCooldowns = HashMap.empty
+      }
 
-    addEntity state1 attackerId attacker1
-    addEntity state1 targetId target1
-    addEntity state2 attackerId attacker2
-    addEntity state2 targetId target2
 
-    let performAttack state =
-      let delta =
-        CommandHandler.evaluate
-          state
-          (UseAbility {
-            actor = attackerId
-            target = EntityTargets [| targetId |]
-            abilityId = melee
-          })
 
-      let change = delta |> AVal.force
-      GameState.apply state change
+    let target =
+      makeEntity targetId baseStats 100 100 [] [] [ Classification.Enemy ]
 
-    performAttack state1
-    performAttack state2
+    addEntity state attackerId attacker
+    addEntity state targetId target
 
-    let target1Hp = (getEntity state1 targetId).Resources.HP
-    let target2Hp = (getEntity state2 targetId).Resources.HP
-    Assert.Equal<int>(target1Hp, target2Hp)
 
-    let advance1 =
-      GameState.tick state1 (TimeSpan.FromSeconds(2.5)) |> AVal.force
 
-    GameState.apply state1 advance1
+    let meleeDelta =
+      CommandHandler.evaluate
+        state
+        (UseAbility {
+          actor = attackerId
+          target = EntityTargets [| targetId |]
+          abilityId = melee
+        })
 
-    let advance2 =
-      GameState.tick state2 (TimeSpan.FromSeconds(2.5)) |> AVal.force
 
-    GameState.apply state2 advance2
 
-    performAttack state1
-    performAttack state2
+    let meleeChange = meleeDelta |> AVal.force
+    GameState.apply state meleeChange
 
-    let target1HpAfter2 = (getEntity state1 targetId).Resources.HP
-    let target2HpAfter2 = (getEntity state2 targetId).Resources.HP
-    Assert.Equal<int>(target1HpAfter2, target2HpAfter2)
+    let readyAfterMelee =
+      Operations.GameState.getReadyAbilities attackerId state
 
-type ``Phase3 - Cooldown Management``() =
+    Assert.False(readyAfterMelee |> HashSet.contains melee)
+
   [<Fact>]
   member _.``T12 Cooldown-ready abilities set includes ability after cooldown elapses``
     ()

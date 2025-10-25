@@ -198,13 +198,16 @@ module CommandHandler =
 
       match actor, target with
       | Some actor, Some target when actor.Resources.Status.IsAlive ->
+        let! struct (targetId, targetComponents) =
+          ValidateAction.resolveTaunt rparams ractors target
+
         let! canUse =
           Engagement.canUseAbility
             rparams.scenarioState
             rparams.parties
             ractors.actor
-            target
-            ractors.target
+            targetComponents
+            targetId
             abilityDef
 
         if not canUse then
@@ -231,7 +234,7 @@ module CommandHandler =
           let inRange =
             ValidateAction.checkRange
               actor.Position
-              target.Position
+              targetComponents.Position
               abilityDef.Range
 
           if isStunned then
@@ -247,10 +250,6 @@ module CommandHandler =
           else if not inRange then
             return OutOfRange
           else
-
-            let! struct (targetId, targetComponents) =
-              ValidateAction.resolveTaunt rparams ractors target
-
             return
               ValidAction {
                 actor = actor
