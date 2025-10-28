@@ -11,9 +11,15 @@ open FSharp.Data.Adaptive
 module Engagement =
 
   let inline private isPlayer(entity: EntityComponents) =
-    entity.Factions.Contains(Classification.Faction.Player)
+    entity.Factions.Contains Classification.Faction.Player
 
   let inline private isNpc(entity: EntityComponents) = not(isPlayer entity)
+
+  let inline private isAlly(entity: EntityComponents) =
+    entity.Factions.Contains Classification.Faction.Ally
+
+  let inline private isEnemy(entity: EntityComponents) =
+    entity.Factions.Contains Classification.Faction.Enemy
 
   let inline private inSameParty
     struct (actorId: Guid<EntityId>, targetId: Guid<EntityId>)
@@ -21,7 +27,76 @@ module Engagement =
     =
     parties
     |> AMap.exists(fun _ party ->
-      party.Members.Contains(actorId) && party.Members.Contains(targetId))
+      party.Members.Contains actorId && party.Members.Contains targetId)
+
+  let canTargetOffensive
+    (actorId: Guid<EntityId>)
+    (actorFactions: HashSet<Classification.Faction>)
+    (targetId: Guid<EntityId>)
+    (targetFactions: HashSet<Classification.Faction>)
+    (parties: amap<Guid<PartyId>, Party>)
+    : aval<bool> =
+    adaptive {
+      let! inSameParty = inSameParty struct (actorId, targetId) parties
+      let isSelfTarget = actorId = targetId
+
+      if isSelfTarget || inSameParty then
+        return false
+      else
+
+      let actorIsPlayerOrAlly =
+        actorFactions.Contains Classification.Faction.Player
+        || actorFactions.Contains Classification.Faction.Ally
+
+      let actorIsEnemy = actorFactions.Contains Classification.Faction.Enemy
+
+      let targetIsPlayerOrAlly =
+        targetFactions.Contains Classification.Faction.Player
+        || targetFactions.Contains Classification.Faction.Ally
+
+      let targetIsEnemy = targetFactions.Contains Classification.Faction.Enemy
+
+      if actorIsPlayerOrAlly then
+        return targetIsEnemy
+      elif actorIsEnemy then
+        return targetIsPlayerOrAlly || targetIsEnemy
+      else
+        return false
+    }
+
+  let canTargetSupport
+    (actorId: Guid<EntityId>)
+    (actorFactions: HashSet<Classification.Faction>)
+    (targetId: Guid<EntityId>)
+    (targetFactions: HashSet<Classification.Faction>)
+    (parties: amap<Guid<PartyId>, Party>)
+    : aval<bool> =
+    adaptive {
+      if actorId = targetId then // Can always target self with support
+        return true
+      else
+
+      let actorIsPlayer = actorFactions.Contains Classification.Faction.Player
+      let actorIsAlly = actorFactions.Contains Classification.Faction.Ally
+
+      let targetIsPlayer = targetFactions.Contains Classification.Faction.Player
+
+      let targetIsAlly = targetFactions.Contains Classification.Faction.Ally
+
+      if actorIsPlayer then
+        if targetIsAlly then
+          return true
+        elif targetIsPlayer then
+          let! inSameParty = inSameParty struct (actorId, targetId) parties
+          return inSameParty
+        else
+          return false
+      else if actorIsAlly then
+        // Ally actor: can target any Ally or any Player
+        return targetIsAlly || targetIsPlayer
+      else // actorIsEnemy or Neutral/Terrain (which shouldn't be casting support)
+        return false
+    }
 
   let canUseAbility
     (scenarioState: ScenarioState)
@@ -57,7 +132,10 @@ module Engagement =
             | ScenarioCombatType.PvE ->
               // Players: can attack NPCs, not other players
               // NPCs: can attack players, not other NPCs (unless override enabled)
-              let npcVsNpcAllowed = false // Set to true for special maps/events
+              let npcVsNpcAllowed =
+                if isAlly actor then isEnemy target
+                elif isEnemy actor then isAlly target
+                else false
 
               if actorIsPlayer then
                 return targetIsNpc

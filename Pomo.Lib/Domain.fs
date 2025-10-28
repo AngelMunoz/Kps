@@ -521,8 +521,10 @@ module Abilities =
     | Self
     | SingleAlly
     | SingleEnemy
-    | MultiTarget of int
     | GroundTarget of radius: float32
+    | AreaRandomTargets of radius: float32 * maxTargets: int
+    | ChainTargets of maxChains: int * chainRange: float32
+    | ConeTargets of angle: float32 * range: float32 * maxTargets: int
 
   [<Struct>]
   type PassiveAbilityDefinition = {
@@ -542,6 +544,8 @@ module Abilities =
     Cost: ResourceCost voption
     Targeting: TargetType
     Range: float32
+    CastingTime: TimeSpan voption
+    PreActivationVisualEffectId: int<ImpactId> voption
     FormulaId: int<FormulaId> voption
     Effects: int<EffectId>[]
     Requirements: AbilityRequirement[]
@@ -894,7 +898,7 @@ module VisualEffects =
     CurrentPosition: Position
     Target: ProjectileTarget
     CreationTick: TimeSpan
-    PendingResolutionId: Guid<PendingResolutionId>
+    PendingResolutionId: Guid<PendingResolutionId> voption
   }
 
   [<Struct>]
@@ -903,7 +907,7 @@ module VisualEffects =
     DefinitionId: int<AoeId>
     Position: Position
     CreationTick: TimeSpan
-    PendingResolutionId: Guid<PendingResolutionId>
+    PendingResolutionId: Guid<PendingResolutionId> voption
   }
 
   [<Struct>]
@@ -912,7 +916,7 @@ module VisualEffects =
     DefinitionId: int<ImpactId>
     Position: Position
     CreationTick: TimeSpan
-    PendingResolutionId: Guid<PendingResolutionId>
+    PendingResolutionId: Guid<PendingResolutionId> voption
   }
 
   [<Struct>]
@@ -1073,8 +1077,8 @@ module State =
 
   [<Struct>]
   type StateChange = {
-    updates: HashMap<Guid<EntityId>, EntityComponents>
-    additions: HashMap<Guid<EntityId>, EntityComponents>
+    updates: HashMap<Guid<EntityId>, Components.EntityComponents>
+    additions: HashMap<Guid<EntityId>, Components.EntityComponents>
     removals: Guid<EntityId>[]
     gameTime: TimeSpan voption
     scenarioChanges: ScenarioChange[]
