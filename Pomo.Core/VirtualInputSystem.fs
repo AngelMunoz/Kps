@@ -5,9 +5,10 @@ open Microsoft.Xna.Framework.Graphics
 open Microsoft.Xna.Framework.Input.Touch
 open FSharp.UMX
 open Pomo.Lib.Domain
+open Pomo.Lib.Domain.Attributes
 open Pomo.Lib.Domain.State
 open Pomo.Lib.Domain.Scenario
-open System.Collections.Generic
+open FSharp.Data.Adaptive
 
 module VirtualInputSystem =
 
@@ -42,10 +43,11 @@ module VirtualInputSystem =
     KeybindingConfig: KeybindingSystem.KeybindingConfig
     State: GameState
     InputMode: InputMode
+    DerivedStats: HashMap<Guid<EntityId>, DerivedStats>
   }
 
   type VirtualInputResult = {
-    Commands: List<Rules.Command>
+    Commands: Rules.Command[]
     NewInputMode: InputMode
     NewVirtualInputState: VirtualInputState voption
   }
@@ -187,7 +189,7 @@ module VirtualInputSystem =
       ctx.VirtualInputState
       |> ValueOption.map(fun vs -> update vs ctx.TouchState)
 
-    let commandList = List<Rules.Command>()
+    let commandList = ResizeArray<Rules.Command>()
     let mutable inputMode = ctx.InputMode
 
     newVirtualInputState
@@ -195,10 +197,7 @@ module VirtualInputSystem =
       // Joystick movement
       match getJoystickDirection vinput with
       | ValueSome direction ->
-        let derivedStatsAVal = Pomo.Lib.Gameplay.DerivedStats.byGameState ctx.State
-        let derivedStatsAMap = derivedStatsAVal |> FSharp.Data.Adaptive.AVal.force
-        let derivedStatsHashMap = derivedStatsAMap |> FSharp.Data.Adaptive.AMap.force
-        let playerStats = derivedStatsHashMap |> FSharp.Data.Adaptive.HashMap.find ctx.PlayerId
+        let playerStats = ctx.DerivedStats |> HashMap.find ctx.PlayerId
         let movementSpeed = float32 playerStats.MovementSpeed
         let velocity = direction * movementSpeed
         let elapsed = float32 ctx.GameTime.ElapsedGameTime.TotalSeconds
@@ -244,7 +243,7 @@ module VirtualInputSystem =
           | _ -> ())
 
     {
-      Commands = commandList
+      Commands = commandList.ToArray()
       NewInputMode = inputMode
       NewVirtualInputState = newVirtualInputState
     }
