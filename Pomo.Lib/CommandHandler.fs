@@ -183,7 +183,9 @@ module CommandHandler =
         let! canTarget = targetFilter canTargetParams
         return isInRange && canTarget
       })
-      |> AMap.fold (fun acc id _ -> ResizeArray.add id acc) (ResizeArray.empty())
+      |> AMap.fold
+        (fun acc id _ -> ResizeArray.add id acc)
+        (ResizeArray.empty())
       |> AVal.map(fun targets -> targets |> ResizeArray.toArray)
 
     let getAreaRandomTargets
@@ -213,6 +215,20 @@ module CommandHandler =
         let arr = targets |> ResizeArray.toArray
         arr |> Array.randomShuffleInPlace
         arr |> Array.truncate maxTargets)
+
+
+    let getAreaRandomPoints
+      (targetPos: Position)
+      (radius: float32)
+      (numPoints: int)
+      (rng: unit -> float)
+      : Position[] =
+      Array.init numPoints (fun _ ->
+        let angle = float32(rng() * 2.0 * Math.PI)
+        let r = radius * sqrt(float32(rng()))
+        let x = targetPos.X + float32(r * cos angle)
+        let y = targetPos.Y + float32(r * sin(angle))
+        { X = x; Y = y })
 
 
     let getChainTargets
@@ -256,7 +272,6 @@ module CommandHandler =
                             targetEntity.Position
 
                         if dist <= range then
-                          // TODO: Check for engagement rules
                           match closestOpt with
                           | ValueSome(_, closestDist) ->
                             if dist < closestDist then
@@ -525,8 +540,9 @@ module CommandHandler =
 
         let visualEffects = [|
           AddPendingResolution resolution
-          match action.abilityDefinition.PreActivationVisualEffectId with
-          | ValueSome defId ->
+          match action.abilityDefinition.PreActivationVisualEffectIds with
+          | [||] -> ()
+          | [| defId |] ->
             AddImpact {
               Id = Guid.NewGuid() |> UMX.tag
               DefinitionId = defId
@@ -534,7 +550,15 @@ module CommandHandler =
               CreationTick = gameTime
               PendingResolutionId = ValueNone
             }
-          | ValueNone -> ()
+          | rest ->
+            for defId in rest do
+              AddImpact {
+                Id = Guid.NewGuid() |> UMX.tag
+                DefinitionId = defId
+                Position = action.actorComponents.Position
+                CreationTick = gameTime
+                PendingResolutionId = ValueNone
+              }
         |]
 
         return {
@@ -728,9 +752,8 @@ module CommandHandler =
 
         audioChanges.AddRange(castCues)
 
-        // Schedule visual effects and pending resolutions
-        action.abilityDefinition.ProjectileId
-        |> ValueOption.iter(fun defId ->
+        action.abilityDefinition.ProjectileIds
+        |> Array.iter(fun defId ->
           let resolution = {
             Id = resolutionId
             ActorId = ractors.actor
@@ -752,8 +775,8 @@ module CommandHandler =
             }
           ))
 
-        action.abilityDefinition.AoeId
-        |> ValueOption.iter(fun defId ->
+        action.abilityDefinition.AoeIds
+        |> Array.iter(fun defId ->
           let resolution = {
             Id = resolutionId
             ActorId = ractors.actor
@@ -774,8 +797,8 @@ module CommandHandler =
             }
           ))
 
-        action.abilityDefinition.ImpactId
-        |> ValueOption.iter(fun defId ->
+        action.abilityDefinition.ImpactIds
+        |> Array.iter(fun defId ->
           let impactDef = rparams.services.impactStore.find defId
 
           let resolution = {
@@ -825,6 +848,99 @@ module CommandHandler =
               audioChanges = audioChanges |> ResizeArray.toArray
         }
       }
+
+    let resolveDeferredOnPosition
+      (abilityId: int<AbilityId>)
+      (rparams: ResolverParams)
+      (actorId: Guid<EntityId>)
+      (actorComponents: EntityComponents)
+      (targetPosition: Position)
+      (abilityDef: ActiveAbilityDefinition)
+      =
+      adaptive {
+        let! gameTime = rparams.gameTime
+        let resolutionId = %Guid.NewGuid()
+        let mutable visualEffects = ResizeArray()
+        let mutable audioChanges = ResizeArray()
+
+        let castCues =
+          Audio.Cues.createAbilityCastCue
+            rparams.services.audioStore
+            abilityId
+            actorId
+            actorComponents.Position
+            gameTime
+
+        audioChanges.AddRange(castCues)
+
+        abilityDef.ProjectileIds
+        |> Array.iter(fun defId ->
+          let resolution = {
+            Id = resolutionId
+            ActorId = actorId
+            Target = PositionResolution targetPosition
+            AbilityId = abilityId
+            TriggerTick = gameTime + TimeSpan.FromSeconds(5.0) // Fallback timeout
+          }
+
+          visualEffects.Add(AddPendingResolution resolution)
+
+          visualEffects.Add(
+            AddProjectile {
+              Id = Guid.NewGuid() |> UMX.tag
+              DefinitionId = defId
+              CurrentPosition = actorComponents.Position
+              Target = PositionTarget targetPosition
+              CreationTick = gameTime
+              PendingResolutionId = ValueSome resolutionId
+            }
+          ))
+
+        // Only apply cost and cooldown immediately
+        let! actorWithCost =
+          Resolution.applyResourceCost abilityDef.Cost actorComponents 0 // No damage dealt yet
+
+        let actorWithCooldown =
+          Resolution.updateCooldowns
+            actorWithCost
+            abilityId
+            gameTime
+            abilityDef.Cooldown
+
+        let finalActor = {
+          actorWithCooldown with
+              Movement = {
+                actorWithCooldown.Movement with
+                    Path = []
+                    Destination = ValueNone
+              }
+        }
+
+        return {
+          StateChange.empty with
+              updates = HashMap.single actorId finalActor
+              visualEffects = visualEffects |> ResizeArray.toArray
+              audioChanges = audioChanges |> ResizeArray.toArray
+        }
+      }
+
+    let resolveAbilityOnPosition rparams abilityId actorId position = adaptive {
+      let abilityKind = rparams.services.abilityStore.tryFind abilityId
+
+      match abilityKind with
+      | ValueSome(Active abilityDef) ->
+        let! actor = rparams.scenarioState.entities |> AMap.find actorId
+
+        return!
+          resolveDeferredOnPosition
+            abilityId
+            rparams
+            actorId
+            actor
+            position
+            abilityDef
+      | _ -> return StateChange.empty
+    }
 
   /// Resolves an ability command
   let resolveAbility rparams abilityId ractors = adaptive {
@@ -901,9 +1017,9 @@ module CommandHandler =
           AbilityResolution.resolveCasting abilityId rparams ractors action
       else
         let hasVisualEffect =
-          action.abilityDefinition.ProjectileId.IsSome
-          || action.abilityDefinition.AoeId.IsSome
-          || action.abilityDefinition.ImpactId.IsSome
+          action.abilityDefinition.ProjectileIds.Length > 0
+          || action.abilityDefinition.AoeIds.Length > 0
+          || action.abilityDefinition.ImpactIds.Length > 0
 
         if hasVisualEffect then
           return!
@@ -982,69 +1098,6 @@ module CommandHandler =
       | None -> return StateChange.empty
     }
 
-  let continueResolution
-    (action: UseAbilityAction)
-    (actor: EntityComponents)
-    abilityDef
-    targetPos
-    gameTime
-    =
-    let resolutionId = %Guid.NewGuid()
-    let visualEffects = ResizeArray()
-
-    match abilityDef.CastingTime with
-    | ValueSome castingTime ->
-      let resolution = {
-        Id = resolutionId
-        ActorId = action.actor
-        Target = PositionResolution targetPos
-        AbilityId = action.abilityId
-        TriggerTick = gameTime + castingTime
-      }
-
-      // TODO: Pre-activation visual effect
-      visualEffects.Add(AddPendingResolution resolution)
-    | ValueNone ->
-      abilityDef.ProjectileId
-      |> ValueOption.iter(fun defId ->
-        let resolution = {
-          Id = resolutionId
-          ActorId = action.actor
-          Target = PositionResolution targetPos
-          AbilityId = action.abilityId
-          TriggerTick = gameTime + TimeSpan.FromSeconds(5.0)
-        }
-
-        visualEffects.Add(AddPendingResolution resolution)
-
-        visualEffects.Add(
-          AddProjectile {
-            Id = Guid.NewGuid() |> UMX.tag
-            DefinitionId = defId
-            CurrentPosition = actor.Position
-            Target = PositionTarget targetPos
-            CreationTick = gameTime
-            PendingResolutionId = ValueSome resolutionId
-          }
-        ))
-
-    Resolution.applyResourceCost abilityDef.Cost actor 0
-    |> AVal.map(fun actorWithCost ->
-      let actorWithCooldown =
-        Resolution.updateCooldowns
-          actorWithCost
-          action.abilityId
-          gameTime
-          abilityDef.Cooldown
-
-      {
-        StateChange.empty with
-            updates = HashMap.single action.actor actorWithCooldown
-            visualEffects = visualEffects |> ResizeArray.toArray
-      })
-
-
-
   let canTargetPredicate ability actor actorFactions parties canTargetParams =
     let {
           targetId = target
@@ -1096,10 +1149,10 @@ module CommandHandler =
             actorFactions
             rparams.scenarioState.parties
 
-        let! struct (actualTargets, primaryTargetPos) =
+        let! struct (actualTargets: ResolvedTarget[], primaryTargetPos) =
           match action.target with
           | AbilityTarget.PositionTarget pos ->
-            let targets =
+            let targets: aval<ResolvedTarget[]> =
               match abilityDef.Targeting with
               | GroundTarget radius ->
                 TargetResolution.getGroundTargets
@@ -1107,6 +1160,7 @@ module CommandHandler =
                   pos
                   radius
                   canTargetPredicate
+                |> AVal.map(Array.map Entity)
               | AreaRandomTargets(radius, maxTargets) ->
                 TargetResolution.getAreaRandomTargets
                   entities
@@ -1114,21 +1168,30 @@ module CommandHandler =
                   radius
                   maxTargets
                   canTargetPredicate
+                |> AVal.map(Array.map Entity)
+              | AreaRandomPoints(radius, numPoints) ->
+                TargetResolution.getAreaRandomPoints
+                  pos
+                  radius
+                  numPoints
+                  rparams.services.rng
+                |> Array.map Position
+                |> AVal.constant
               | _ -> AVal.constant Array.empty
 
             let pos = AVal.constant pos
             AVal.map2 (fun t p -> struct (t, p)) targets pos
 
           | EntityTargets targets ->
-            let actualTargets =
+            let actualTargets: aval<ResolvedTarget[]> =
               match abilityDef.Targeting with
-              | Self -> AVal.constant [| action.actor |]
+              | Self -> AVal.constant [| Entity action.actor |]
               | SingleAlly
               | SingleEnemy ->
                 AVal.constant(
                   targets
                   |> Array.tryHead
-                  |> Option.map(fun targetId -> [| targetId |])
+                  |> Option.map(fun targetId -> [| Entity targetId |])
                   |> Option.defaultValue Array.empty
                 )
               | GroundTarget radius ->
@@ -1142,6 +1205,7 @@ module CommandHandler =
                       e.Position
                       radius
                       canTargetPredicate)
+                  |> AVal.map(Array.map Entity)
                 | None -> AVal.constant Array.empty
               | AreaRandomTargets(radius, maxTargets) ->
                 match targets |> Array.tryHead with
@@ -1155,6 +1219,7 @@ module CommandHandler =
                       radius
                       maxTargets
                       canTargetPredicate)
+                  |> AVal.map(Array.map Entity)
                 | None -> AVal.constant Array.empty
               | ChainTargets(maxChains, range) ->
                 match targets |> Array.tryHead with
@@ -1165,6 +1230,7 @@ module CommandHandler =
                     maxChains
                     range
                     canTargetPredicate
+                  |> AVal.map(Array.map Entity)
                 | None -> AVal.constant Array.empty
               | ConeTargets(angle, range, maxTargets) ->
                 match targets |> Array.tryHead with
@@ -1177,7 +1243,9 @@ module CommandHandler =
                     range
                     maxTargets
                     canTargetPredicate
+                  |> AVal.map(Array.map Entity)
                 | None -> AVal.constant Array.empty
+              | AreaRandomPoints _ -> AVal.constant Array.empty
 
             let primaryPos = adaptive {
               match targets |> Array.tryHead with
@@ -1252,16 +1320,24 @@ module CommandHandler =
                 |]
           }
         else
-          let resolver = resolveAbility rparams action.abilityId
-
           let stateChanges =
             actualTargets
             |> AList.ofArray
-            |> AList.mapA(fun targetId ->
-              resolver {
-                actor = action.actor
-                target = targetId
-              })
+            |> AList.mapA(fun resolvedTarget ->
+              match resolvedTarget with
+              | Entity targetId ->
+                let resolver = resolveAbility rparams action.abilityId
+
+                resolver {
+                  actor = action.actor
+                  target = targetId
+                }
+              | Position pos ->
+                AbilityResolution.resolveAbilityOnPosition
+                  rparams
+                  action.abilityId
+                  action.actor
+                  pos)
 
           return!
             stateChanges

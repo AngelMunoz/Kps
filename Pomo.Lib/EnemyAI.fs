@@ -127,16 +127,12 @@ module Perception =
       let memoryCues =
         updatedMemories
         |> HashMap.toArray
-        |> Array.map(fun(entityId, memoryEntry) ->
+        |> Array.map(fun (entityId, memoryEntry) ->
           let strength =
-            if memoryEntry.confidence >= 1.0f then
-              Overwhelming
-            elif memoryEntry.confidence >= 0.75f then
-              Strong
-            elif memoryEntry.confidence >= 0.5f then
-              Moderate
-            else
-              Weak
+            if memoryEntry.confidence >= 1.0f then Overwhelming
+            elif memoryEntry.confidence >= 0.75f then Strong
+            elif memoryEntry.confidence >= 0.5f then Moderate
+            else Weak
 
           {
             cueType = Memory
@@ -176,6 +172,7 @@ module Decision =
     =
     abilities
     |> HashSet.chooseV(fun abilityId ->
+
       match abilityStore.tryFind abilityId with
       | ValueNone -> ValueNone
       | ValueSome(Passive _) -> ValueNone
@@ -187,17 +184,18 @@ module Decision =
           | Self -> ValueSome struct (abilityId, EntityTargets [||])
           | SingleEnemy
           | SingleAlly ->
-            match targetId with
-            | ValueSome id ->
-              ValueSome struct (abilityId, EntityTargets [| id |])
-            | ValueNone -> ValueNone
-          | MultiTarget _ ->
-            match targetId with
-            | ValueSome id ->
-              ValueSome struct (abilityId, EntityTargets [| id |])
-            | ValueNone -> ValueNone
-          | GroundTarget _ ->
-            ValueSome struct (abilityId, PositionTarget targetPos)
+            targetId
+            |> ValueOption.map(fun id ->
+              struct (abilityId, EntityTargets [| id |]))
+          | GroundTarget _
+          | AreaRandomTargets _
+          | AreaRandomPoints _ ->
+            ValueSome(struct (abilityId, PositionTarget targetPos))
+          | ChainTargets _
+          | ConeTargets _ ->
+            targetId
+            |> ValueOption.map(fun id ->
+              struct (abilityId, EntityTargets [| id |]))
         else
           ValueNone)
 

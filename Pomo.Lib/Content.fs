@@ -427,9 +427,11 @@ module AbilityStore =
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
-        ProjectileId = ValueNone
-        AoeId = ValueNone
-        ImpactId = ValueSome 1<ImpactId>
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        AoeIds = Array.empty
+        ImpactIds = [| 1<ImpactId> |]
       }
       2<AbilityId>,
       {
@@ -443,9 +445,11 @@ module AbilityStore =
         FormulaId = ValueSome 2<FormulaId>
         Effects = [| 2<EffectId> |]
         Requirements = Array.empty
-        ProjectileId = ValueSome 1<ProjectileId>
-        AoeId = ValueNone
-        ImpactId = ValueSome 2<ImpactId>
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = [| 1<ProjectileId> |]
+        AoeIds = Array.empty
+        ImpactIds = [| 2<ImpactId> |]
       }
       3<AbilityId>,
       {
@@ -459,9 +463,11 @@ module AbilityStore =
         FormulaId = ValueNone
         Effects = [| 104<EffectId> |]
         Requirements = Array.empty
-        ProjectileId = ValueNone
-        AoeId = ValueNone
-        ImpactId = ValueNone
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        AoeIds = Array.empty
+        ImpactIds = Array.empty
       }
       4<AbilityId>,
       {
@@ -475,9 +481,11 @@ module AbilityStore =
         FormulaId = ValueNone
         Effects = [| 1<EffectId> |]
         Requirements = Array.empty
-        ProjectileId = ValueNone
-        AoeId = ValueNone
-        ImpactId = ValueNone
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        AoeIds = Array.empty
+        ImpactIds = Array.empty
       }
       5<AbilityId>,
       {
@@ -491,9 +499,11 @@ module AbilityStore =
         FormulaId = ValueNone
         Effects = [| 102<EffectId> |]
         Requirements = Array.empty
-        ProjectileId = ValueNone
-        AoeId = ValueNone
-        ImpactId = ValueNone
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        AoeIds = Array.empty
+        ImpactIds = Array.empty
       }
       6<AbilityId>,
       {
@@ -507,9 +517,11 @@ module AbilityStore =
         FormulaId = ValueSome 3<FormulaId>
         Effects = [| 105<EffectId> |]
         Requirements = Array.empty
-        ProjectileId = ValueNone
-        AoeId = ValueNone
-        ImpactId = ValueNone
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        AoeIds = Array.empty
+        ImpactIds = Array.empty
       }
       10<AbilityId>,
       {
@@ -523,9 +535,11 @@ module AbilityStore =
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
-        ProjectileId = ValueNone
-        AoeId = ValueNone
-        ImpactId = ValueNone
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        AoeIds = Array.empty
+        ImpactIds = Array.empty
       }
       11<AbilityId>,
       {
@@ -539,9 +553,11 @@ module AbilityStore =
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
-        ProjectileId = ValueNone
-        AoeId = ValueNone
-        ImpactId = ValueNone
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        AoeIds = Array.empty
+        ImpactIds = Array.empty
       }
       7<AbilityId>,
       {
@@ -555,9 +571,11 @@ module AbilityStore =
         FormulaId = ValueNone
         Effects = [| 106<EffectId> |]
         Requirements = Array.empty
-        ProjectileId = ValueNone
-        AoeId = ValueNone
-        ImpactId = ValueNone
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        AoeIds = Array.empty
+        ImpactIds = Array.empty
       }
       8<AbilityId>,
       {
@@ -571,9 +589,11 @@ module AbilityStore =
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
-        ProjectileId = ValueNone
-        AoeId = ValueNone
-        ImpactId = ValueSome 1<ImpactId>
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        AoeIds = Array.empty
+        ImpactIds = [| 1<ImpactId> |]
       }
       9<AbilityId>,
       {
@@ -587,9 +607,11 @@ module AbilityStore =
         FormulaId = ValueNone
         Effects = [| 101<EffectId> |]
         Requirements = Array.empty
-        ProjectileId = ValueNone
-        AoeId = ValueNone
-        ImpactId = ValueNone
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        AoeIds = Array.empty
+        ImpactIds = Array.empty
       }
       // Enhanced Effects Test Abilities
       100<AbilityId>,
@@ -604,9 +626,11 @@ module AbilityStore =
         FormulaId = ValueSome 1<FormulaId>
         Effects = [| 200<EffectId>; 202<EffectId> |]
         Requirements = Array.empty
-        ProjectileId = ValueNone
-        AoeId = ValueNone
-        ImpactId = ValueSome 1<ImpactId>
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        AoeIds = Array.empty
+        ImpactIds = [| 1<ImpactId> |]
       }
       101<AbilityId>,
       {
@@ -620,9 +644,11 @@ module AbilityStore =
         FormulaId = ValueNone
         Effects = [| 201<EffectId> |]
         Requirements = Array.empty
-        ProjectileId = ValueNone
-        AoeId = ValueNone
-        ImpactId = ValueNone
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        AoeIds = Array.empty
+        ImpactIds = Array.empty
       }
       102<AbilityId>,
       {
@@ -636,9 +662,11 @@ module AbilityStore =
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
-        ProjectileId = ValueSome 3<ProjectileId>
-        AoeId = ValueNone
-        ImpactId = ValueSome 1<ImpactId>
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = [| 3<ProjectileId> |]
+        AoeIds = Array.empty
+        ImpactIds = [| 1<ImpactId> |]
       }
       103<AbilityId>,
       {
@@ -652,9 +680,11 @@ module AbilityStore =
         FormulaId = ValueSome 2<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
-        ProjectileId = ValueSome 4<ProjectileId>
-        AoeId = ValueNone
-        ImpactId = ValueSome 2<ImpactId>
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = [| 4<ProjectileId> |]
+        AoeIds = Array.empty
+        ImpactIds = [| 2<ImpactId> |]
       }
       104<AbilityId>,
       {
@@ -668,9 +698,11 @@ module AbilityStore =
         FormulaId = ValueSome 3<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
-        ProjectileId = ValueSome 3<ProjectileId>
-        AoeId = ValueNone
-        ImpactId = ValueSome 1<ImpactId>
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = [| 3<ProjectileId> |]
+        AoeIds = Array.empty
+        ImpactIds = [| 1<ImpactId> |]
       }
       200<AbilityId>,
       {
@@ -684,9 +716,11 @@ module AbilityStore =
         FormulaId = ValueNone
         Effects = [| 305<EffectId> |] // Assuming a healing effect
         Requirements = Array.empty
-        ProjectileId = ValueNone
-        AoeId = ValueNone
-        ImpactId = ValueNone
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        AoeIds = Array.empty
+        ImpactIds = Array.empty
       }
     ]
 

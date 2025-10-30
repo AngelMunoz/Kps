@@ -39,6 +39,7 @@ module ScenarioState =
       impacts = cmap()
       pendingResolutions = cmap()
       aiControllers = cmap()
+      activeZones = cmap()
     }
 
     configure baseScenario
@@ -65,6 +66,7 @@ module ScenarioManager =
       impacts = cmap()
       pendingResolutions = cmap()
       aiControllers = cmap()
+      activeZones = cmap()
     }
 
   let getScenarioState

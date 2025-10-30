@@ -93,13 +93,24 @@ This phase implements the specific target selection logic required by the new ab
   - **Required for:** All advanced targeting mechanisms.
   - Define and implement rules for determining valid targets based on factors such as friendly/hostile status, line of sight, aggro range, and other combat-specific conditions. These rules should be integrated into the `TargetResolution` functions to filter potential targets.
 
-### Phase 3: Enhanced Visual Effect Dispatch
+### Phase 3: Enhanced Visual Effect Dispatch [COMPLETED]
 
 This phase enables abilities to feel more dynamic by spawning multiple projectiles or impacts from a single cast.
 
-- **Task 3.1: Refactor Ability Processing**
+- **Task 3.1: Refactor Ability Processing [COMPLETED]**
   - **Required for:** _Fan of Stones_, _Raining Icicles_
   - The core ability processor needs to be updated. After target selection (Phase 2) returns a list of targets or points, the processor should iterate through them and be capable of generating a separate `VisualEffectChange` (e.g., `AddProjectile`) for each one.
+
+- **Task 3.2: Extend Targeting for Position-Based Effects [COMPLETED]**
+  - **Required for:** _Raining Icicles_
+  - To support abilities that target random points in an area, the `TargetType` DU was extended with `AreaRandomPoints`.
+  - The `resolveUseAbility` function was refactored to handle both entity and position-based targets, using a new `ResolvedTarget` DU. This allows abilities to generate visual effects at specific points on the ground, not just on entities.
+
+- **Task 3.3: Stabilize and Refactor [COMPLETED]**
+  - **Required for:** Overall system stability.
+  - Fixed inconsistencies in `Pomo.Lib/EnemyAI.fs` where the `TargetType` DU was not handled correctly.
+  - Corrected `voption` handling in `Pomo.Lib/Gameplay.fs` for `PendingResolutionId` to prevent runtime errors.
+  - Refactored `selectAbilityForTarget` in `Pomo.Lib/EnemyAI.fs` to correctly gather all valid abilities for an AI entity.
 
 ### Phase 4: Persistent Ground Effects
 

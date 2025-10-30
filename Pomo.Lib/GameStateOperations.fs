@@ -225,4 +225,5 @@ module ScenarioState =
     impacts = cmap()
     pendingResolutions = cmap()
     aiControllers = cmap()
+    activeZones = cmap()
   }

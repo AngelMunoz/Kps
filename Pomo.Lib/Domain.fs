@@ -42,6 +42,9 @@ type FloatingTextId
 type PendingResolutionId
 
 [<Measure>]
+type ActiveZoneId
+
+[<Measure>]
 type AudioClipId
 
 [<Measure>]
@@ -525,6 +528,7 @@ module Abilities =
     | AreaRandomTargets of radius: float32 * maxTargets: int
     | ChainTargets of maxChains: int * chainRange: float32
     | ConeTargets of angle: float32 * range: float32 * maxTargets: int
+    | AreaRandomPoints of radius: float32 * numPoints: int
 
   [<Struct>]
   type PassiveAbilityDefinition = {
@@ -545,13 +549,13 @@ module Abilities =
     Targeting: TargetType
     Range: float32
     CastingTime: TimeSpan voption
-    PreActivationVisualEffectId: int<ImpactId> voption
+    PreActivationVisualEffectIds: int<ImpactId>[]
     FormulaId: int<FormulaId> voption
     Effects: int<EffectId>[]
     Requirements: AbilityRequirement[]
-    ProjectileId: int<ProjectileId> voption
-    AoeId: int<AoeId> voption
-    ImpactId: int<ImpactId> voption
+    ProjectileIds: int<ProjectileId>[]
+    AoeIds: int<AoeId>[]
+    ImpactIds: int<ImpactId>[]
   }
 
   [<Struct>]
@@ -724,6 +728,11 @@ module Rules =
   type AbilityTarget =
     | EntityTargets of targets: Guid<EntityId>[]
     | PositionTarget of position: Position
+
+  [<Struct>]
+  type ResolvedTarget =
+    | Entity of entityId: Guid<EntityId>
+    | Position of position: Position
 
   [<Struct>]
   type UseAbilityAction = {
@@ -920,6 +929,17 @@ module VisualEffects =
   }
 
   [<Struct>]
+  type ActiveZone = {
+    Id: Guid<ActiveZoneId>
+    Position: Position
+    Shape: Visuals.Shape
+    Radius: float32
+    EndTime: TimeSpan
+    EffectsToApply: int<EffectId>[]
+    EntitiesInside: HashSet<Guid<EntityId>>
+  }
+
+  [<Struct>]
   type VisualEffect =
     | FloatingText of text: FloatingText
     | Projectile of projectile: ActiveProjectile
@@ -964,6 +984,7 @@ module Scenario =
     impacts: cmap<Guid<ImpactId>, VisualEffects.ActiveImpact>
     pendingResolutions: cmap<Guid<PendingResolutionId>, PendingResolution>
     aiControllers: cmap<Guid<EntityId>, AI.AIController>
+    activeZones: cmap<Guid<ActiveZoneId>, VisualEffects.ActiveZone>
   }
 
   type GameStateScenarios = {
@@ -1060,6 +1081,9 @@ module State =
     | RemovePendingDuel of requester: Guid<EntityId>
     | AddPendingPartyDuel of requester: Guid<PartyId> * target: Guid<PartyId>
     | RemovePendingPartyDuel of requester: Guid<PartyId>
+    | AddActiveZone of zone: ActiveZone
+    | UpdateActiveZone of zone: ActiveZone
+    | RemoveActiveZone of zoneId: Guid<ActiveZoneId>
 
   [<Struct>]
   type VisualEffectChange =

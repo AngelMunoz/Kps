@@ -272,9 +272,11 @@ type ``Engagement Targeting Rules``() =
       FormulaId = ValueNone
       Effects = [||]
       Requirements = [||]
-      ProjectileId = ValueNone
-      AoeId = ValueNone
-      ImpactId = ValueNone
+      CastingTime = ValueNone
+      PreActivationVisualEffectIds = Array.empty
+      ProjectileIds = Array.empty
+      AoeIds = Array.empty
+      ImpactIds = Array.empty
     }
 
     let supportAbility = {
@@ -288,9 +290,11 @@ type ``Engagement Targeting Rules``() =
       FormulaId = ValueNone
       Effects = [||]
       Requirements = [||]
-      ProjectileId = ValueNone
-      AoeId = ValueNone
-      ImpactId = ValueNone
+      CastingTime = ValueNone
+      PreActivationVisualEffectIds = Array.empty
+      ProjectileIds = Array.empty
+      AoeIds = Array.empty
+      ImpactIds = Array.empty
     }
 
     let canUseOffensive =
