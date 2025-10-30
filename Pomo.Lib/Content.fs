@@ -58,7 +58,7 @@ module ProjectileStore =
         Id = 4<ProjectileId>
         Name = "Meteor"
         Shape = Circle 32f
-        Speed = 32f * 8f
+        Speed = 32f * 20f
         Color = Orange
         Size = 32f
         Behavior = Linear
@@ -430,6 +430,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = [| 1<ImpactId> |]
       }
@@ -448,6 +449,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = [| 1<ProjectileId> |]
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = [| 2<ImpactId> |]
       }
@@ -466,6 +468,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
       }
@@ -484,6 +487,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
       }
@@ -502,6 +506,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
       }
@@ -520,6 +525,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
       }
@@ -538,6 +544,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
       }
@@ -556,6 +563,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
       }
@@ -574,6 +582,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
       }
@@ -592,6 +601,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = [| 1<ImpactId> |]
       }
@@ -610,6 +620,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
       }
@@ -629,6 +640,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = [| 1<ImpactId> |]
       }
@@ -647,6 +659,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
       }
@@ -665,6 +678,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = [| 3<ProjectileId> |]
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = [| 1<ImpactId> |]
       }
@@ -675,7 +689,7 @@ module AbilityStore =
         Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 25 }
         Cooldown = TimeSpan.FromSeconds(5.0)
-        Targeting = AreaRandomPoints(32f * 5f, 5)
+        Targeting = AreaRandomPoints(32f * 4f, 5)
         Range = 32f * 10f
         FormulaId = ValueSome 2<FormulaId>
         Effects = Array.empty
@@ -683,6 +697,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = [| 4<ProjectileId> |]
+        ProjectileOrigin = ValueSome(FromTargetPoint { X = -250f; Y = -300f })
         AoeIds = Array.empty
         ImpactIds = [| 2<ImpactId> |]
       }
@@ -701,6 +716,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = [| 3<ProjectileId> |]
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = [| 1<ImpactId> |]
       }
@@ -719,6 +735,7 @@ module AbilityStore =
         CastingTime = ValueNone
         PreActivationVisualEffectIds = Array.empty
         ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
       }

@@ -811,12 +811,21 @@ module CommandHandler =
 
           visualEffects.Add(AddObject(resGuid, PendingResolution resolution))
 
+          let origin =
+            match action.abilityDefinition.ProjectileOrigin with
+            | ValueSome(FromTargetPoint offset) -> {
+                X = action.targetComponents.Position.X + offset.X
+                Y = action.targetComponents.Position.Y + offset.Y
+              }
+            | ValueSome FromCaster -> action.actorComponents.Position
+            | ValueNone -> action.actorComponents.Position
+
           let projId = Guid.NewGuid()
 
           let proj = {
             Id = projId |> UMX.tag
             DefinitionId = defId
-            CurrentPosition = action.actorComponents.Position
+            CurrentPosition = origin
             Target = EntityTarget ractors.target
             CreationTick = gameTime
             PendingResolutionId = ValueSome resolutionId
@@ -944,12 +953,21 @@ module CommandHandler =
 
           visualEffects.Add(AddObject(resGuid, PendingResolution resolution))
 
+          let origin =
+            match abilityDef.ProjectileOrigin with
+            | ValueSome(FromTargetPoint offset) -> {
+                X = targetPosition.X + offset.X
+                Y = targetPosition.Y + offset.Y
+              }
+            | ValueSome FromCaster -> actorComponents.Position
+            | ValueNone -> actorComponents.Position
+
           let projId = Guid.NewGuid()
 
           let proj = {
             Id = projId |> UMX.tag
             DefinitionId = defId
-            CurrentPosition = actorComponents.Position
+            CurrentPosition = origin
             Target = PositionTarget targetPosition
             CreationTick = gameTime
             PendingResolutionId = ValueSome resolutionId

@@ -534,6 +534,11 @@ module Abilities =
     | AreaRandomPoints of radius: float32 * numPoints: int
 
   [<Struct>]
+  type ProjectileOrigin =
+    | FromCaster
+    | FromTargetPoint of offset: Position
+
+  [<Struct>]
   type PassiveAbilityDefinition = {
     Id: int<AbilityId>
     Name: string
@@ -557,6 +562,7 @@ module Abilities =
     Effects: int<EffectId>[]
     Requirements: AbilityRequirement[]
     ProjectileIds: int<ProjectileId>[]
+    ProjectileOrigin: ProjectileOrigin voption
     AoeIds: int<AoeId>[]
     ImpactIds: int<ImpactId>[]
   }

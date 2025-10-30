@@ -274,6 +274,7 @@ type ``Engagement Targeting Rules``() =
       CastingTime = ValueNone
       PreActivationVisualEffectIds = Array.empty
       ProjectileIds = Array.empty
+      ProjectileOrigin = ValueNone
       AoeIds = Array.empty
       ImpactIds = Array.empty
     }
@@ -292,6 +293,7 @@ type ``Engagement Targeting Rules``() =
       CastingTime = ValueNone
       PreActivationVisualEffectIds = Array.empty
       ProjectileIds = Array.empty
+      ProjectileOrigin = ValueNone
       AoeIds = Array.empty
       ImpactIds = Array.empty
     }
