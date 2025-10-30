@@ -370,6 +370,82 @@ module CommandHandler =
         | _ -> return Array.empty
       }
 
+    let getStraightLineTargets
+      (entities: amap<Guid<EntityId>, EntityComponents>)
+      (actorPos: Position)
+      (targetPos: Position)
+      (range: float32)
+      (width: float32)
+      (maxTargets: int)
+      (targetFilter: TargetFilterPredicate)
+      (actorId: Guid<EntityId>)
+      : aval<Guid<EntityId>[]> =
+      adaptive {
+        let direction = {
+          X = targetPos.X - actorPos.X
+          Y = targetPos.Y - actorPos.Y
+        }
+
+        let length = sqrt(direction.X * direction.X + direction.Y * direction.Y)
+
+        let normalizedDir =
+          if length = 0.0f then
+            { X = 1.0f; Y = 0.0f } // Default direction if actor and target are at same spot
+          else
+            {
+              X = direction.X / length
+              Y = direction.Y / length
+            }
+
+        let perpendicularDir = {
+          X = -normalizedDir.Y
+          Y = normalizedDir.X
+        }
+
+        let effectiveRange = if range > 0.0f then min length range else length
+
+        let! targetsInLine =
+          entities
+          |> AMap.filterA(fun entityId entity ->
+            if entityId = actorId then
+              AVal.constant false
+            else
+              targetFilter {
+                targetId = entityId
+                targetFactions = entity.Factions
+              })
+          |> AMap.fold
+            (fun acc entityId entity ->
+              let entityVector = {
+                X = entity.Position.X - actorPos.X
+                Y = entity.Position.Y - actorPos.Y
+              }
+
+              let dot_product_projection =
+                entityVector.X * normalizedDir.X
+                + entityVector.Y * normalizedDir.Y
+
+              let dot_product_perpendicular =
+                abs(
+                  entityVector.X * perpendicularDir.X
+                  + entityVector.Y * perpendicularDir.Y
+                )
+
+              if
+                dot_product_projection >= 0.0f
+                && dot_product_projection <= effectiveRange
+                && dot_product_perpendicular <= (width / 2.0f)
+              then
+                ResizeArray.add entityId acc
+              else
+                acc)
+            (ResizeArray.empty())
+
+        let arr = targetsInLine |> ResizeArray.toArray
+        arr |> Array.randomShuffleInPlace
+        return arr |> Array.truncate maxTargets
+      }
+
   [<Struct>]
   type ValidatedActionResult = {
     actor: EntityComponents
@@ -1270,7 +1346,29 @@ module CommandHandler =
                   rparams.services.rng
                 |> Array.map Position
                 |> AVal.constant
-              | _ -> AVal.constant Array.empty
+              | Self
+              | SingleAlly
+              | SingleEnemy
+              | ChainTargets _
+              | ConeTargets _ -> AVal.constant Array.empty
+              | StraightLine(range, width, maxTargets, _) ->
+                  adaptive {
+                    let! actor = entities |> AMap.find action.actor
+
+                    let! targetsInLine =
+                      TargetResolution.getStraightLineTargets
+                        entities
+                        actor.Position
+                        pos
+                        range
+                        width
+                        maxTargets
+                        canTargetPredicate
+                        action.actor
+
+                    return targetsInLine |> Array.map Entity
+                  }
+
 
             let pos = AVal.constant pos
             AVal.map2 (fun t p -> struct (t, p)) targets pos
@@ -1356,6 +1454,9 @@ module CommandHandler =
                   |> AVal.map(Array.map Entity)
                 | None -> AVal.constant Array.empty
               | AreaRandomPoints _ -> AVal.constant Array.empty
+
+              | StraightLine(width, effectiveRange, maxTargets, _) ->
+                AVal.constant Array.empty
 
             let primaryPos = adaptive {
               match targets |> Array.tryHead with

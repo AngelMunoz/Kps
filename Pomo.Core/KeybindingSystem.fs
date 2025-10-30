@@ -79,10 +79,13 @@ module KeybindingSystem =
         | Abilities.SingleAlly -> ValueSome EntityTargeting
         | Abilities.GroundArea radius -> ValueSome(GroundTargeting radius)
         | Abilities.GroundPoint -> ValueSome(GroundTargeting 8.0f)
-        | Abilities.AreaRandomTargets(radius, _) -> ValueSome(GroundTargeting radius)
-        | Abilities.AreaRandomPoints(radius, _) -> ValueSome(GroundTargeting radius)
+        | Abilities.AreaRandomTargets(radius, _) ->
+          ValueSome(GroundTargeting radius)
+        | Abilities.AreaRandomPoints(radius, _) ->
+          ValueSome(GroundTargeting radius)
         | Abilities.ChainTargets _ -> ValueSome EntityTargeting
         | Abilities.ConeTargets _ -> ValueSome EntityTargeting
+        | Abilities.StraightLine _ -> ValueSome(GroundTargeting 8f)
         | Abilities.Self -> ValueNone
       | Abilities.Passive _ -> ValueNone
 

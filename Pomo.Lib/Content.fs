@@ -689,7 +689,7 @@ module AbilityStore =
         Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 25 }
         Cooldown = TimeSpan.FromSeconds(5.0)
-        Targeting = AreaRandomPoints(32f * 4f, 5)
+        Targeting = AreaRandomPoints(32f * 3f, 5)
         Range = 32f * 10f
         FormulaId = ValueSome 2<FormulaId>
         Effects = Array.empty

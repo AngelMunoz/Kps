@@ -30,6 +30,7 @@ module Scenario =
     Projectiles: VisualEffects.ActiveProjectile[]
     Aoes: VisualEffects.ActiveAoe[]
     Impacts: VisualEffects.ActiveImpact[]
+    Lines: VisualEffects.ActiveLine[]
     GameTime: TimeSpan
     DerivedStats: HashMap<Guid<EntityId>, DerivedStats>
     WearableItems:
@@ -997,6 +998,9 @@ module GameState =
             Some(RemoveObject id)
           else
             None
+        | ActiveObject.Line line ->
+          let age = newTime - line.CreationTick
+          if age > line.Duration then Some(RemoveObject id) else None
         | _ -> None)
       |> AMap.reduce(
         AdaptiveReduction.fold IndexList.empty (fun acc change ->
@@ -1298,6 +1302,13 @@ module GameState =
           | ActiveObject.Impact i -> ValueSome i
           | _ -> ValueNone)
 
+      let lines =
+        activeObjects
+        |> HashMap.chooseV(fun _ obj ->
+          match obj with
+          | ActiveObject.Line l -> ValueSome l
+          | _ -> ValueNone)
+
       let! derivedStats =
         DerivedStats.byScenario services scenarioState |> AMap.toAVal
 
@@ -1316,6 +1327,7 @@ module GameState =
         Projectiles = projectiles |> HashMap.toValueArray
         Aoes = aoes |> HashMap.toValueArray
         Impacts = impacts |> HashMap.toValueArray
+        Lines = lines |> HashMap.toValueArray
         GameTime = gameTime
         DerivedStats = derivedStats
         WearableItems = wearableItems

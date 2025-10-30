@@ -190,6 +190,7 @@ module Decision =
           | GroundArea _
           | GroundPoint
           | AreaRandomTargets _
+          | StraightLine _
           | AreaRandomPoints _ ->
             ValueSome(struct (abilityId, PositionTarget targetPos))
           | ChainTargets _

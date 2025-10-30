@@ -532,6 +532,11 @@ module Abilities =
     | ChainTargets of maxChains: int * chainRange: float32
     | ConeTargets of angle: float32 * range: float32 * maxTargets: int
     | AreaRandomPoints of radius: float32 * numPoints: int
+    | StraightLine of
+      range: float32 *
+      width: float32 *
+      maxTargets: int *
+      collision: Visuals.CollisionMode
 
   [<Struct>]
   type ProjectileOrigin =
@@ -968,14 +973,26 @@ module VisualEffects =
   }
 
   [<Struct>]
+  type ActiveLine = {
+    Id: Guid
+    Start: Position
+    End: Position
+    Width: float32
+    Color: VisualColor
+    Duration: TimeSpan
+    CreationTick: TimeSpan
+  }
+
+  [<Struct>]
   type ActiveObject =
     | Projectile of projectile: ActiveProjectile
     | Aoe of aoe: ActiveAoe
     | Impact of impact: ActiveImpact
-    | FloatingText of floatingTxt:FloatingText
+    | FloatingText of floatingTxt: FloatingText
     | PendingResolution of pendingResolution: PendingResolution
     | Rush of rush: ActiveRush
     | Dash of dash: ActiveDash
+    | Line of line: ActiveLine
 
   [<Struct>]
   type VisualEffect =

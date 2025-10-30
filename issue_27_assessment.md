@@ -104,10 +104,12 @@ This phase implements the specific target selection logic required by the new ab
 This phase enables abilities to feel more dynamic by spawning multiple projectiles or impacts from a single cast.
 
 - **Task 3.1: Refactor Ability Processing [COMPLETED]**
+
   - **Required for:** _Fan of Stones_, _Raining Icicles_
   - The core ability processor needs to be updated. After target selection (Phase 2) returns a list of targets or points, the processor should iterate through them and be capable of generating a separate `VisualEffectChange` (e.g., `AddProjectile`) for each one.
 
 - **Task 3.2: Extend Targeting for Position-Based Effects [COMPLETED]**
+
   - **Required for:** _Raining Icicles_
   - To support abilities that target random points in an area, the `TargetType` DU was extended with `AreaRandomPoints`.
   - The `resolveUseAbility` function was refactored to handle both entity and position-based targets, using a new `ResolvedTarget` DU. This allows abilities to generate visual effects at specific points on the ground, not just on entities.
@@ -213,23 +215,35 @@ This phase refactors how temporary state objects are managed and uses this new a
   - **Required for:** _Dash_, _Seeker Punch_
   - A new `EffectKind` will be introduced: `Trail of visualEffectId: int<VisualEffectId> * spawnInterval: TimeSpan`. The `StatusEffects.tickEffects` function will be updated to handle this, periodically generating `AddObject` changes for the trail visuals.
 
-### Phase 7: Line-Based Abilities and Effects
+### Phase 7: Line-Based Abilities and Effects [COMPLETED]
 
 - **Required for:** "Straight line AoE laser-like" abilities.
-- **Task 7.1: Update `TargetType` Domain (`Pomo.Lib/Domain.fs`)**
-    - Add a new case to the `TargetType` DU:
-        ```fsharp
-        | StraightLine of range: float32 * width: float32 * maxTargets: int * collision: Visuals.CollisionMode
-        ```
-- **Task 7.2: Implement `StraightLine` Target Resolution**
-    - In `CommandHandler.fs`, add logic to resolve `StraightLine` targets. This will involve:
-        - Calculating a rectangular area (or a series of smaller circular areas) along the vector from the caster to the target point.
-        - Finding all valid entities within this area.
-        - Optionally handling terrain collision based on the `collision` flag.
-        - Selecting up to `maxTargets`.
-- **Task 7.3: Implement Visuals for Line Abilities**
-    - Decide on a visual representation. This could be a long, thin projectile, a custom-rendered beam, or a sequence of AoE effects.
-    - Update the `resolveUseAbility` function to generate the appropriate `VisualEffectChange` for the chosen representation.
+- **Task 7.1: Update `TargetType` Domain (`Pomo.Lib/Domain.fs`) [COMPLETED]**
+  - Add a new case to the `TargetType` DU:
+    ```fsharp
+    | StraightLine of range: float32 * width: float32 * maxTargets: int * collision: Visuals.CollisionMode
+    ```
+- **Task 7.2: Implement `StraightLine` Target Resolution (`Pomo.Lib/CommandHandler.fs`) [COMPLETED]**
+  - In `CommandHandler.fs`, add logic to resolve `StraightLine` targets. This will involve:
+    - Calculating a rectangular area (or a series of smaller circular areas) along the vector from the caster to the target point.
+    - Finding all valid entities within this area.
+    - Optionally handling terrain collision based on the `collision` flag.
+    - Selecting up to `maxTargets`.
+- **Task 7.3: Implement Visuals for Line Abilities (`Pomo.Core/RenderSystem.fs`, `Pomo.Lib/Gameplay.fs`) [TODO]**
+  - **Annotation:** This task involves handling the visual aspects in `Pomo.Core`, specifically the aim indicator, drawing rectangles, and other visual elements for Line abilities. Active area affections also need to be displayed. This will require assessing `Pomo.Core/RenderSystem.fs` and `Pomo.Lib/Gameplay.fs`.
+  - Decide on a visual representation. This could be a long, thin projectile, a custom-rendered beam, or a sequence of AoE effects.
+  - Update the `resolveUseAbility` function to generate the appropriate `VisualEffectChange` for the chosen representation.
+- **Task 7.4: Create Test Skills and Bind to User (`Pomo.Lib/Content.fs`, `Pomo.Core/TestScenarioBuilder.fs`) [TODO]**
+  - Create new `ActiveAbilityDefinition`s in `Pomo.Lib/Content.fs` for:
+    - A `StraightLine` ability.
+    - A `Deadly Swamp` ability (using `ActiveZone`).
+    - A `Meteor Shower` ability (using `AreaRandomTargets`).
+    - A `Mermaid's Song` ability (using `ChainTargets`).
+    - A `Fan of Stones` ability (using `ConeTargets`).
+    - A `Raining Icicles` ability (using `AreaRandomPoints`).
+    - A `Dash` ability (using `ActiveDash`).
+    - A `Seeker Punch` ability (using `ActiveRush`).
+  - Bind these new abilities to the player's keybindings in `Pomo.Core/TestScenarioBuilder.fs`.
 
 ## 5. Ability Implementation Roadmap
 
