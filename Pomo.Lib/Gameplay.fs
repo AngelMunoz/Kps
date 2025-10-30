@@ -158,6 +158,7 @@ module DerivedStats =
       HP = baseStats.Charm * 10
       DP = baseStats.Charm + int(float baseStats.Charm * 1.25)
       HV = baseStats.Charm * 2
+      MovementSpeed = 100
       ElementAttributes = equipElemAttr
       ElementResistances = equipElemRes
     }
@@ -194,6 +195,7 @@ module DerivedStats =
           DP = applyAll addMap DP initial.DP
           AC = applyAll addMap AC initial.AC
           HV = applyAll addMap HV initial.HV
+          MovementSpeed = applyAll addMap MovementSpeed initial.MovementSpeed
     }
 
     final
@@ -836,19 +838,25 @@ module GameState =
       let struct (updatedEffects, tickResult) =
         StatusEffects.tickEffects effectStore currentEntity.Effects time
 
-      let movedComponents =
-        {
-          Width = scenario.BoundsWidth
-          Height = scenario.BoundsHeight
-          CenterX = scenario.BoundsWidth * 0.5f
-          CenterY = scenario.BoundsHeight * 0.5f
-        }
-        |> Movement.Update.withPath time scenario currentEntityId currentEntity
-
       let derivedStatsForEntity =
-        movedComponents
+        currentEntity
         |> DerivedStats.byEntity effectStore formulaStore itemStore
 
+      let movementSpeed = float32 derivedStatsForEntity.MovementSpeed
+
+      let movedComponents =
+        Movement.Update.withPath
+          time
+          scenario
+          currentEntityId
+          currentEntity
+          {
+            Width = scenario.BoundsWidth
+            Height = scenario.BoundsHeight
+            CenterX = scenario.BoundsWidth * 0.5f
+            CenterY = scenario.BoundsHeight * 0.5f
+          }
+          movementSpeed
 
       let maxHp = derivedStatsForEntity.HP
       let currentHp = movedComponents.Resources.HP

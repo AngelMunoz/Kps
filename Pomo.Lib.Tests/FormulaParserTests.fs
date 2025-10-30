@@ -22,6 +22,8 @@ module DerivedStats =
     HP = 0
     DP = 0
     HV = 0
+    // Movement
+    MovementSpeed = 0
 
     // Element % of attributes and resistances
     ElementAttributes =

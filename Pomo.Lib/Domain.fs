@@ -136,7 +136,6 @@ type ResourceType =
 
 [<Struct>]
 type Movement = {
-  Speed: float32 // units per second
   Destination: Position voption
   Path: Position list
 }
@@ -221,6 +220,7 @@ type Stat =
   | HP // Health Pool
   | DP // Defense Points
   | HV // Evasion
+  | MovementSpeed // Movement Speed
 
 [<Struct>]
 type AbilityRequirement =
@@ -350,6 +350,8 @@ module Attributes =
     HP: int
     DP: int
     HV: int
+    // Movement
+    MovementSpeed: int
 
     // Element % of attributes and resistances
     ElementAttributes: HashMap<Element, float>

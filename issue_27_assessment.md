@@ -134,32 +134,32 @@ This is the most complex feature, introducing long-lived stateful objects to the
   - Create a new system that runs each game tick. This system will iterate through all `activeZones` and all `entities` to check for collisions.
   - When an entity enters a zone, the zone's effects are applied.
 
-### Phase 5: Centralize Movement Speed as a Derived Stat
+### Phase 5: Centralize Movement Speed as a Derived Stat [COMPLETED]
 
 This is a foundational change to make movement speed a proper stat, enabling it to be modified by the effects system. This simplifies the implementation of speed-related abilities like `Dash`.
 
-- **Task 5.1: Update Domain (`Pomo.Lib/Domain.fs`)**
+- **Task 5.1: Update Domain (`Pomo.Lib/Domain.fs`) [COMPLETED]**
 
   - Add `MovementSpeed` to the `Stat` discriminated union.
-  - Add a base speed value to `Attributes.BaseAttributes`, for example: `BaseMovementSpeed: float32`.
+  - Movement speed is a derived stat only (not a base attribute), hardcoded to 100 in `DerivedStats.applyModifiers`.
   - Remove the `Speed: float32` field from the `Movement` component record.
 
-- **Task 5.2: Update Stat Calculation (`Pomo.Lib/Gameplay.fs`)**
+- **Task 5.2: Update Stat Calculation (`Pomo.Lib/Gameplay.fs`) [COMPLETED]**
 
-  - In `DerivedStats.applyModifiers`, initialize `MovementSpeed` from the new base value.
+  - In `DerivedStats.applyModifiers`, initialize `MovementSpeed` with hardcoded value 100.
   - Ensure `MovementSpeed` is correctly modified by `StaticMod` and `DynamicMod` effects, just like any other stat.
 
-- **Task 5.3: Refactor `GameState.runTickEffects` (`Pomo.Lib/Gameplay.fs`)**
+- **Task 5.3: Refactor `GameState.runTickEffects` (`Pomo.Lib/Gameplay.fs`) [COMPLETED]**
 
-  - To prevent circular dependencies, change the order of operations within the tick:
+  - Changed the order of operations within the tick:
     1.  Calculate `DerivedStats` for the entity based on its state _before_ movement.
     2.  Pass the calculated `derivedStats.MovementSpeed` to the movement update function.
     3.  Execute the movement update.
     4.  Apply any resource changes (from DoTs/HoTs) using the stats calculated in step 1.
 
-- **Task 5.4: Update Movement Logic (`Pomo.Lib/Movement.fs`)**
-  - Update the signature of `Update.withPath` to accept `movementSpeed: float32` as a parameter instead of reading it from the `Movement` component.
-  - Remove the `applyDexterityModifier` function, as speed will now be fully data-driven by the `MovementSpeed` stat.
+- **Task 5.4: Update Movement Logic (`Pomo.Lib/Movement.fs`) [COMPLETED]**
+  - Updated the signature of `Update.withPath` to accept `movementSpeed: float32` as a parameter instead of reading it from the `Movement` component.
+  - Removed the `applyDexterityModifier` function, as speed is now fully data-driven by the `MovementSpeed` stat.
 
 ### Phase 6: Consolidated Active Objects & Movement Abilities
 

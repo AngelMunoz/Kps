@@ -195,8 +195,12 @@ module VirtualInputSystem =
       // Joystick movement
       match getJoystickDirection vinput with
       | ValueSome direction ->
-        let playerComp = ctx.Scenario.entities[ctx.PlayerId]
-        let velocity = direction * playerComp.Movement.Speed
+        let derivedStatsAVal = Pomo.Lib.Gameplay.DerivedStats.byGameState ctx.State
+        let derivedStatsAMap = derivedStatsAVal |> FSharp.Data.Adaptive.AVal.force
+        let derivedStatsHashMap = derivedStatsAMap |> FSharp.Data.Adaptive.AMap.force
+        let playerStats = derivedStatsHashMap |> FSharp.Data.Adaptive.HashMap.find ctx.PlayerId
+        let movementSpeed = float32 playerStats.MovementSpeed
+        let velocity = direction * movementSpeed
         let elapsed = float32 ctx.GameTime.ElapsedGameTime.TotalSeconds
 
         let moveCmd =

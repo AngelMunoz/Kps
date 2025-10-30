@@ -63,7 +63,6 @@ type ``Scenario Management Tests``() =
       }
       Position = { X = 0f; Y = 0f }
       Movement = {
-        Speed = 0f
         Destination = ValueNone
         Path = []
       }

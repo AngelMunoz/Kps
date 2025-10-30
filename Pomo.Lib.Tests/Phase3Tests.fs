@@ -183,7 +183,6 @@ module private Phase3Helpers =
         Status = Status.Alive
       }
       Movement = {
-        Speed = 0f
         Destination = ValueNone
         Path = []
       }

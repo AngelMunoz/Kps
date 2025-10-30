@@ -64,7 +64,6 @@ module TestHelpers =
     }
     Position = { X = 0f; Y = 0f }
     Movement = {
-      Speed = 100f
       Destination = ValueNone
       Path = []
     }

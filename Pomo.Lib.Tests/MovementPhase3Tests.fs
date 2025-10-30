@@ -31,7 +31,6 @@ module MovementPhase3Tests =
     }
     Position = { X = x; Y = y }
     Movement = {
-      Speed = speed
       Destination = dest
       Path = []
     }

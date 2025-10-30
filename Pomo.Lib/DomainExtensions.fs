@@ -27,6 +27,7 @@ type Attributes.DerivedStats with
     HP = 0
     DP = 0
     HV = 0
+    MovementSpeed = 0
     ElementAttributes = HashMap.empty
     ElementResistances = HashMap.empty
   }
