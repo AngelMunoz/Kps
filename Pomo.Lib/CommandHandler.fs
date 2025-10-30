@@ -1223,13 +1223,14 @@ module CommandHandler =
           | AbilityTarget.PositionTarget pos ->
             let targets: aval<ResolvedTarget[]> =
               match abilityDef.Targeting with
-              | GroundTarget radius ->
+              | GroundArea radius ->
                 TargetResolution.getGroundTargets
                   entities
                   pos
                   radius
                   canTargetPredicate
                 |> AVal.map(Array.map Entity)
+              | GroundPoint -> AVal.constant [| Position pos |]
               | AreaRandomTargets(radius, maxTargets) ->
                 TargetResolution.getAreaRandomTargets
                   entities
@@ -1237,7 +1238,12 @@ module CommandHandler =
                   radius
                   maxTargets
                   canTargetPredicate
-                |> AVal.map(Array.map Entity)
+                |> AVal.map(
+                  Array.choose(fun id ->
+                    match entities.TryGetValue id with
+                    | Some e -> Some(Position e.Position)
+                    | None -> None)
+                )
               | AreaRandomPoints(radius, numPoints) ->
                 TargetResolution.getAreaRandomPoints
                   pos
@@ -1263,7 +1269,7 @@ module CommandHandler =
                   |> Option.map(fun targetId -> [| Entity targetId |])
                   |> Option.defaultValue Array.empty
                 )
-              | GroundTarget radius ->
+              | GroundArea radius ->
                 match targets |> Array.tryHead with
                 | Some initialTarget ->
                   entities
@@ -1275,6 +1281,23 @@ module CommandHandler =
                       radius
                       canTargetPredicate)
                   |> AVal.map(Array.map Entity)
+                | None -> AVal.constant Array.empty
+              | GroundPoint ->
+                match targets |> Array.tryHead with
+                | Some initialTarget -> adaptive {
+                    let! targetEntity = entities |> AMap.find initialTarget
+
+                    let! canTarget =
+                      canTargetPredicate {
+                        targetId = initialTarget
+                        targetFactions = targetEntity.Factions
+                      }
+
+                    if canTarget then
+                      return [| Position targetEntity.Position |]
+                    else
+                      return Array.empty
+                  }
                 | None -> AVal.constant Array.empty
               | AreaRandomTargets(radius, maxTargets) ->
                 match targets |> Array.tryHead with

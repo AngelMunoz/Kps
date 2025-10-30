@@ -37,6 +37,12 @@ To support the target abilities, the following core engine features are required
 
 ## 4. Phased Implementation Plan
 
+## Bug Fix: GroundTarget Projectile Behavior
+
+- **Description:** Projectiles from `GroundTarget` abilities are incorrectly seeking entities within the target radius instead of traveling to the selected ground coordinate. This affects abilities like "Arrow Shot" and "Meteor Shower".
+- **Cause:** The ability resolution logic incorrectly creates projectiles with an `EntityTarget` instead of a `PositionTarget` when an entity is found within the AoE.
+- **Fix:** Modify the `CommandHandler` to ensure that for `GroundTarget` and `AreaRandomPoints` abilities, projectiles are always created with a `PositionTarget` corresponding to the ground coordinate, not an entity.
+
 ### Phase 1: Foundational Activation Enhancements [COMPLETED]
 
 This phase introduces the concepts of casting time and pre-activation visuals, which are prerequisites for many of the desired abilities.
@@ -206,6 +212,24 @@ This phase refactors how temporary state objects are managed and uses this new a
 - **Task 6.5: Implement Trail Effects**
   - **Required for:** _Dash_, _Seeker Punch_
   - A new `EffectKind` will be introduced: `Trail of visualEffectId: int<VisualEffectId> * spawnInterval: TimeSpan`. The `StatusEffects.tickEffects` function will be updated to handle this, periodically generating `AddObject` changes for the trail visuals.
+
+### Phase 7: Line-Based Abilities and Effects
+
+- **Required for:** "Straight line AoE laser-like" abilities.
+- **Task 7.1: Update `TargetType` Domain (`Pomo.Lib/Domain.fs`)**
+    - Add a new case to the `TargetType` DU:
+        ```fsharp
+        | StraightLine of range: float32 * width: float32 * maxTargets: int * collision: Visuals.CollisionMode
+        ```
+- **Task 7.2: Implement `StraightLine` Target Resolution**
+    - In `CommandHandler.fs`, add logic to resolve `StraightLine` targets. This will involve:
+        - Calculating a rectangular area (or a series of smaller circular areas) along the vector from the caster to the target point.
+        - Finding all valid entities within this area.
+        - Optionally handling terrain collision based on the `collision` flag.
+        - Selecting up to `maxTargets`.
+- **Task 7.3: Implement Visuals for Line Abilities**
+    - Decide on a visual representation. This could be a long, thin projectile, a custom-rendered beam, or a sequence of AoE effects.
+    - Update the `resolveUseAbility` function to generate the appropriate `VisualEffectChange` for the chosen representation.
 
 ## 5. Ability Implementation Roadmap
 

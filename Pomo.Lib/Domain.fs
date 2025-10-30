@@ -526,7 +526,8 @@ module Abilities =
     | Self
     | SingleAlly
     | SingleEnemy
-    | GroundTarget of radius: float32
+    | GroundArea of radius: float32
+    | GroundPoint
     | AreaRandomTargets of radius: float32 * maxTargets: int
     | ChainTargets of maxChains: int * chainRange: float32
     | ConeTargets of angle: float32 * range: float32 * maxTargets: int

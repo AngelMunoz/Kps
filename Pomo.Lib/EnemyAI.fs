@@ -187,7 +187,8 @@ module Decision =
             targetId
             |> ValueOption.map(fun id ->
               struct (abilityId, EntityTargets [| id |]))
-          | GroundTarget _
+          | GroundArea _
+          | GroundPoint
           | AreaRandomTargets _
           | AreaRandomPoints _ ->
             ValueSome(struct (abilityId, PositionTarget targetPos))

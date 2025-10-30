@@ -21,49 +21,49 @@ module ProjectileStore =
       {
         Id = 1<ProjectileId>
         Name = "Fireball"
-        Shape = Shape.Circle 8.0f
-        Speed = 32f * 10f
-        Color = VisualColor.Red
-        Size = 16.0f
-        Behavior = Visuals.ProjectileBehavior.Seeker
-        CollisionMode = Visuals.CollisionMode.IgnoreTerrain
+        Shape = Circle 8f
+        Speed = 32f * 8f
+        Color = Red
+        Size = 8f
+        Behavior = Seeker
+        CollisionMode = IgnoreTerrain
         ImpactRadius = ValueNone
       }
       2<ProjectileId>,
       {
         Id = 2<ProjectileId>
         Name = "Frostbolt"
-        Shape = Shape.Square 12.0f
+        Shape = Square 12.0f
         Speed = 32f * 8f
-        Color = VisualColor.Blue
+        Color = Blue
         Size = 12.0f
-        Behavior = Visuals.ProjectileBehavior.Seeker
-        CollisionMode = Visuals.CollisionMode.IgnoreTerrain
+        Behavior = Seeker
+        CollisionMode = IgnoreTerrain
         ImpactRadius = ValueNone
       }
       3<ProjectileId>,
       {
         Id = 3<ProjectileId>
         Name = "Arrow"
-        Shape = Shape.Square 8.0f
+        Shape = Square 8f
         Speed = 32f * 12f
-        Color = VisualColor.Yellow
-        Size = 12.0f
-        Behavior = Visuals.ProjectileBehavior.Linear
-        CollisionMode = Visuals.CollisionMode.BlockedByTerrain
-        ImpactRadius = ValueSome 32.0f
+        Color = Yellow
+        Size = 8f
+        Behavior = Linear
+        CollisionMode = BlockedByTerrain
+        ImpactRadius = ValueSome 8f
       }
       4<ProjectileId>,
       {
         Id = 4<ProjectileId>
         Name = "Meteor"
-        Shape = Shape.Circle 16.0f
-        Speed = 32f * 6f
-        Color = VisualColor.Orange
-        Size = 32.0f
-        Behavior = Visuals.ProjectileBehavior.Linear
-        CollisionMode = Visuals.CollisionMode.IgnoreTerrain
-        ImpactRadius = ValueSome 64.0f
+        Shape = Circle 32f
+        Speed = 32f * 8f
+        Color = Orange
+        Size = 32f
+        Behavior = Linear
+        CollisionMode = IgnoreTerrain
+        ImpactRadius = ValueSome 32f
       }
     ]
 
@@ -657,7 +657,7 @@ module AbilityStore =
         Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
         Cooldown = TimeSpan.FromSeconds(3.0)
-        Targeting = GroundTarget(32f * 1f)
+        Targeting = GroundPoint
         Range = 32f * 6f
         FormulaId = ValueSome 1<FormulaId>
         Effects = Array.empty
@@ -675,8 +675,8 @@ module AbilityStore =
         Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 25 }
         Cooldown = TimeSpan.FromSeconds(5.0)
-        Targeting = GroundTarget(32f * 2f)
-        Range = 32f * 7f
+        Targeting = AreaRandomPoints(32f * 5f, 5)
+        Range = 32f * 10f
         FormulaId = ValueSome 2<FormulaId>
         Effects = Array.empty
         Requirements = Array.empty
@@ -693,7 +693,7 @@ module AbilityStore =
         Intent = AbilityIntent.Offensive
         Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
         Cooldown = TimeSpan.FromSeconds(3.0)
-        Targeting = GroundTarget(32f * 1f)
+        Targeting = GroundPoint
         Range = 32f * 6f
         FormulaId = ValueSome 3<FormulaId>
         Effects = Array.empty
