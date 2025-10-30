@@ -942,6 +942,35 @@ module VisualEffects =
   }
 
   [<Struct>]
+  type ActiveRush = {
+    Id: Guid
+    ActorId: Guid<EntityId>
+    TargetId: Guid<EntityId>
+    OnArrivalAbilityId: int<AbilityId>
+    Speed: float32
+    CreationTick: TimeSpan
+  }
+
+  [<Struct>]
+  type ActiveDash = {
+    Id: Guid
+    ActorId: Guid<EntityId>
+    Velocity: Position
+    Duration: TimeSpan
+    CreationTick: TimeSpan
+  }
+
+  [<Struct>]
+  type ActiveObject =
+    | Projectile of projectile: ActiveProjectile
+    | Aoe of aoe: ActiveAoe
+    | Impact of impact: ActiveImpact
+    | FloatingText of floatingTxt:FloatingText
+    | PendingResolution of pendingResolution: PendingResolution
+    | Rush of rush: ActiveRush
+    | Dash of dash: ActiveDash
+
+  [<Struct>]
   type VisualEffect =
     | FloatingText of text: FloatingText
     | Projectile of projectile: ActiveProjectile
@@ -980,11 +1009,7 @@ module Scenario =
     pendingDuels: cmap<Guid<EntityId>, Guid<EntityId>>
     pendingPartyDuels: cmap<Guid<PartyId>, Guid<PartyId>>
     parties: cmap<Guid<PartyId>, Party>
-    floatingTexts: cmap<Guid<FloatingTextId>, VisualEffects.FloatingText>
-    projectiles: cmap<Guid<ProjectileId>, VisualEffects.ActiveProjectile>
-    aoes: cmap<Guid<AoeId>, VisualEffects.ActiveAoe>
-    impacts: cmap<Guid<ImpactId>, VisualEffects.ActiveImpact>
-    pendingResolutions: cmap<Guid<PendingResolutionId>, PendingResolution>
+    activeObjects: cmap<Guid, VisualEffects.ActiveObject>
     aiControllers: cmap<Guid<EntityId>, AI.AIController>
     activeZones: cmap<Guid<ActiveZoneId>, VisualEffects.ActiveZone>
   }
@@ -1089,17 +1114,9 @@ module State =
 
   [<Struct>]
   type VisualEffectChange =
-    | AddFloatingText of addText: FloatingText
-    | RemoveFloatingText of floatingTextId: Guid<FloatingTextId>
-    | AddProjectile of addProjectile: ActiveProjectile
-    | UpdateProjectile of updatedProjectile: ActiveProjectile
-    | RemoveProjectile of projectileId: Guid<ProjectileId>
-    | AddAoe of addAoe: ActiveAoe
-    | RemoveAoe of aoeId: Guid<AoeId>
-    | AddImpact of addImpact: ActiveImpact
-    | RemoveImpact of impactId: Guid<ImpactId>
-    | AddPendingResolution of addResolution: PendingResolution
-    | RemovePendingResolution of resolutionId: Guid<PendingResolutionId>
+    | AddObject of id: Guid * obj: ActiveObject
+    | UpdateObject of id: Guid * obj: ActiveObject
+    | RemoveObject of id: Guid
 
   [<Struct>]
   type StateChange = {

@@ -539,26 +539,41 @@ module CommandHandler =
         }
 
         let visualEffects = [|
-          AddPendingResolution resolution
+          let resGuid = UMX.untag resolutionId
+
+          AddObject(
+            resGuid,
+            VisualEffects.ActiveObject.PendingResolution resolution
+          )
+
           match action.abilityDefinition.PreActivationVisualEffectIds with
           | [||] -> ()
           | [| defId |] ->
-            AddImpact {
-              Id = Guid.NewGuid() |> UMX.tag
+            let impactGuid = Guid.NewGuid()
+
+            let impact = {
+              Id = impactGuid |> UMX.tag<ImpactId>
               DefinitionId = defId
               Position = action.actorComponents.Position
               CreationTick = gameTime
               PendingResolutionId = ValueNone
             }
+
+            AddObject(impactGuid, ActiveObject.Impact impact)
           | rest ->
             for defId in rest do
-              AddImpact {
-                Id = Guid.NewGuid() |> UMX.tag
+              let impactGuid = Guid.NewGuid()
+
+              let impact = {
+                Id = impactGuid |> UMX.tag<ImpactId>
                 DefinitionId = defId
                 Position = action.actorComponents.Position
                 CreationTick = gameTime
                 PendingResolutionId = ValueNone
               }
+
+              AddObject(impactGuid, ActiveObject.Impact impact)
+
         |]
 
         return {
@@ -602,21 +617,33 @@ module CommandHandler =
 
         let visualEffects = [|
           if baseDamageResult.IsEvaded then
-            AddFloatingText {
-              Id = Guid.NewGuid() |> UMX.tag
+            let ftId = Guid.NewGuid()
+
+            let ft = {
+              Id = ftId |> UMX.tag
               Text = "Miss"
               Position = action.targetComponents.Position
               Color = Evade
               CreationTick = gameTime
             }
+
+
+            AddObject(ftId, ActiveObject.FloatingText ft)
+
           else if baseDamageResult.Amount > 0 then
-            AddFloatingText {
-              Id = Guid.NewGuid() |> UMX.tag
+            let ftId = Guid.NewGuid()
+
+            let ft = {
+              Id = ftId |> UMX.tag
               Text = string baseDamageResult.Amount
               Position = action.targetComponents.Position
               Color = if baseDamageResult.IsCritical then Critical else Damage
               CreationTick = gameTime
             }
+
+
+            AddObject(ftId, ActiveObject.FloatingText ft)
+
 
           for effectId in action.abilityDefinition.Effects do
             let effectDef = rparams.services.effectStore.find effectId
@@ -625,35 +652,52 @@ module CommandHandler =
               match modifier with
               | StaticMod(Subtractive(stat, value))
               | StaticMod(Additive(stat, value)) ->
-                AddFloatingText {
-                  Id = Guid.NewGuid() |> UMX.tag
+                let ftId = Guid.NewGuid()
+
+                let ft = {
+                  Id = ftId |> UMX.tag
                   Text = $"+%d{value}{stat}"
                   Position = action.targetComponents.Position
                   Color = if value > 0 then Heal else Damage
                   CreationTick = gameTime
                 }
+
+
+                AddObject(ftId, ActiveObject.FloatingText ft)
+
               | ResourceConversion(from, into, rate) ->
-                AddFloatingText {
-                  Id = Guid.NewGuid() |> UMX.tag
+                let ftId = Guid.NewGuid()
+
+                let ft = {
+                  Id = ftId |> UMX.tag
                   Text =
                     $"{from} -> %d{int(float baseDamageResult.Amount * rate)}{into}"
                   Position = action.targetComponents.Position
                   Color = if rate > 0. then Heal else Damage
                   CreationTick = gameTime
                 }
+
+
+                AddObject(ftId, ActiveObject.FloatingText ft)
+
               | AbilityDamageMod damage ->
-                AddFloatingText {
-                  Id = Guid.NewGuid() |> UMX.tag
+                let ftId = Guid.NewGuid()
+
+                let ft = {
+                  Id = ftId |> UMX.tag
                   Text = $"- %d{int damage}"
                   Position = action.targetComponents.Position
                   Color = Damage
                   CreationTick = gameTime
                 }
+
+
+                AddObject(ftId, ActiveObject.FloatingText ft)
+
               | StaticMod(Multiplicative _)
               | StaticMod(Divisive _)
               | DynamicMod _ -> ()
         |]
-
 
 
         let finalResources =
@@ -762,18 +806,22 @@ module CommandHandler =
             TriggerTick = gameTime + TimeSpan.FromSeconds(5.0) // Fallback timeout
           }
 
-          visualEffects.Add(AddPendingResolution resolution)
+          let resGuid = UMX.untag resolutionId
 
-          visualEffects.Add(
-            AddProjectile {
-              Id = Guid.NewGuid() |> UMX.tag
-              DefinitionId = defId
-              CurrentPosition = action.actorComponents.Position
-              Target = EntityTarget ractors.target
-              CreationTick = gameTime
-              PendingResolutionId = ValueSome resolutionId
-            }
-          ))
+          visualEffects.Add(AddObject(resGuid, PendingResolution resolution))
+
+          let projId = Guid.NewGuid()
+
+          let proj = {
+            Id = projId |> UMX.tag
+            DefinitionId = defId
+            CurrentPosition = action.actorComponents.Position
+            Target = EntityTarget ractors.target
+            CreationTick = gameTime
+            PendingResolutionId = ValueSome resolutionId
+          }
+
+          visualEffects.Add(AddObject(projId, ActiveObject.Projectile proj)))
 
         action.abilityDefinition.AoeIds
         |> Array.iter(fun defId ->
@@ -785,17 +833,21 @@ module CommandHandler =
             TriggerTick = gameTime + TimeSpan.FromSeconds(0.5) // Example delay
           }
 
-          visualEffects.Add(AddPendingResolution resolution)
+          let resGuid = UMX.untag resolutionId
 
-          visualEffects.Add(
-            AddAoe {
-              Id = Guid.NewGuid() |> UMX.tag
-              DefinitionId = defId
-              Position = action.targetComponents.Position
-              CreationTick = gameTime
-              PendingResolutionId = ValueSome resolutionId
-            }
-          ))
+          visualEffects.Add(AddObject(resGuid, PendingResolution resolution))
+
+          let aoeGuid = Guid.NewGuid()
+
+          let aoe: VisualEffects.ActiveAoe = {
+            Id = aoeGuid |> UMX.tag<AoeId>
+            DefinitionId = defId
+            Position = action.targetComponents.Position
+            CreationTick = gameTime
+            PendingResolutionId = ValueSome resolutionId
+          }
+
+          visualEffects.Add(AddObject(aoeGuid, ActiveObject.Aoe aoe)))
 
         action.abilityDefinition.ImpactIds
         |> Array.iter(fun defId ->
@@ -809,17 +861,21 @@ module CommandHandler =
             TriggerTick = gameTime + impactDef.Duration
           }
 
-          visualEffects.Add(AddPendingResolution resolution)
+          let resGuid = UMX.untag resolutionId
 
-          visualEffects.Add(
-            AddImpact {
-              Id = Guid.NewGuid() |> UMX.tag
-              DefinitionId = defId
-              Position = action.targetComponents.Position
-              CreationTick = gameTime
-              PendingResolutionId = ValueSome resolutionId
-            }
-          ))
+          visualEffects.Add(AddObject(resGuid, PendingResolution resolution))
+
+          let impactId = Guid.NewGuid()
+
+          let impact = {
+            Id = impactId |> UMX.tag
+            DefinitionId = defId
+            Position = action.targetComponents.Position
+            CreationTick = gameTime
+            PendingResolutionId = ValueSome resolutionId
+          }
+
+          visualEffects.Add(AddObject(impactId, ActiveObject.Impact impact)))
 
         // Only apply cost and cooldown immediately
         let! actorWithCost =
@@ -883,18 +939,22 @@ module CommandHandler =
             TriggerTick = gameTime + TimeSpan.FromSeconds(5.0) // Fallback timeout
           }
 
-          visualEffects.Add(AddPendingResolution resolution)
+          let resGuid = UMX.untag resolutionId
 
-          visualEffects.Add(
-            AddProjectile {
-              Id = Guid.NewGuid() |> UMX.tag
-              DefinitionId = defId
-              CurrentPosition = actorComponents.Position
-              Target = PositionTarget targetPosition
-              CreationTick = gameTime
-              PendingResolutionId = ValueSome resolutionId
-            }
-          ))
+          visualEffects.Add(AddObject(resGuid, PendingResolution resolution))
+
+          let projId = Guid.NewGuid()
+
+          let proj = {
+            Id = projId |> UMX.tag
+            DefinitionId = defId
+            CurrentPosition = actorComponents.Position
+            Target = PositionTarget targetPosition
+            CreationTick = gameTime
+            PendingResolutionId = ValueSome resolutionId
+          }
+
+          visualEffects.Add(AddObject(projId, ActiveObject.Projectile proj)))
 
         // Only apply cost and cooldown immediately
         let! actorWithCost =
@@ -974,13 +1034,17 @@ module CommandHandler =
             | OutOfRange -> "Out of Range"
             | _ -> "Cannot Use"
 
-          AddFloatingText {
-            Id = Guid.NewGuid() |> UMX.tag
+          let ftId = Guid.NewGuid()
+
+          let ft = {
+            Id = ftId |> UMX.tag
             Text = text
             Position = a.Position
             Color = SystemMessage
             CreationTick = gameTime
-          })
+          }
+
+          AddObject(ftId, ActiveObject.FloatingText ft))
         |> Option.toArray
 
       return {
@@ -996,13 +1060,17 @@ module CommandHandler =
       let floatingText =
         target
         |> Option.map(fun t ->
-          AddFloatingText {
-            Id = Guid.NewGuid() |> UMX.tag
+          let ftId = Guid.NewGuid()
+
+          let ft = {
+            Id = ftId |> UMX.tag
             Text = "Resource is full"
             Position = t.Position
             Color = SystemMessage
             CreationTick = gameTime
-          })
+          }
+
+          AddObject(ftId, ActiveObject.FloatingText ft))
         |> Option.toArray
 
       return {
@@ -1307,16 +1375,20 @@ module CommandHandler =
             elif not inRange then "Out of Range"
             else "Requirements Not Met"
 
+          let ftId = Guid.NewGuid()
+
+          let ft = {
+            Id = ftId |> UMX.tag
+            Text = text
+            Position = actor.Position
+            Color = SystemMessage
+            CreationTick = gameTime
+          }
+
           return {
             StateChange.empty with
                 visualEffects = [|
-                  AddFloatingText {
-                    Id = Guid.NewGuid() |> UMX.tag
-                    Text = text
-                    Position = actor.Position
-                    Color = SystemMessage
-                    CreationTick = gameTime
-                  }
+                  AddObject(ftId, ActiveObject.FloatingText ft)
                 |]
           }
         else
