@@ -123,6 +123,7 @@ module CommandHandler =
             | HP -> actorStats.HP
             | DP -> actorStats.DP
             | HV -> actorStats.HV
+            | MovementSpeed -> actorStats.MovementSpeed
 
           actualValue >= minValue
         | AbilityRequirement abilityId ->
