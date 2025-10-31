@@ -48,6 +48,7 @@ module RenderSystem =
     Projectiles: ActiveProjectile[]
     Aoes: ActiveAoe[]
     Impacts: ActiveImpact[]
+    Lines: ActiveLine[]
     GameTime: TimeSpan
     Services: EngineServices
     Hud: SpriteFont voption
@@ -430,6 +431,50 @@ module RenderSystem =
         let y = int(impact.Position.Y - size * 0.5f)
         sb.Draw(pixel, Rectangle(x, y, int size, int size), color)
 
+  let private drawLines
+    (sb: SpriteBatch)
+    (pixel: Texture2D)
+    (lines: ActiveLine[])
+    (gameTime: TimeSpan)
+    =
+    for line in lines do
+      let age = gameTime - line.CreationTick
+
+      if age < line.Duration then
+        let color = Color.toMonoGameColor line.Color
+        let dx = line.End.X - line.Start.X
+        let dy = line.End.Y - line.Start.Y
+        let length = sqrt(dx * dx + dy * dy)
+        let angle = atan2 dy dx
+        let numSegments = max 1 (int(length / line.Width))
+        let segmentLength = length / float32 numSegments
+
+        for i in 0 .. numSegments - 1 do
+          let t = float32 i / float32 numSegments
+          let x = line.Start.X + dx * t
+          let y = line.Start.Y + dy * t
+          let segX = int(x - line.Width * 0.5f)
+          let segY = int(y - line.Width * 0.5f)
+          let segWidth = int line.Width
+          let segHeight = int(max line.Width segmentLength)
+
+          let origin =
+            Vector2(float32 segWidth * 0.5f, float32 segHeight * 0.5f)
+
+          let position = Vector2(x, y)
+
+          sb.Draw(
+            pixel,
+            position,
+            Nullable(Rectangle(0, 0, 1, 1)),
+            color,
+            angle,
+            origin,
+            Vector2(line.Width, segmentLength),
+            SpriteEffects.None,
+            0.0f
+          )
+
   let private drawTargetingIndicator
     (sb: SpriteBatch)
     (pixel: Texture2D)
@@ -466,7 +511,7 @@ module RenderSystem =
 
         if not(isNull mediumCircle) then
           sb.Draw(mediumCircle, Vector2(x, y), indicatorColor)
-    | InputMode.AbilityTargeting(_, TargetingMode.GroundTargeting radius) ->
+    | InputMode.AbilityTargeting(abilityId, TargetingMode.GroundTargeting radius) ->
       if not(Platform.IsMobile()) then
         let indicatorColor = Color(255, 165, 0, 80)
 
@@ -537,6 +582,7 @@ module RenderSystem =
     drawProjectiles sb pixel ctx.Projectiles ctx.Services ctx.GameTime
     drawAoes sb pixel ctx.Aoes ctx.Services
     drawImpacts sb pixel ctx.Impacts ctx.Services ctx.GameTime
+    drawLines sb pixel ctx.Lines ctx.GameTime
 
   let drawInputPhase sb pixel (ctx: InputContext) (entityCtx: EntityContext) =
     drawTargetingIndicator sb pixel ctx.InputMode ctx.MouseWorldPos entityCtx

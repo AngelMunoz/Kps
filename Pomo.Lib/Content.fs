@@ -739,6 +739,140 @@ module AbilityStore =
         AoeIds = Array.empty
         ImpactIds = Array.empty
       }
+      // Phase 7 Test Abilities
+      105<AbilityId>,
+      {
+        Id = 105<AbilityId>
+        Name = "Laser Beam"
+        Intent = AbilityIntent.Offensive
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 30 }
+        Cooldown = TimeSpan.FromSeconds(4.0)
+        Targeting = StraightLine(32f * 8f, 16f, 5, IgnoreTerrain)
+        Range = 32f * 8f
+        FormulaId = ValueSome 2<FormulaId>
+        Effects = Array.empty
+        Requirements = Array.empty
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
+        AoeIds = Array.empty
+        ImpactIds = Array.empty
+      }
+      106<AbilityId>,
+      {
+        Id = 106<AbilityId>
+        Name = "Chain Lightning"
+        Intent = AbilityIntent.Offensive
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 35 }
+        Cooldown = TimeSpan.FromSeconds(6.0)
+        Targeting = ChainTargets(4, 32f * 3f)
+        Range = 32f * 6f
+        FormulaId = ValueSome 2<FormulaId>
+        Effects = Array.empty
+        Requirements = Array.empty
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
+        AoeIds = Array.empty
+        ImpactIds = Array.empty
+      }
+      107<AbilityId>,
+      {
+        Id = 107<AbilityId>
+        Name = "Fan of Stones"
+        Intent = AbilityIntent.Offensive
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 25 }
+        Cooldown = TimeSpan.FromSeconds(3.0)
+        Targeting = ConeTargets(60f, 32f * 4f, 6)
+        Range = 32f * 4f
+        FormulaId = ValueSome 1<FormulaId>
+        Effects = Array.empty
+        Requirements = Array.empty
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
+        AoeIds = Array.empty
+        ImpactIds = Array.empty
+      }
+      108<AbilityId>,
+      {
+        Id = 108<AbilityId>
+        Name = "Raining Icicles"
+        Intent = AbilityIntent.Offensive
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 40 }
+        Cooldown = TimeSpan.FromSeconds(8.0)
+        Targeting = AreaRandomPoints(32f * 4f, 8)
+        Range = 32f * 10f
+        FormulaId = ValueSome 2<FormulaId>
+        Effects = Array.empty
+        Requirements = Array.empty
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = [| 2<ProjectileId> |]
+        ProjectileOrigin = ValueSome(FromTargetPoint { X = 0f; Y = -100f })
+        AoeIds = Array.empty
+        ImpactIds = [| 2<ImpactId> |]
+      }
+      109<AbilityId>,
+      {
+        Id = 109<AbilityId>
+        Name = "Deadly Swamp"
+        Intent = AbilityIntent.Offensive
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 50 }
+        Cooldown = TimeSpan.FromSeconds(12.0)
+        Targeting = GroundArea(32f * 3f)
+        Range = 32f * 8f
+        FormulaId = ValueNone
+        Effects = [| 105<EffectId> |]
+        Requirements = Array.empty
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
+        AoeIds = [| 1<AoeId> |]
+        ImpactIds = Array.empty
+      }
+      110<AbilityId>,
+      {
+        Id = 110<AbilityId>
+        Name = "Dash"
+        Intent = AbilityIntent.Neutral
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
+        Cooldown = TimeSpan.FromSeconds(5.0)
+        Targeting = GroundPoint
+        Range = 32f * 6f
+        FormulaId = ValueNone
+        Effects = Array.empty
+        Requirements = Array.empty
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
+        AoeIds = Array.empty
+        ImpactIds = Array.empty
+      }
+      111<AbilityId>,
+      {
+        Id = 111<AbilityId>
+        Name = "Seeker Punch"
+        Intent = AbilityIntent.Offensive
+        Cost = ValueSome { Type = ResourceType.MP; Amount = 20 }
+        Cooldown = TimeSpan.FromSeconds(4.0)
+        Targeting = SingleEnemy
+        Range = 32f * 5f
+        FormulaId = ValueSome 1<FormulaId>
+        Effects = Array.empty
+        Requirements = Array.empty
+        CastingTime = ValueNone
+        PreActivationVisualEffectIds = Array.empty
+        ProjectileIds = Array.empty
+        ProjectileOrigin = ValueNone
+        AoeIds = Array.empty
+        ImpactIds = [| 1<ImpactId> |]
+      }
     ]
 
   let passiveDefinitions: HashMap<int<AbilityId>, PassiveAbilityDefinition> =

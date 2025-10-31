@@ -199,12 +199,16 @@ module TestScenarioBuilder =
       scenario.entities.[playerId] <- finalPlayerComponents)
 
     let keyBindings = [|
-      struct (Set1, GameAction.UseQuickSlot1), ActivateAbility 103<AbilityId>
-      struct (Set1, GameAction.UseQuickSlot2), UseItem potionGuid
-      struct (Set1, GameAction.UseQuickSlot3), Empty
-      struct (Set1, GameAction.UseQuickSlot4), Empty
-      struct (Set2, GameAction.UseQuickSlot1), ActivateAbility 104<AbilityId>
-      struct (Set2, GameAction.UseQuickSlot2), ActivateAbility 103<AbilityId>
+      struct (Set1, GameAction.UseQuickSlot1), ActivateAbility 105<AbilityId> // Laser Beam
+      struct (Set1, GameAction.UseQuickSlot2), ActivateAbility 106<AbilityId> // Chain Lightning
+      struct (Set1, GameAction.UseQuickSlot3), ActivateAbility 107<AbilityId> // Fan of Stones
+      struct (Set1, GameAction.UseQuickSlot4), ActivateAbility 108<AbilityId> // Raining Icicles
+      struct (Set1, GameAction.UseQuickSlot5), ActivateAbility 109<AbilityId> // Deadly Swamp
+      struct (Set1, GameAction.UseQuickSlot6), ActivateAbility 110<AbilityId> // Dash
+      struct (Set1, GameAction.UseQuickSlot7), ActivateAbility 111<AbilityId> // Seeker Punch
+      struct (Set1, GameAction.UseQuickSlot8), UseItem potionGuid
+      struct (Set2, GameAction.UseQuickSlot1), ActivateAbility 103<AbilityId> // Meteor Shower
+      struct (Set2, GameAction.UseQuickSlot2), ActivateAbility 104<AbilityId> // Magic Arrow
     |]
 
     {

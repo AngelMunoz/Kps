@@ -1051,6 +1051,50 @@ module CommandHandler =
 
           visualEffects.Add(AddObject(projId, ActiveObject.Projectile proj)))
 
+        do
+          match abilityDef.Targeting with
+          | StraightLine(range, width, _, _) ->
+            let lineId = Guid.NewGuid()
+
+            let direction = {
+              X = targetPosition.X - actorComponents.Position.X
+              Y = targetPosition.Y - actorComponents.Position.Y
+            }
+
+            let length =
+              sqrt(direction.X * direction.X + direction.Y * direction.Y)
+
+            let effectiveRange =
+              if range > 0.0f then min length range else length
+
+            let normalizedDir =
+              if length = 0.0f then
+                { X = 1.0f; Y = 0.0f }
+              else
+                {
+                  X = direction.X / length
+                  Y = direction.Y / length
+                }
+
+            let endPos = {
+              X = actorComponents.Position.X + normalizedDir.X * effectiveRange
+              Y = actorComponents.Position.Y + normalizedDir.Y * effectiveRange
+            }
+
+            let line = {
+              Id = lineId |> UMX.tag
+              Start = actorComponents.Position
+              End = endPos
+              Width = width
+              Color = Visuals.VisualColor.Red
+              Duration = TimeSpan.FromSeconds(0.3)
+              CreationTick = gameTime
+            }
+
+            visualEffects.Add(AddObject(lineId, ActiveObject.Line line))
+            |> ignore
+          | _ -> ()
+
         // Only apply cost and cooldown immediately
         let! actorWithCost =
           Resolution.applyResourceCost abilityDef.Cost actorComponents 0 // No damage dealt yet

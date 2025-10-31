@@ -229,21 +229,23 @@ This phase refactors how temporary state objects are managed and uses this new a
     - Finding all valid entities within this area.
     - Optionally handling terrain collision based on the `collision` flag.
     - Selecting up to `maxTargets`.
-- **Task 7.3: Implement Visuals for Line Abilities (`Pomo.Core/RenderSystem.fs`, `Pomo.Lib/Gameplay.fs`) [TODO]**
-  - **Annotation:** This task involves handling the visual aspects in `Pomo.Core`, specifically the aim indicator, drawing rectangles, and other visual elements for Line abilities. Active area affections also need to be displayed. This will require assessing `Pomo.Core/RenderSystem.fs` and `Pomo.Lib/Gameplay.fs`.
-  - Decide on a visual representation. This could be a long, thin projectile, a custom-rendered beam, or a sequence of AoE effects.
-  - Update the `resolveUseAbility` function to generate the appropriate `VisualEffectChange` for the chosen representation.
-- **Task 7.4: Create Test Skills and Bind to User (`Pomo.Lib/Content.fs`, `Pomo.Core/TestScenarioBuilder.fs`) [TODO]**
-  - Create new `ActiveAbilityDefinition`s in `Pomo.Lib/Content.fs` for:
-    - A `StraightLine` ability.
-    - A `Deadly Swamp` ability (using `ActiveZone`).
-    - A `Meteor Shower` ability (using `AreaRandomTargets`).
-    - A `Mermaid's Song` ability (using `ChainTargets`).
-    - A `Fan of Stones` ability (using `ConeTargets`).
-    - A `Raining Icicles` ability (using `AreaRandomPoints`).
-    - A `Dash` ability (using `ActiveDash`).
-    - A `Seeker Punch` ability (using `ActiveRush`).
-  - Bind these new abilities to the player's keybindings in `Pomo.Core/TestScenarioBuilder.fs`.
+- **Task 7.3: Implement Visuals for Line Abilities (`Pomo.Core/RenderSystem.fs`, `Pomo.Lib/Gameplay.fs`) [COMPLETED]**
+  - Added `Lines` field to `EffectsContext` in `RenderSystem.fs`
+  - Implemented `drawLines` function to render line effects using rotated rectangles
+  - Updated `PomoGame.fs` to pass `Lines` from `DrawingContext` to `EffectsContext`
+  - Added line visual generation in `CommandHandler.fs` for `StraightLine` targeting type
+  - Lines are rendered as red beams with configurable width and 0.3s duration
+- **Task 7.4: Create Test Skills and Bind to User (`Pomo.Lib/Content.fs`, `Pomo.Core/TestScenarioBuilder.fs`) [COMPLETED]**
+  - Created new `ActiveAbilityDefinition`s in `Pomo.Lib/Content.fs`:
+    - 105: "Laser Beam" - `StraightLine` ability (8 tiles range, 16px width, 5 targets)
+    - 106: "Chain Lightning" - `ChainTargets` ability (4 chains, 3 tiles chain range)
+    - 107: "Fan of Stones" - `ConeTargets` ability (60° angle, 4 tiles range, 6 targets)
+    - 108: "Raining Icicles" - `AreaRandomPoints` ability (4 tiles radius, 8 points)
+    - 109: "Deadly Swamp" - `GroundArea` ability (3 tiles radius, applies poison effect)
+    - 110: "Dash" - `GroundPoint` ability (6 tiles range)
+    - 111: "Seeker Punch" - `SingleEnemy` ability (5 tiles range)
+  - Bound all new abilities to keybindings Q-F (Set1) and F1-F2 (Set2) in `TestScenarioBuilder.fs`
+  - Note: Meteor Shower (103) already existed with `AreaRandomPoints` targeting
 
 ## 5. Ability Implementation Roadmap
 
