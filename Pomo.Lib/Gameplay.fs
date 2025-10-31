@@ -494,6 +494,175 @@ module Projectile =
               Y = proj.CurrentPosition.Y + dirY * moveDist
             }
 
+            let projRadius = def.Size * 0.5f
+
+            let! actorIdOpt =
+              match proj.PendingResolutionId with
+              | ValueSome resolutionId ->
+                scenario.activeObjects
+                |> AMap.tryFind(UMX.untag resolutionId)
+                |> AVal.map(fun resOpt ->
+                  match resOpt with
+                  | Some(PendingResolution res) -> ValueSome res.ActorId
+                  | _ -> ValueNone)
+              | ValueNone -> AVal.constant ValueNone
+
+            let! collidedEntity =
+              entities
+              |> AMap.filter(fun entityId _ ->
+                match actorIdOpt with
+                | ValueSome actorId -> entityId <> actorId
+                | ValueNone -> true)
+              |> AMap.fold
+                (fun (acc: _ voption) entityId entity ->
+                  if acc.IsValueSome then
+                    acc
+                  else
+                    let entityRadius =
+                      Movement.Utils.radiusOfStage entity.Identity.Stage
+
+                    let dx = entity.Position.X - newPos.X
+                    let dy = entity.Position.Y - newPos.Y
+                    let distSq = dx * dx + dy * dy
+                    let collisionDist = projRadius + entityRadius
+
+                    if distSq <= collisionDist * collisionDist then
+                      ValueSome(entityId, entity)
+                    else
+                      ValueNone)
+                ValueNone
+
+            match collidedEntity with
+            | ValueSome(entityId, _) ->
+              match proj.PendingResolutionId with
+              | ValueSome resolutionId ->
+                let! resolutionOpt =
+                  scenario.activeObjects
+                  |> AMap.tryFind(UMX.untag resolutionId)
+
+                match resolutionOpt with
+                | Some(PendingResolution res) ->
+                  let! resolution = AVal.constant res
+                  let! actor = entities |> AMap.find resolution.ActorId
+                  let! entity = entities |> AMap.find entityId
+
+                  let actorStats =
+                    actor
+                    |> DerivedStats.byEntity
+                      state.services.effectStore
+                      state.services.formulaStore
+                      state.services.itemStore
+
+                  let entityStats =
+                    entity
+                    |> DerivedStats.byEntity
+                      state.services.effectStore
+                      state.services.formulaStore
+                      state.services.itemStore
+
+                  let ability =
+                    state.services.abilityStore.find resolution.AbilityId
+
+                  match ability with
+                  | Abilities.Active abilityDef ->
+                    let damageParams = {
+                      services = state.services
+                      attackerStats = actorStats
+                      defenderStats = entityStats
+                      attackerEffects = actor.Effects
+                    }
+
+                    let! damageResult =
+                      match abilityDef.FormulaId with
+                      | ValueSome formulaId ->
+                        Resolution.calculateDamage damageParams formulaId
+                      | ValueNone ->
+                        AVal.constant {
+                          Amount = 0
+                          IsCritical = false
+                          IsEvaded = false
+                        }
+
+                    let entityAfterDamage = {
+                      entity with
+                          Resources =
+                            Resolution.applyDamage damageResult.Amount entity
+                    }
+
+                    let! entityAfterEffects =
+                      Resolution.applyAbilityEffects
+                        state.services.effectStore
+                        resolution.ActorId
+                        abilityDef
+                        entityAfterDamage
+
+                    let floatingText =
+                      if damageResult.IsEvaded then
+                        let ftId = Guid.NewGuid()
+
+                        Some(
+                          AddObject(
+                            ftId,
+                            ActiveObject.FloatingText {
+                              Id = ftId |> UMX.tag
+                              Text = "Miss"
+                              Position = entity.Position
+                              Color = FloatingTextColor.Evade
+                              CreationTick = newTime
+                            }
+                          )
+                        )
+                      elif damageResult.Amount > 0 then
+                        let ftId = Guid.NewGuid()
+
+                        Some(
+                          AddObject(
+                            ftId,
+                            ActiveObject.FloatingText {
+                              Id = ftId |> UMX.tag
+                              Text = string damageResult.Amount
+                              Position = entity.Position
+                              Color =
+                                if damageResult.IsCritical then
+                                  FloatingTextColor.Critical
+                                else
+                                  FloatingTextColor.Damage
+                              CreationTick = newTime
+                            }
+                          )
+                        )
+                      else
+                        None
+
+                    return {
+                      StateChange.empty with
+                          updates = HashMap.single entityId entityAfterEffects
+                          visualEffects = [|
+                            RemoveObject objId
+                            RemoveObject(UMX.untag resolutionId)
+                            yield! floatingText |> Option.toArray
+                          |]
+                    }
+                  | _ ->
+                    return {
+                      StateChange.empty with
+                          visualEffects = [|
+                            RemoveObject objId
+                            RemoveObject(UMX.untag resolutionId)
+                          |]
+                    }
+                | _ ->
+                  return {
+                    StateChange.empty with
+                        visualEffects = [| RemoveObject objId |]
+                  }
+              | ValueNone ->
+                return {
+                  StateChange.empty with
+                      visualEffects = [| RemoveObject objId |]
+                }
+            | ValueNone ->
+
             match def.CollisionMode with
             | Visuals.CollisionMode.BlockedByTerrain ->
               let canMove =

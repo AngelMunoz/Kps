@@ -431,10 +431,13 @@ module CommandHandler =
                   + entityVector.Y * perpendicularDir.Y
                 )
 
+              let entityRadius =
+                Movement.Utils.radiusOfStage entity.Identity.Stage
+
               if
                 dot_product_projection >= 0.0f
                 && dot_product_projection <= effectiveRange
-                && dot_product_perpendicular <= (width / 2.0f)
+                && dot_product_perpendicular <= (width / 2.0f + entityRadius)
               then
                 ResizeArray.add entityId acc
               else
@@ -1579,6 +1582,125 @@ module CommandHandler =
                 |]
           }
         else
+          let! gameTime = rparams.gameTime
+
+          let! actorWithCost =
+            Resolution.applyResourceCost abilityDef.Cost actor 0
+
+          let actorWithCooldown =
+            Resolution.updateCooldowns
+              actorWithCost
+              action.abilityId
+              gameTime
+              abilityDef.Cooldown
+
+          let actorWithMovementCleared = {
+            actorWithCooldown with
+                Movement = {
+                  actorWithCooldown.Movement with
+                      Path = []
+                      Destination = ValueNone
+                }
+          }
+
+          let! lineVisuals =
+            match action.target with
+            | AbilityTarget.PositionTarget pos ->
+              match abilityDef.Targeting with
+              | StraightLine(range, width, _, _) ->
+                let lineId = Guid.NewGuid()
+
+                let direction = {
+                  X = pos.X - actor.Position.X
+                  Y = pos.Y - actor.Position.Y
+                }
+
+                let length =
+                  sqrt(direction.X * direction.X + direction.Y * direction.Y)
+
+                let effectiveRange =
+                  if range > 0.0f then min length range else length
+
+                let normalizedDir =
+                  if length = 0.0f then
+                    { X = 1.0f; Y = 0.0f }
+                  else
+                    {
+                      X = direction.X / length
+                      Y = direction.Y / length
+                    }
+
+                let endPos = {
+                  X = actor.Position.X + normalizedDir.X * effectiveRange
+                  Y = actor.Position.Y + normalizedDir.Y * effectiveRange
+                }
+
+                let line = {
+                  Id = lineId |> UMX.tag
+                  Start = actor.Position
+                  End = endPos
+                  Width = width
+                  Color = Visuals.VisualColor.Red
+                  Duration = TimeSpan.FromSeconds(0.3)
+                  CreationTick = gameTime
+                }
+
+                AVal.constant [| AddObject(lineId, ActiveObject.Line line) |]
+              | _ -> AVal.constant Array.empty
+            | EntityTargets targets ->
+              match abilityDef.Targeting with
+              | ChainTargets _ when targets.Length > 0 -> adaptive {
+                  let! entitiesMap = entities |> AMap.toAVal
+
+                  return
+                    targets
+                    |> Array.pairwise
+                    |> Array.choose(fun (fromId, toId) ->
+                      match
+                        entitiesMap |> HashMap.tryFind fromId,
+                        entitiesMap |> HashMap.tryFind toId
+                      with
+                      | Some fromEntity, Some toEntity ->
+                        let lineId = Guid.NewGuid()
+
+                        let line = {
+                          Id = lineId |> UMX.tag
+                          Start = fromEntity.Position
+                          End = toEntity.Position
+                          Width = 4f
+                          Color = Visuals.VisualColor.Blue
+                          Duration = TimeSpan.FromSeconds(0.3)
+                          CreationTick = gameTime
+                        }
+
+                        Some(AddObject(lineId, ActiveObject.Line line))
+                      | _ -> None)
+                }
+              | ConeTargets(angle, range, _) when targets.Length > 0 -> adaptive {
+                  let! entitiesMap = entities |> AMap.toAVal
+
+                  return
+                    targets
+                    |> Array.choose(fun targetId ->
+                      match entitiesMap |> HashMap.tryFind targetId with
+                      | Some targetEntity ->
+                        let lineId = Guid.NewGuid()
+
+                        let line = {
+                          Id = lineId |> UMX.tag
+                          Start = actor.Position
+                          End = targetEntity.Position
+                          Width = 6f
+                          Color = Visuals.VisualColor.Yellow
+                          Duration = TimeSpan.FromSeconds(0.2)
+                          CreationTick = gameTime
+                        }
+
+                        Some(AddObject(lineId, ActiveObject.Line line))
+                      | _ -> None)
+                }
+              | _ -> AVal.constant Array.empty
+
           let stateChanges =
             actualTargets
             |> AList.ofArray
@@ -1598,7 +1720,7 @@ module CommandHandler =
                   action.actor
                   pos)
 
-          return!
+          let! finalChange =
             stateChanges
             |> AList.fold
               (fun acc result -> {
@@ -1610,6 +1732,19 @@ module CommandHandler =
                       Array.append acc.audioChanges result.audioChanges
               })
               StateChange.empty
+
+          let finalUpdates =
+            if finalChange.updates.ContainsKey action.actor then
+              finalChange.updates
+            else
+              finalChange.updates.Add(action.actor, actorWithMovementCleared)
+
+          return {
+            finalChange with
+                updates = finalUpdates
+                visualEffects =
+                  Array.append lineVisuals finalChange.visualEffects
+          }
     }
 
   [<Struct>]

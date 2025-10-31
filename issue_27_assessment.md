@@ -247,7 +247,103 @@ This phase refactors how temporary state objects are managed and uses this new a
   - Bound all new abilities to keybindings Q-F (Set1) and F1-F2 (Set2) in `TestScenarioBuilder.fs`
   - Note: Meteor Shower (103) already existed with `AreaRandomPoints` targeting
 
-## 5. Ability Implementation Roadmap
+## 5. Phase 7 Bug List (Organized by Complexity)
+
+### Low Complexity (Quick Fixes)
+1. **[BUG-7.1] Laser Beam line visuals not rendering** - `STATUS: COMPLETED ✓`
+   - **Symptom:** Clicking to cast Laser Beam does not show any line visual; line renders with offset; cooldown not applied on miss; hitbox narrower than visual
+   - **Root Cause:** 
+     - Line visuals were generated in position-based path, but StraightLine abilities resolve entity targets
+     - Line rendering origin was incorrect causing visual offset
+     - Cooldown/cost only applied per-target, not upfront
+     - Collision detection only checked entity center point, not entity radius
+   - **Fixes Applied:** 
+     - Added line visual generation in `resolveUseAbility` for PositionTarget + StraightLine abilities
+     - Adjusted line rendering origin to `Vector2(0f, 0.5f)` to properly center at start position
+     - Apply cooldown and resource cost upfront in `resolveUseAbility` before target resolution
+     - Ensure actor state update even when no targets hit
+     - Add entity radius to collision detection: `dot_product_perpendicular <= (width / 2.0f + entityRadius)`
+   - **Files Modified:** 
+     - `Pomo.Core/RenderSystem.fs` - Fixed line rendering origin point
+     - `Pomo.Lib/CommandHandler.fs` - Added line generation, upfront cooldown/cost, and entity radius collision
+   - **Verified:** All issues resolved, laser beam working as expected ✓
+
+2. **[BUG-7.2] Magic Arrow ignores enemies in path** - `STATUS: COMPLETED ✓`
+   - **Symptom:** GroundPoint projectiles (Magic Arrow) pass through enemies instead of hitting them; projectile hits caster immediately
+   - **Root Cause:** 
+     - Position-target projectiles only check collision with target position, not entities along the path
+     - Collision detection didn't exclude the caster entity
+   - **Fix Applied:** 
+     - Added entity collision detection during projectile movement phase
+     - Extracts ActorId from PendingResolution before collision check
+     - Folds over entities with inline actor exclusion check (avoids intermediate filtered map)
+     - Uses early termination when collision found (performance optimization)
+     - Checks if projectile radius + entity radius overlaps with entity position
+     - Triggers pending resolution and applies damage/effects on collision
+     - Removes projectile and pending resolution on hit
+   - **Files Modified:** `Pomo.Lib/Gameplay.fs` (Projectile.resolve for PositionTarget)
+   - **Verified:** Projectiles now correctly hit enemies along flight path, excluding caster ✓
+
+### Medium Complexity (Feature Completion)
+3. **[BUG-7.3] Fan of Stones has no visuals** - `STATUS: FIXED - READY FOR TESTING`
+   - **Symptom:** ConeTargets ability applies damage but shows no projectiles or visual effects
+   - **Root Cause:** No visual effect generation for cone-based abilities
+   - **Fix Applied:** 
+     - Added line visual generation for ConeTargets in `resolveUseAbility`
+     - Creates yellow line (6px width, 0.2s duration) from caster to each target hit
+     - Retrieves entity positions from adaptive map to draw lines
+     - Stays in adaptive realm throughout computation
+   - **Files Modified:** `Pomo.Lib/CommandHandler.fs`
+   - **Testing Required:** Cast Fan of Stones (E key) on enemies - should see yellow lines radiating to hit targets
+
+4. **[BUG-7.4] Chain Lightning has no visuals** - `STATUS: FIXED - READY FOR TESTING`
+   - **Symptom:** ChainTargets ability applies damage but shows no chain/line visuals
+   - **Root Cause:** No visual effect generation for chain-based abilities
+   - **Fix Applied:** 
+     - Added line visual generation for ChainTargets in `resolveUseAbility`
+     - Creates blue line (4px width, 0.3s duration) between each consecutive chain target
+     - Uses `Array.pairwise` to connect targets in chain order
+     - Retrieves entity positions from adaptive map to draw connecting lines
+     - Stays in adaptive realm throughout computation
+   - **Files Modified:** `Pomo.Lib/CommandHandler.fs`
+   - **Testing Required:** Cast Chain Lightning (W key) on enemy - should see blue lines connecting chained targets
+
+5. **[BUG-7.5] Deadly Swamp shows "hits 0" and disappears** - `PRIORITY: MEDIUM`
+   - **Symptom:** GroundArea ability creates AoE visual but doesn't create persistent zone, shows no damage
+   - **Root Cause:** ActiveZone creation not implemented; needs zone generation logic and tick-based damage
+   - **Files Affected:** `Pomo.Lib/CommandHandler.fs`, `Pomo.Lib/Gameplay.fs`
+   - **Estimated Effort:** 3-4 hours
+
+### High Complexity (New System Implementation)
+6. **[BUG-7.6] Dash does not move character** - `PRIORITY: HIGH`
+   - **Symptom:** Dash ability casts but character doesn't move to target position
+   - **Root Cause:** ActiveDash object generation and movement system not implemented
+   - **Files Affected:** `Pomo.Lib/CommandHandler.fs`, `Pomo.Lib/Gameplay.fs`
+   - **Dependencies:** Needs movement interpolation system
+   - **Estimated Effort:** 4-6 hours
+
+7. **[BUG-7.7] Seeker Punch has no rush motion** - `PRIORITY: HIGH`
+   - **Symptom:** Rush ability deals damage at range but character doesn't move to target
+   - **Root Cause:** ActiveRush object generation and movement system not implemented
+   - **Files Affected:** `Pomo.Lib/CommandHandler.fs`, `Pomo.Lib/Gameplay.fs`
+   - **Dependencies:** Needs movement interpolation system, similar to Dash
+   - **Estimated Effort:** 4-6 hours
+
+### Priority Order for Fixing
+1. ~~**BUG-7.1** (Laser Beam visuals)~~ - **COMPLETED ✓**
+2. ~~**BUG-7.2** (Magic Arrow collision)~~ - **COMPLETED ✓**
+3. **BUG-7.3** (Fan of Stones visuals) - **AWAITING USER TESTING** - Yellow cone lines
+4. **BUG-7.4** (Chain Lightning visuals) - **AWAITING USER TESTING** - Blue chain lines
+5. **BUG-7.5** (Deadly Swamp zones) - **NEXT** - Completes Phase 4 persistent effects
+6. **BUG-7.6** (Dash movement) - Completes Phase 6 movement abilities
+7. **BUG-7.7** (Rush movement) - Completes Phase 6 movement abilities
+
+### Current Status
+- **BUG-7.1**: ✓ COMPLETED and verified
+- **BUG-7.2**: ✓ COMPLETED and verified
+- **BUG-7.3, BUG-7.4**: Fixed and ready for user testing (cone and chain visuals implemented)
+
+## 6. Ability Implementation Roadmap
 
 - **Mermaid's Song:** Implementable after **Phase 2.4** and **Phase 2.5**.
 - **Meteor Shower:** Implementable after **Phase 2.2** and **Phase 2.5**.
