@@ -375,6 +375,7 @@ type PomoGame() as this =
         Aoes = drawCtx.Aoes
         Impacts = drawCtx.Impacts
         Lines = drawCtx.Lines
+        ActiveZones = drawCtx.ActiveZones
         GameTime = drawCtx.GameTime
         Services = state.services
         Hud = hudOpt

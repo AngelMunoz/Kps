@@ -243,7 +243,7 @@ module CommandHandler =
         let rec findChain
           (remaining: int)
           (currentId: Guid<EntityId>)
-          (acc: Guid<EntityId> HashSet)
+          (acc: IndexList<Guid<EntityId>>)
           =
           adaptive {
             if remaining <= 0 then
@@ -266,7 +266,9 @@ module CommandHandler =
                          (closestOpt: (Guid<EntityId> * float32) voption)
                          targetId
                          targetEntity ->
-                      if not(acc |> HashSet.contains targetId) then
+                      if
+                        not(acc |> IndexList.exists(fun _ id -> id = targetId))
+                      then
                         let dist =
                           ValidateAction.distance
                             currentEntity.Position
@@ -292,14 +294,14 @@ module CommandHandler =
                     findChain
                       (remaining - 1)
                       closestId
-                      (HashSet.add closestId acc)
+                      (IndexList.add closestId acc)
                 | ValueNone -> return acc
           }
 
         let! chainedTargets =
-          findChain maxChains initialTargetId (HashSet.single initialTargetId)
+          findChain maxChains initialTargetId (IndexList.single initialTargetId)
 
-        return chainedTargets |> HashSet.toArray |> Array.rev
+        return chainedTargets |> IndexList.toArray
       }
 
     let getConeTargets
@@ -1005,8 +1007,9 @@ module CommandHandler =
       adaptive {
         let! gameTime = rparams.gameTime
         let resolutionId = %Guid.NewGuid()
-        let mutable visualEffects = ResizeArray()
-        let mutable audioChanges = ResizeArray()
+        let visualEffects = ResizeArray()
+        let audioChanges = ResizeArray()
+        let scenarioChanges = ResizeArray()
 
         let castCues =
           Audio.Cues.createAbilityCastCue
@@ -1096,6 +1099,21 @@ module CommandHandler =
 
             visualEffects.Add(AddObject(lineId, ActiveObject.Line line))
             |> ignore
+          | GroundArea radius ->
+            let zoneId = Guid.NewGuid()
+            let zoneDuration = TimeSpan.FromSeconds(8.0)
+
+            let zone = {
+              Id = zoneId |> UMX.tag
+              Position = targetPosition
+              Shape = Visuals.Shape.Circle radius
+              Radius = radius
+              EndTime = gameTime + zoneDuration
+              EffectsToApply = abilityDef.Effects
+              EntitiesInside = HashSet.empty
+            }
+
+            scenarioChanges.Add(AddActiveZone zone)
           | _ -> ()
 
         // Only apply cost and cooldown immediately
@@ -1123,6 +1141,7 @@ module CommandHandler =
               updates = HashMap.single actorId finalActor
               visualEffects = visualEffects |> ResizeArray.toArray
               audioChanges = audioChanges |> ResizeArray.toArray
+              scenarioChanges = scenarioChanges |> ResizeArray.toArray
         }
       }
 
@@ -1649,12 +1668,25 @@ module CommandHandler =
               | _ -> AVal.constant Array.empty
             | EntityTargets targets ->
               match abilityDef.Targeting with
-              | ChainTargets _ when targets.Length > 0 -> adaptive {
+              | ChainTargets _ when actualTargets.Length > 0 -> adaptive {
                   let! entitiesMap = entities |> AMap.toAVal
 
+                  let targetIds =
+                    actualTargets
+                    |> Array.choose(fun rt ->
+                      match rt with
+                      | Entity eid -> Some eid
+                      | Position _ -> None)
+
+                  let chainPairs =
+                    if targetIds.Length > 0 then
+                      Array.append [| action.actor |] targetIds
+                      |> Array.pairwise
+                    else
+                      Array.empty
+
                   return
-                    targets
-                    |> Array.pairwise
+                    chainPairs
                     |> Array.choose(fun (fromId, toId) ->
                       match
                         entitiesMap |> HashMap.tryFind fromId,
@@ -1676,11 +1708,18 @@ module CommandHandler =
                         Some(AddObject(lineId, ActiveObject.Line line))
                       | _ -> None)
                 }
-              | ConeTargets(angle, range, _) when targets.Length > 0 -> adaptive {
+              | ConeTargets(angle, range, _) when actualTargets.Length > 0 -> adaptive {
                   let! entitiesMap = entities |> AMap.toAVal
 
+                  let targetIds =
+                    actualTargets
+                    |> Array.choose(fun rt ->
+                      match rt with
+                      | Entity eid -> Some eid
+                      | Position _ -> None)
+
                   return
-                    targets
+                    targetIds
                     |> Array.choose(fun targetId ->
                       match entitiesMap |> HashMap.tryFind targetId with
                       | Some targetEntity ->
@@ -1701,24 +1740,91 @@ module CommandHandler =
                 }
               | _ -> AVal.constant Array.empty
 
+          let groundAreaVisuals =
+            match abilityDef.Targeting with
+            | GroundArea radius ->
+              let resArray = ResizeArray()
+
+              let zoneId = Guid.NewGuid()
+              let zoneDuration = TimeSpan.FromSeconds(8.0)
+
+              let zone = {
+                Id = zoneId |> UMX.tag
+                Position = primaryTargetPos
+                Shape = Visuals.Shape.Circle radius
+                Radius = radius
+                EndTime = gameTime + zoneDuration
+                EffectsToApply = abilityDef.Effects
+                EntitiesInside = HashSet.empty
+              }
+
+              for aoeDefId in abilityDef.AoeIds do
+                let aoeGuid = Guid.NewGuid()
+
+                let aoe: VisualEffects.ActiveAoe = {
+                  Id = aoeGuid |> UMX.tag<AoeId>
+                  DefinitionId = aoeDefId
+                  Position = primaryTargetPos
+                  CreationTick = gameTime
+                  PendingResolutionId = ValueNone
+                }
+
+                resArray.Add(AddObject(aoeGuid, ActiveObject.Aoe aoe))
+
+              struct (resArray.ToArray(), [| AddActiveZone zone |])
+            | _ -> struct (Array.empty, Array.empty)
+
+          let struct (groundAreaAoeVisuals, zoneScenarioChanges) =
+            groundAreaVisuals
+
           let stateChanges =
             actualTargets
             |> AList.ofArray
-            |> AList.mapA(fun resolvedTarget ->
+            |> AList.mapA(fun resolvedTarget -> adaptive {
               match resolvedTarget with
               | Entity targetId ->
-                let resolver = resolveAbility rparams action.abilityId
+                match abilityDef.Targeting with
+                | GroundArea _ ->
+                  let! target =
+                    entities
+                    |> AMap.tryFind targetId
+                    |> AVal.map(Option.defaultValue actor)
 
-                resolver {
-                  actor = action.actor
-                  target = targetId
-                }
+                  return!
+                    AbilityResolution.resolveImmediate
+                      action.abilityId
+                      rparams
+                      {
+                        actor = action.actor
+                        target = targetId
+                      }
+                      {
+                        actor = actor
+                        abilityDefinition = abilityDef
+                        actorComponents = actor
+                        target = targetId
+                        targetComponents = target
+                        cost = abilityDef.Cost
+                      }
+                | _ ->
+                  let resolver = resolveAbility rparams action.abilityId
+
+                  return!
+                    resolver {
+                      actor = action.actor
+                      target = targetId
+                    }
               | Position pos ->
-                AbilityResolution.resolveAbilityOnPosition
-                  rparams
-                  action.abilityId
-                  action.actor
-                  pos)
+                match abilityDef.Targeting with
+                | GroundArea _ -> return StateChange.empty
+                | _ ->
+                  return!
+                    AbilityResolution.resolveAbilityOnPosition
+                      rparams
+                      action.abilityId
+                      action.actor
+                      pos
+            })
 
           let! finalChange =
             stateChanges
@@ -1730,6 +1836,8 @@ module CommandHandler =
                       Array.append acc.visualEffects result.visualEffects
                     audioChanges =
                       Array.append acc.audioChanges result.audioChanges
+                    scenarioChanges =
+                      Array.append acc.scenarioChanges result.scenarioChanges
               })
               StateChange.empty
 
@@ -1743,7 +1851,11 @@ module CommandHandler =
             finalChange with
                 updates = finalUpdates
                 visualEffects =
-                  Array.append lineVisuals finalChange.visualEffects
+                  finalChange.visualEffects
+                  |> Array.append lineVisuals
+                  |> Array.append groundAreaAoeVisuals
+                scenarioChanges =
+                  Array.append zoneScenarioChanges finalChange.scenarioChanges
           }
     }
 

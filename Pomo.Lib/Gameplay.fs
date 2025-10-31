@@ -31,6 +31,7 @@ module Scenario =
     Aoes: VisualEffects.ActiveAoe[]
     Impacts: VisualEffects.ActiveImpact[]
     Lines: VisualEffects.ActiveLine[]
+    ActiveZones: VisualEffects.ActiveZone[]
     GameTime: TimeSpan
     DerivedStats: HashMap<Guid<EntityId>, DerivedStats>
     WearableItems:
@@ -1045,9 +1046,10 @@ module GameState =
 
   let runTickEffects
     (args: TickEffectsMappingArgs)
+    (gameTime: TimeSpan)
     currentEntityId
     currentEntity
-    : aval<EntityComponents> =
+    : aval<struct (EntityComponents * State.VisualEffectChange[])> =
     adaptive {
       let {
             time = time
@@ -1096,11 +1098,71 @@ module GameState =
             MP = newMp
       }
 
-      return {
+      let visualEffects = ResizeArray()
+
+      do
+        if tickResult.Damage > 0 then
+          let ftId = Guid.NewGuid()
+
+          let ft = {
+            Id = ftId |> UMX.tag
+            Text = string tickResult.Damage
+            Position = movedComponents.Position
+            Color = VisualEffects.FloatingTextColor.Damage
+            CreationTick = gameTime
+          }
+
+          visualEffects.Add(
+            State.AddObject(ftId, VisualEffects.ActiveObject.FloatingText ft)
+          )
+
+      do
+        if tickResult.Resources.HP > 0 then
+          let ftId = Guid.NewGuid()
+
+          let ft = {
+            Id = ftId |> UMX.tag
+            Text = $"+{tickResult.Resources.HP}"
+            Position = movedComponents.Position
+            Color = VisualEffects.FloatingTextColor.Heal
+            CreationTick = gameTime
+          }
+
+          visualEffects.Add(
+            State.AddObject(ftId, VisualEffects.ActiveObject.FloatingText ft)
+          )
+
+      do
+        if tickResult.Resources.MP <> 0 then
+          let ftId = Guid.NewGuid()
+
+          let ft = {
+            Id = ftId |> UMX.tag
+            Text =
+              if tickResult.Resources.MP > 0 then
+                $"+{tickResult.Resources.MP} MP"
+              else
+                $"{tickResult.Resources.MP} MP"
+            Position = movedComponents.Position
+            Color =
+              if tickResult.Resources.MP > 0 then
+                VisualEffects.FloatingTextColor.Heal
+              else
+                VisualEffects.FloatingTextColor.Damage
+            CreationTick = gameTime
+          }
+
+          visualEffects.Add(
+            State.AddObject(ftId, VisualEffects.ActiveObject.FloatingText ft)
+          )
+
+      let updatedEntity = {
         movedComponents with
             Effects = updatedEffects
             Resources = updatedResources
       }
+
+      return struct (updatedEntity, visualEffects.ToArray())
     }
 
   let tick (state: GameState) (time: TimeSpan) : aval<StateChange> = adaptive {
@@ -1110,17 +1172,32 @@ module GameState =
 
     let newTime = currentTime + time
 
-    let entities =
+    let entitiesWithVisuals =
       scenario.entities
       |> AMap.mapA(
-        runTickEffects {
-          time = time
-          scenario = scenario.scenario
-          effectStore = state.services.effectStore
-          formulaStore = state.services.formulaStore
-          itemStore = state.services.itemStore
-        }
+        runTickEffects
+          {
+            time = time
+            scenario = scenario.scenario
+            effectStore = state.services.effectStore
+            formulaStore = state.services.formulaStore
+            itemStore = state.services.itemStore
+          }
+          newTime
       )
+
+    let! struct (entities, effectTickVisuals) =
+      entitiesWithVisuals
+      |> AMap.fold
+        (fun
+             struct (entities, visualEffects)
+             (entityId: Guid<EntityId>)
+             struct (entity, visuals) ->
+          struct (HashMap.add entityId entity entities,
+                  ResizeArray.addRange visuals visualEffects))
+        (HashMap.empty, ResizeArray.empty())
+
+    let entities = AMap.ofHashMap entities
 
     let! projectileStateChanges =
       Projectile.resolve state scenario entities time newTime
@@ -1178,6 +1255,7 @@ module GameState =
 
     let visualEffectChanges =
       Array.concat [|
+        effectTickVisuals |> ResizeArray.toArray
         projectileStateChanges.visualEffects
         nonProjectileResolutionChanges.visualEffects
         expiredObjectRemovals.AsArray
@@ -1187,15 +1265,12 @@ module GameState =
       projectileStateChanges.updates
       |> HashMap.union nonProjectileResolutionChanges.updates
 
-    let! (zonesSnapshot: HashMap<Guid<ActiveZoneId>, VisualEffects.ActiveZone>) =
-      scenario.activeZones |> AMap.toAVal
-
     let! (entitiesSnapshot: HashMap<Guid<EntityId>, Components.EntityComponents>) =
       entities |> AMap.toAVal
 
-    let zoneRemovals: State.ScenarioChange IndexList =
-      zonesSnapshot
-      |> HashMap.fold
+    let! zoneRemovals =
+      scenario.activeZones
+      |> AMap.fold
         (fun acc id (zone: VisualEffects.ActiveZone) ->
           if newTime >= zone.EndTime then
             IndexList.add (RemoveActiveZone id) acc
@@ -1203,9 +1278,9 @@ module GameState =
             acc)
         (IndexList.empty<State.ScenarioChange>)
 
-    let struct (zoneEntityUpdates, zoneScenarioChanges) =
-      zonesSnapshot
-      |> HashMap.fold
+    let! struct (zoneEntityUpdates, zoneScenarioChanges) =
+      scenario.activeZones
+      |> AMap.fold
         (fun struct (uAcc, scAcc) zoneId (zone: VisualEffects.ActiveZone) ->
           if newTime >= zone.EndTime then
             struct (uAcc, scAcc)
@@ -1442,6 +1517,7 @@ module GameState =
       let! gameTime = scenarioState.gameTime
       and! entities = scenarioState.entities |> AMap.toAVal
       and! activeObjects = scenarioState.activeObjects |> AMap.toAVal
+      and! activeZones = scenarioState.activeZones |> AMap.toAVal
 
       let floatingTexts =
         activeObjects
@@ -1497,6 +1573,7 @@ module GameState =
         Aoes = aoes |> HashMap.toValueArray
         Impacts = impacts |> HashMap.toValueArray
         Lines = lines |> HashMap.toValueArray
+        ActiveZones = activeZones |> HashMap.toValueArray
         GameTime = gameTime
         DerivedStats = derivedStats
         WearableItems = wearableItems
