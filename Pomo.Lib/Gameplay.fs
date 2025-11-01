@@ -1033,6 +1033,168 @@ module Projectile =
       | _ -> return StateChange.empty
     })
 
+module ZoneEffects =
+
+  let isEntityInZone (position: Position) (zone: VisualEffects.ActiveZone) =
+    let dx = position.X - zone.Position.X
+    let dy = position.Y - zone.Position.Y
+    let dist2 = dx * dx + dy * dy
+    dist2 <= zone.Radius * zone.Radius
+
+  let applyEffectStacking
+    (effectStore: Services.IEffectStore)
+    (zoneId: Guid<ActiveZoneId>)
+    (effectId: int<EffectId>)
+    (existing: HashMap<int<EffectId>, ActiveEffect>)
+    : HashMap<int<EffectId>, ActiveEffect> =
+
+    let effDef = effectStore.find effectId
+
+    match existing.TryFindV effectId with
+    | ValueSome existingEffect ->
+      match effDef.Stacking with
+      | NoStack -> existing
+      | RefreshDuration ->
+        HashMap.add
+          effectId
+          {
+            existingEffect with
+                RemainingTicks =
+                  effDef.Duration.Ticks
+                  |> ValueOption.defaultValue TimeSpan.Zero
+                NextTickIn =
+                  effDef.Duration.Interval
+                  |> ValueOption.defaultValue TimeSpan.Zero
+          }
+          existing
+      | AddStack maxStacks ->
+        HashMap.add
+          effectId
+          {
+            existingEffect with
+                Stacks = min maxStacks (existingEffect.Stacks + 1)
+                RemainingTicks =
+                  effDef.Duration.Ticks
+                  |> ValueOption.defaultValue TimeSpan.Zero
+                NextTickIn =
+                  effDef.Duration.Interval
+                  |> ValueOption.defaultValue TimeSpan.Zero
+          }
+          existing
+    | ValueNone ->
+      HashMap.add
+        effectId
+        {
+          EffectId = effectId
+          SourceId = UMX.cast zoneId
+          RemainingTicks =
+            effDef.Duration.Ticks |> ValueOption.defaultValue TimeSpan.Zero
+          NextTickIn =
+            effDef.Duration.Interval |> ValueOption.defaultValue TimeSpan.Zero
+          Stacks = 1
+          Definition = effDef
+        }
+        existing
+
+  let applyZoneEffectsToEntity
+    (effectStore: Services.IEffectStore)
+    (zoneId: Guid<ActiveZoneId>)
+    (effectsToApply: int<EffectId> array)
+    (components: Components.EntityComponents)
+    : Components.EntityComponents =
+
+    let newEffects =
+      effectsToApply
+      |> Array.fold
+        (fun effects effectId ->
+          applyEffectStacking effectStore zoneId effectId effects)
+        components.Effects
+
+    { components with Effects = newEffects }
+
+  let computeZoneEntrants
+    (newTime: TimeSpan)
+    (zoneId: Guid<ActiveZoneId>)
+    (zone: VisualEffects.ActiveZone)
+    (effectStore: Services.IEffectStore)
+    (entities: amap<Guid<EntityId>, Components.EntityComponents>)
+    : amap<Guid<EntityId>, Components.EntityComponents> =
+
+    if newTime >= zone.EndTime then
+      AMap.empty
+    else
+      entities
+      |> AMap.choose(fun entId comps ->
+        let isNewEntrant =
+          isEntityInZone comps.Position zone
+          && not(zone.EntitiesInside.Contains entId)
+
+        if isNewEntrant then
+          Some(
+            applyZoneEffectsToEntity
+              effectStore
+              zoneId
+              zone.EffectsToApply
+              comps
+          )
+        else
+          None)
+
+  let computeZoneUpdate
+    (newTime: TimeSpan)
+    (zone: VisualEffects.ActiveZone)
+    (entrantsMap: amap<Guid<EntityId>, Components.EntityComponents>)
+    =
+
+    adaptive {
+      let! entrantIds = entrantsMap |> AMap.keys |> ASet.toAVal
+
+      if HashSet.isEmpty entrantIds then
+        return None
+      else
+        let updatedZone = {
+          zone with
+              EntitiesInside = HashSet.union zone.EntitiesInside entrantIds
+        }
+
+        return Some(UpdateActiveZone updatedZone)
+    }
+
+  let processAllZones
+    (state: GameState)
+    (newTime: TimeSpan)
+    (entities: amap<Guid<EntityId>, Components.EntityComponents>)
+    (activeZones: amap<Guid<ActiveZoneId>, VisualEffects.ActiveZone>)
+    =
+    adaptive {
+      let allEntrantsPerZone =
+        activeZones
+        |> AMap.map(fun zoneId zone ->
+          computeZoneEntrants
+            newTime
+            zoneId
+            zone
+            state.services.effectStore
+            entities)
+
+      let! mergedEntrants =
+        allEntrantsPerZone
+        |> AMap.reduce(
+          AdaptiveReduction.fold AMap.empty (fun acc entMap ->
+            AMap.union acc entMap)
+        )
+
+      let scenarioChanges =
+        activeZones
+        |> AMap.chooseA(fun zoneId zone -> adaptive {
+          let! entrantsForZone = allEntrantsPerZone |> AMap.find zoneId
+          return! computeZoneUpdate newTime zone entrantsForZone
+        })
+
+      return struct (mergedEntrants, scenarioChanges)
+    }
+
+
 module GameState =
 
   [<Struct>]
@@ -1265,9 +1427,6 @@ module GameState =
       projectileStateChanges.updates
       |> HashMap.union nonProjectileResolutionChanges.updates
 
-    let! (entitiesSnapshot: HashMap<Guid<EntityId>, Components.EntityComponents>) =
-      entities |> AMap.toAVal
-
     let! zoneRemovals =
       scenario.activeZones
       |> AMap.fold
@@ -1279,122 +1438,13 @@ module GameState =
         (IndexList.empty<State.ScenarioChange>)
 
     let! struct (zoneEntityUpdates, zoneScenarioChanges) =
-      scenario.activeZones
-      |> AMap.fold
-        (fun struct (uAcc, scAcc) zoneId (zone: VisualEffects.ActiveZone) ->
-          if newTime >= zone.EndTime then
-            struct (uAcc, scAcc)
-          else
+      ZoneEffects.processAllZones state newTime entities scenario.activeZones
 
-          let entrants =
-            entitiesSnapshot
-            |> HashMap.fold
-              (fun eAcc entId comps ->
-                let dx = comps.Position.X - zone.Position.X
-                let dy = comps.Position.Y - zone.Position.Y
-                let dist2 = dx * dx + dy * dy
-                let inside = dist2 <= zone.Radius * zone.Radius
-                let alreadyInside = zone.EntitiesInside.Contains entId
-                if inside && not alreadyInside then entId :: eAcc else eAcc)
-              []
-
-          if List.isEmpty entrants then
-            struct (uAcc, scAcc)
-          else
-
-          let updatedZone = {
-            zone with
-                EntitiesInside =
-                  (entrants
-                   |> List.fold
-                     (fun s eid -> HashSet.add eid s)
-                     zone.EntitiesInside)
-          }
-
-          let uAcc2 =
-            entrants
-            |> List.fold
-              (fun acc entId ->
-                match HashMap.tryFindV entId entitiesSnapshot with
-                | ValueSome comps ->
-                  let newEffects =
-                    zone.EffectsToApply
-                    |> Array.fold
-                      (fun
-                           (effAcc: HashMap<int<EffectId>, ActiveEffect>)
-                           effId ->
-                        let effDef = state.services.effectStore.find effId
-
-                        match effAcc.TryFindV effId with
-                        | ValueSome existing ->
-                          match effDef.Stacking with
-                          | NoStack -> effAcc
-                          | RefreshDuration ->
-                            HashMap.add
-                              effId
-                              {
-                                existing with
-                                    RemainingTicks =
-                                      effDef.Duration.Ticks
-                                      |> ValueOption.defaultValue
-                                        TimeSpan.Zero
-                                    NextTickIn =
-                                      effDef.Duration.Interval
-                                      |> ValueOption.defaultValue
-                                        TimeSpan.Zero
-                              }
-                              effAcc
-                          | AddStack maxStacks ->
-                            HashMap.add
-                              effId
-                              {
-                                existing with
-                                    Stacks =
-                                      min maxStacks (existing.Stacks + 1)
-                                    RemainingTicks =
-                                      effDef.Duration.Ticks
-                                      |> ValueOption.defaultValue
-                                        TimeSpan.Zero
-                                    NextTickIn =
-                                      effDef.Duration.Interval
-                                      |> ValueOption.defaultValue
-                                        TimeSpan.Zero
-                              }
-                              effAcc
-                        | ValueNone ->
-                          let rem =
-                            effDef.Duration.Ticks
-                            |> ValueOption.defaultValue TimeSpan.Zero
-
-                          let next =
-                            effDef.Duration.Interval
-                            |> ValueOption.defaultValue TimeSpan.Zero
-
-                          HashMap.add
-                            effId
-                            {
-                              EffectId = effId
-                              SourceId = UMX.cast zoneId
-                              RemainingTicks = rem
-                              NextTickIn = next
-                              Stacks = 1
-                              Definition = effDef
-                            }
-                            effAcc)
-                      comps.Effects
-
-                  let newComps = { comps with Effects = newEffects }
-                  HashMap.add entId newComps acc
-                | ValueNone -> acc)
-              uAcc
-
-          let scAcc2 = IndexList.add (UpdateActiveZone updatedZone) scAcc
-          struct (uAcc2, scAcc2))
-        (struct (HashMap.empty<Guid<EntityId>, Components.EntityComponents>,
-                 IndexList.empty<State.ScenarioChange>))
+    let! zoneScenarioChanges =
+      zoneScenarioChanges |> AMap.toAVal |> AVal.map HashMap.toValueArray
 
     let zoneScenarioChangesArray =
-      Array.append zoneRemovals.AsArray zoneScenarioChanges.AsArray
+      Array.append zoneRemovals.AsArray zoneScenarioChanges
 
     let keyedEntities = entities |> AMap.map(fun id comp -> struct (id, comp))
 
@@ -1416,6 +1466,7 @@ module GameState =
             acc)
       )
 
+    let! zoneEntityUpdates = zoneEntityUpdates |> AMap.toAVal
     let finalUpdates = HashMap.union finalUpdatesBase zoneEntityUpdates
 
     let audioChanges =
