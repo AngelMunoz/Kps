@@ -864,6 +864,7 @@ module CommandHandler =
       =
       adaptive {
         let! gameTime = rparams.gameTime
+        let! actorStats = rparams.derivedStats |> AMap.find ractors.actor
         let resolutionId = %Guid.NewGuid()
         let mutable visualEffects = ResizeArray()
         let mutable audioChanges = ResizeArray()
@@ -878,95 +879,154 @@ module CommandHandler =
 
         audioChanges.AddRange(castCues)
 
-        action.abilityDefinition.ProjectileIds
-        |> Array.iter(fun defId ->
-          let resolution = {
-            Id = resolutionId
-            ActorId = ractors.actor
-            Target = EntityResolution ractors.target
-            AbilityId = abilityId
-            TriggerTick = gameTime + TimeSpan.FromSeconds(5.0) // Fallback timeout
-          }
+        do
+          action.abilityDefinition.ProjectileIds
+          |> Array.iter(fun defId ->
+            let resolution = {
+              Id = resolutionId
+              ActorId = ractors.actor
+              Target = EntityResolution ractors.target
+              AbilityId = abilityId
+              TriggerTick = gameTime + TimeSpan.FromSeconds(5.0) // Fallback timeout
+            }
 
-          let resGuid = UMX.untag resolutionId
+            let resGuid = UMX.untag resolutionId
 
-          visualEffects.Add(AddObject(resGuid, PendingResolution resolution))
+            visualEffects.Add(AddObject(resGuid, PendingResolution resolution))
 
-          let origin =
-            match action.abilityDefinition.ProjectileOrigin with
-            | ValueSome(FromTargetPoint offset) -> {
-                X = action.targetComponents.Position.X + offset.X
-                Y = action.targetComponents.Position.Y + offset.Y
+            let origin =
+              match action.abilityDefinition.ProjectileOrigin with
+              | ValueSome(FromTargetPoint offset) -> {
+                  X = action.targetComponents.Position.X + offset.X
+                  Y = action.targetComponents.Position.Y + offset.Y
+                }
+              | ValueSome FromCaster -> action.actorComponents.Position
+              | ValueNone -> action.actorComponents.Position
+
+            let projId = Guid.NewGuid()
+
+            let proj = {
+              Id = projId |> UMX.tag
+              DefinitionId = defId
+              CurrentPosition = origin
+              Target = EntityTarget ractors.target
+              CreationTick = gameTime
+              PendingResolutionId = ValueSome resolutionId
+            }
+
+            visualEffects.Add(AddObject(projId, ActiveObject.Projectile proj)))
+
+        do
+          action.abilityDefinition.AoeIds
+          |> Array.iter(fun defId ->
+            let resolution = {
+              Id = resolutionId
+              ActorId = ractors.actor
+              Target = EntityResolution ractors.target
+              AbilityId = abilityId
+              TriggerTick = gameTime + TimeSpan.FromSeconds(0.5) // Example delay
+            }
+
+            let resGuid = UMX.untag resolutionId
+
+            visualEffects.Add(AddObject(resGuid, PendingResolution resolution))
+
+            let aoeGuid = Guid.NewGuid()
+
+            let aoe: VisualEffects.ActiveAoe = {
+              Id = aoeGuid |> UMX.tag<AoeId>
+              DefinitionId = defId
+              Position = action.targetComponents.Position
+              CreationTick = gameTime
+              PendingResolutionId = ValueSome resolutionId
+            }
+
+            visualEffects.Add(AddObject(aoeGuid, ActiveObject.Aoe aoe)))
+
+        do
+          action.abilityDefinition.ImpactIds
+          |> Array.iter(fun defId ->
+            let impactDef = rparams.services.impactStore.find defId
+
+            let resolution = {
+              Id = resolutionId
+              ActorId = ractors.actor
+              Target = EntityResolution ractors.target
+              AbilityId = abilityId
+              TriggerTick = gameTime + impactDef.Duration
+            }
+
+            let resGuid = UMX.untag resolutionId
+
+            visualEffects.Add(AddObject(resGuid, PendingResolution resolution))
+
+            let impactId = Guid.NewGuid()
+
+            let impact = {
+              Id = impactId |> UMX.tag
+              DefinitionId = defId
+              Position = action.targetComponents.Position
+              CreationTick = gameTime
+              PendingResolutionId = ValueSome resolutionId
+            }
+
+            visualEffects.Add(AddObject(impactId, ActiveObject.Impact impact)))
+
+        do
+          match action.abilityDefinition.Movement with
+          | ValueSome(Dash speedMultiplier) ->
+            let direction =
+              match action.actorComponents.Movement.Destination with
+              | ValueSome velocity -> velocity
+              | ValueNone ->
+                match action.actorComponents.Movement.Path with
+                | nextPoint :: _ -> {
+                    X = nextPoint.X - action.actorComponents.Position.X
+                    Y = nextPoint.Y - action.actorComponents.Position.Y
+                  }
+                | [] -> { X = 1.0f; Y = 0.0f } // Default to right
+
+            let distanceToDash = action.abilityDefinition.Range
+
+            let dirLength =
+              sqrt(direction.X * direction.X + direction.Y * direction.Y)
+
+            let normalizedDirection =
+              if dirLength > 0.0f then
+                {
+                  X = direction.X / dirLength
+                  Y = direction.Y / dirLength
+                }
+              else
+                { X = 1.0f; Y = 0.0f } // Fallback to default if direction is zero vector
+
+            let speed = float32 actorStats.MovementSpeed * speedMultiplier
+
+            let velocity = {
+              X = normalizedDirection.X * speed
+              Y = normalizedDirection.Y * speed
+            }
+
+            let duration =
+              if speed > 0.0f && distanceToDash > 0.0f then
+                TimeSpan.FromSeconds(float(distanceToDash / speed))
+              else
+                TimeSpan.Zero
+
+            if duration > TimeSpan.Zero then
+              let dashId = Guid.NewGuid()
+
+              let dash = {
+                Id = dashId
+                ActorId = ractors.actor
+                Velocity = velocity
+                Duration = duration
+                CreationTick = gameTime
               }
-            | ValueSome FromCaster -> action.actorComponents.Position
-            | ValueNone -> action.actorComponents.Position
 
-          let projId = Guid.NewGuid()
-
-          let proj = {
-            Id = projId |> UMX.tag
-            DefinitionId = defId
-            CurrentPosition = origin
-            Target = EntityTarget ractors.target
-            CreationTick = gameTime
-            PendingResolutionId = ValueSome resolutionId
-          }
-
-          visualEffects.Add(AddObject(projId, ActiveObject.Projectile proj)))
-
-        action.abilityDefinition.AoeIds
-        |> Array.iter(fun defId ->
-          let resolution = {
-            Id = resolutionId
-            ActorId = ractors.actor
-            Target = EntityResolution ractors.target
-            AbilityId = abilityId
-            TriggerTick = gameTime + TimeSpan.FromSeconds(0.5) // Example delay
-          }
-
-          let resGuid = UMX.untag resolutionId
-
-          visualEffects.Add(AddObject(resGuid, PendingResolution resolution))
-
-          let aoeGuid = Guid.NewGuid()
-
-          let aoe: VisualEffects.ActiveAoe = {
-            Id = aoeGuid |> UMX.tag<AoeId>
-            DefinitionId = defId
-            Position = action.targetComponents.Position
-            CreationTick = gameTime
-            PendingResolutionId = ValueSome resolutionId
-          }
-
-          visualEffects.Add(AddObject(aoeGuid, ActiveObject.Aoe aoe)))
-
-        action.abilityDefinition.ImpactIds
-        |> Array.iter(fun defId ->
-          let impactDef = rparams.services.impactStore.find defId
-
-          let resolution = {
-            Id = resolutionId
-            ActorId = ractors.actor
-            Target = EntityResolution ractors.target
-            AbilityId = abilityId
-            TriggerTick = gameTime + impactDef.Duration
-          }
-
-          let resGuid = UMX.untag resolutionId
-
-          visualEffects.Add(AddObject(resGuid, PendingResolution resolution))
-
-          let impactId = Guid.NewGuid()
-
-          let impact = {
-            Id = impactId |> UMX.tag
-            DefinitionId = defId
-            Position = action.targetComponents.Position
-            CreationTick = gameTime
-            PendingResolutionId = ValueSome resolutionId
-          }
-
-          visualEffects.Add(AddObject(impactId, ActiveObject.Impact impact)))
+              visualEffects.Add(AddObject(dashId, ActiveObject.Dash dash))
+              |> ignore
+          | _ -> ()
 
         // Only apply cost and cooldown immediately
         let! actorWithCost =
@@ -1006,6 +1066,7 @@ module CommandHandler =
       =
       adaptive {
         let! gameTime = rparams.gameTime
+        let! actorStats = rparams.derivedStats |> AMap.find actorId
         let resolutionId = %Guid.NewGuid()
         let visualEffects = ResizeArray()
         let audioChanges = ResizeArray()
@@ -1114,6 +1175,48 @@ module CommandHandler =
             }
 
             scenarioChanges.Add(AddActiveZone zone)
+          | _ -> ()
+
+        do
+          match abilityDef.Movement with
+          | ValueSome(Dash speedMultiplier) ->
+            let dashId = Guid.NewGuid()
+            let speed = float32 actorStats.MovementSpeed * speedMultiplier
+
+            let direction = {
+              X = targetPosition.X - actorComponents.Position.X
+              Y = targetPosition.Y - actorComponents.Position.Y
+            }
+
+            let distance =
+              sqrt(direction.X * direction.X + direction.Y * direction.Y)
+
+            let velocity =
+              if distance > 0.0f then
+                {
+                  X = direction.X / distance * speed
+                  Y = direction.Y / distance * speed
+                }
+              else
+                { X = 0.0f; Y = 0.0f }
+
+            let duration =
+              if speed > 0.0f then
+                TimeSpan.FromSeconds(float(distance / speed))
+              else
+                TimeSpan.Zero
+
+            if duration > TimeSpan.Zero then
+              let dash = {
+                Id = dashId
+                ActorId = actorId
+                Velocity = velocity
+                Duration = duration
+                CreationTick = gameTime
+              }
+
+              visualEffects.Add(AddObject(dashId, ActiveObject.Dash dash))
+              |> ignore
           | _ -> ()
 
         // Only apply cost and cooldown immediately
@@ -1245,12 +1348,13 @@ module CommandHandler =
         return!
           AbilityResolution.resolveCasting abilityId rparams ractors action
       else
-        let hasVisualEffect =
+        let hasDeferredLogic =
           action.abilityDefinition.ProjectileIds.Length > 0
           || action.abilityDefinition.AoeIds.Length > 0
           || action.abilityDefinition.ImpactIds.Length > 0
+          || action.abilityDefinition.Movement.IsSome
 
-        if hasVisualEffect then
+        if hasDeferredLogic then
           return!
             AbilityResolution.resolveDeferred abilityId rparams ractors action
         else

@@ -544,6 +544,11 @@ module Abilities =
     | FromTargetPoint of offset: Position
 
   [<Struct>]
+  type AbilityMovement =
+    | Dash of speedMultiplier: float32
+    | Rush of onArrivalAbilityId: int<AbilityId>
+
+  [<Struct>]
   type PassiveAbilityDefinition = {
     Id: int<AbilityId>
     Name: string
@@ -570,6 +575,7 @@ module Abilities =
     ProjectileOrigin: ProjectileOrigin voption
     AoeIds: int<AoeId>[]
     ImpactIds: int<ImpactId>[]
+    Movement: AbilityMovement voption
   }
 
   [<Struct>]

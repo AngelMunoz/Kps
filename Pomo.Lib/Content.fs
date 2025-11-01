@@ -433,6 +433,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = [| 1<ImpactId> |]
+        Movement = ValueNone
       }
       2<AbilityId>,
       {
@@ -452,6 +453,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = [| 2<ImpactId> |]
+        Movement = ValueNone
       }
       3<AbilityId>,
       {
@@ -471,6 +473,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
+        Movement = ValueNone
       }
       4<AbilityId>,
       {
@@ -490,6 +493,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
+        Movement = ValueNone
       }
       5<AbilityId>,
       {
@@ -509,6 +513,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
+        Movement = ValueNone
       }
       6<AbilityId>,
       {
@@ -528,6 +533,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
+        Movement = ValueNone
       }
       10<AbilityId>,
       {
@@ -547,6 +553,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
+        Movement = ValueNone
       }
       11<AbilityId>,
       {
@@ -566,6 +573,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
+        Movement = ValueNone
       }
       7<AbilityId>,
       {
@@ -585,6 +593,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
+        Movement = ValueNone
       }
       8<AbilityId>,
       {
@@ -604,6 +613,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = [| 1<ImpactId> |]
+        Movement = ValueNone
       }
       9<AbilityId>,
       {
@@ -623,6 +633,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
+        Movement = ValueNone
       }
       // Enhanced Effects Test Abilities
       100<AbilityId>,
@@ -643,6 +654,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = [| 1<ImpactId> |]
+        Movement = ValueNone
       }
       101<AbilityId>,
       {
@@ -662,6 +674,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
+        Movement = ValueNone
       }
       102<AbilityId>,
       {
@@ -681,6 +694,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = [| 1<ImpactId> |]
+        Movement = ValueNone
       }
       103<AbilityId>,
       {
@@ -700,6 +714,7 @@ module AbilityStore =
         ProjectileOrigin = ValueSome(FromTargetPoint { X = -250f; Y = -300f })
         AoeIds = Array.empty
         ImpactIds = [| 2<ImpactId> |]
+        Movement = ValueNone
       }
       104<AbilityId>,
       {
@@ -719,6 +734,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = [| 1<ImpactId> |]
+        Movement = ValueNone
       }
       200<AbilityId>,
       {
@@ -738,6 +754,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
+        Movement = ValueNone
       }
       // Phase 7 Test Abilities
       105<AbilityId>,
@@ -758,6 +775,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
+        Movement = ValueNone
       }
       106<AbilityId>,
       {
@@ -777,6 +795,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
+        Movement = ValueNone
       }
       107<AbilityId>,
       {
@@ -796,6 +815,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
+        Movement = ValueNone
       }
       108<AbilityId>,
       {
@@ -815,6 +835,7 @@ module AbilityStore =
         ProjectileOrigin = ValueSome(FromTargetPoint { X = 0f; Y = -100f })
         AoeIds = Array.empty
         ImpactIds = [| 2<ImpactId> |]
+        Movement = ValueNone
       }
       109<AbilityId>,
       {
@@ -834,15 +855,16 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = [| 1<AoeId> |]
         ImpactIds = Array.empty
+        Movement = ValueNone
       }
       110<AbilityId>,
       {
         Id = 110<AbilityId>
         Name = "Dash"
-        Intent = AbilityIntent.Neutral
+        Intent = AbilityIntent.Support
         Cost = ValueSome { Type = ResourceType.MP; Amount = 15 }
         Cooldown = TimeSpan.FromSeconds(5.0)
-        Targeting = GroundPoint
+        Targeting = Self
         Range = 32f * 6f
         FormulaId = ValueNone
         Effects = Array.empty
@@ -853,6 +875,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = Array.empty
+        Movement = ValueSome(Dash 3.0f)
       }
       111<AbilityId>,
       {
@@ -872,6 +895,7 @@ module AbilityStore =
         ProjectileOrigin = ValueNone
         AoeIds = Array.empty
         ImpactIds = [| 1<ImpactId> |]
+        Movement = ValueNone
       }
     ]
 

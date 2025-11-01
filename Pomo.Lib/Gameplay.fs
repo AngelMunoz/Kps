@@ -1385,6 +1385,47 @@ module GameState =
         })
       )
 
+    let! dashStateChanges =
+      scenario.activeObjects
+      |> AMap.chooseA(fun objId obj -> adaptive {
+        match obj with
+        | ActiveObject.Dash dash ->
+          if newTime - dash.CreationTick >= dash.Duration then
+            // Dash completed, remove it
+            return Some(objId, dash, ValueNone)
+          else
+            // Calculate new position
+            let! actor = entities |> AMap.find dash.ActorId
+            let elapsedSeconds = float32 time.TotalSeconds
+            let newPos = {
+              X = actor.Position.X + dash.Velocity.X * elapsedSeconds
+              Y = actor.Position.Y + dash.Velocity.Y * elapsedSeconds
+            }
+
+            // Check for collision with terrain
+            let entityRadius = Movement.Utils.radiusOfStage actor.Identity.Stage
+            let terrainClear = Collision.Query.canMoveTo newPos entityRadius scenario.scenario
+
+            if not terrainClear then
+              // Collision, stop dash and remove
+              return Some(objId, dash, ValueNone)
+            else
+              // Update actor position
+              let updatedActor = { actor with Position = newPos }
+              return Some(objId, dash, ValueSome updatedActor)
+        | _ -> return None
+      })
+      |> AMap.reduce(
+        AdaptiveReduction.fold StateChange.empty (fun acc (objId, dash, updatedActorOpt) -> {
+          acc with
+              updates =
+                match updatedActorOpt with
+                | ValueSome updatedActor -> HashMap.add dash.ActorId updatedActor acc.updates
+                | ValueNone -> acc.updates
+              visualEffects = Array.append acc.visualEffects [| RemoveObject objId |]
+        })
+      )
+
     // Generate removal changes for expired visual effects
     let! expiredObjectRemovals =
       scenario.activeObjects
@@ -1420,12 +1461,14 @@ module GameState =
         effectTickVisuals |> ResizeArray.toArray
         projectileStateChanges.visualEffects
         nonProjectileResolutionChanges.visualEffects
+        dashStateChanges.visualEffects
         expiredObjectRemovals.AsArray
       |]
 
     let updates =
       projectileStateChanges.updates
       |> HashMap.union nonProjectileResolutionChanges.updates
+      |> HashMap.union dashStateChanges.updates
 
     let! zoneRemovals =
       scenario.activeZones
