@@ -544,11 +544,6 @@ module Abilities =
     | FromTargetPoint of offset: Position
 
   [<Struct>]
-  type AbilityMovement =
-    | Dash of speedMultiplier: float32
-    | Rush of onArrivalAbilityId: int<AbilityId>
-
-  [<Struct>]
   type PassiveAbilityDefinition = {
     Id: int<AbilityId>
     Name: string
@@ -575,7 +570,6 @@ module Abilities =
     ProjectileOrigin: ProjectileOrigin voption
     AoeIds: int<AoeId>[]
     ImpactIds: int<ImpactId>[]
-    Movement: AbilityMovement voption
   }
 
   [<Struct>]
@@ -960,25 +954,6 @@ module VisualEffects =
   }
 
   [<Struct>]
-  type ActiveRush = {
-    Id: Guid
-    ActorId: Guid<EntityId>
-    TargetId: Guid<EntityId>
-    OnArrivalAbilityId: int<AbilityId>
-    Speed: float32
-    CreationTick: TimeSpan
-  }
-
-  [<Struct>]
-  type ActiveDash = {
-    Id: Guid
-    ActorId: Guid<EntityId>
-    Velocity: Position
-    Duration: TimeSpan
-    CreationTick: TimeSpan
-  }
-
-  [<Struct>]
   type ActiveLine = {
     Id: Guid
     Start: Position
@@ -996,8 +971,6 @@ module VisualEffects =
     | Impact of impact: ActiveImpact
     | FloatingText of floatingTxt: FloatingText
     | PendingResolution of pendingResolution: PendingResolution
-    | Rush of rush: ActiveRush
-    | Dash of dash: ActiveDash
     | Line of line: ActiveLine
 
   [<Struct>]

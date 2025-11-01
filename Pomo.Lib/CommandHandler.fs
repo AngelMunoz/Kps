@@ -972,61 +972,6 @@ module CommandHandler =
 
             visualEffects.Add(AddObject(impactId, ActiveObject.Impact impact)))
 
-        do
-          match action.abilityDefinition.Movement with
-          | ValueSome(Dash speedMultiplier) ->
-            let direction =
-              match action.actorComponents.Movement.Destination with
-              | ValueSome velocity -> velocity
-              | ValueNone ->
-                match action.actorComponents.Movement.Path with
-                | nextPoint :: _ -> {
-                    X = nextPoint.X - action.actorComponents.Position.X
-                    Y = nextPoint.Y - action.actorComponents.Position.Y
-                  }
-                | [] -> { X = 1.0f; Y = 0.0f } // Default to right
-
-            let distanceToDash = action.abilityDefinition.Range
-
-            let dirLength =
-              sqrt(direction.X * direction.X + direction.Y * direction.Y)
-
-            let normalizedDirection =
-              if dirLength > 0.0f then
-                {
-                  X = direction.X / dirLength
-                  Y = direction.Y / dirLength
-                }
-              else
-                { X = 1.0f; Y = 0.0f } // Fallback to default if direction is zero vector
-
-            let speed = float32 actorStats.MovementSpeed * speedMultiplier
-
-            let velocity = {
-              X = normalizedDirection.X * speed
-              Y = normalizedDirection.Y * speed
-            }
-
-            let duration =
-              if speed > 0.0f && distanceToDash > 0.0f then
-                TimeSpan.FromSeconds(float(distanceToDash / speed))
-              else
-                TimeSpan.Zero
-
-            if duration > TimeSpan.Zero then
-              let dashId = Guid.NewGuid()
-
-              let dash = {
-                Id = dashId
-                ActorId = ractors.actor
-                Velocity = velocity
-                Duration = duration
-                CreationTick = gameTime
-              }
-
-              visualEffects.Add(AddObject(dashId, ActiveObject.Dash dash))
-              |> ignore
-          | _ -> ()
 
         // Only apply cost and cooldown immediately
         let! actorWithCost =
@@ -1177,47 +1122,6 @@ module CommandHandler =
             scenarioChanges.Add(AddActiveZone zone)
           | _ -> ()
 
-        do
-          match abilityDef.Movement with
-          | ValueSome(Dash speedMultiplier) ->
-            let dashId = Guid.NewGuid()
-            let speed = float32 actorStats.MovementSpeed * speedMultiplier
-
-            let direction = {
-              X = targetPosition.X - actorComponents.Position.X
-              Y = targetPosition.Y - actorComponents.Position.Y
-            }
-
-            let distance =
-              sqrt(direction.X * direction.X + direction.Y * direction.Y)
-
-            let velocity =
-              if distance > 0.0f then
-                {
-                  X = direction.X / distance * speed
-                  Y = direction.Y / distance * speed
-                }
-              else
-                { X = 0.0f; Y = 0.0f }
-
-            let duration =
-              if speed > 0.0f then
-                TimeSpan.FromSeconds(float(distance / speed))
-              else
-                TimeSpan.Zero
-
-            if duration > TimeSpan.Zero then
-              let dash = {
-                Id = dashId
-                ActorId = actorId
-                Velocity = velocity
-                Duration = duration
-                CreationTick = gameTime
-              }
-
-              visualEffects.Add(AddObject(dashId, ActiveObject.Dash dash))
-              |> ignore
-          | _ -> ()
 
         // Only apply cost and cooldown immediately
         let! actorWithCost =
@@ -1352,7 +1256,6 @@ module CommandHandler =
           action.abilityDefinition.ProjectileIds.Length > 0
           || action.abilityDefinition.AoeIds.Length > 0
           || action.abilityDefinition.ImpactIds.Length > 0
-          || action.abilityDefinition.Movement.IsSome
 
         if hasDeferredLogic then
           return!

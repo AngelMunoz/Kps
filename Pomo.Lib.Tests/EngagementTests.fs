@@ -155,10 +155,7 @@ module private EngagementTestHelpers =
       Status = Status.Alive
     }
     Position = { X = 0f; Y = 0f }
-    Movement = {
-      Destination = ValueNone
-      Path = []
-    }
+    Movement = { Destination = ValueNone; Path = [] }
     Effects = HashMap.empty
     Abilities = HashSet.empty
     AbilityCooldowns = HashMap.empty
@@ -260,7 +257,7 @@ type ``Engagement Targeting Rules``() =
 
     let scenario = getActiveScenario state
 
-    let offensiveAbility = {
+    let offensiveAbility: ActiveAbilityDefinition = {
       Id = 1<AbilityId>
       Name = "Attack"
       Intent = AbilityIntent.Offensive
@@ -279,7 +276,7 @@ type ``Engagement Targeting Rules``() =
       ImpactIds = Array.empty
     }
 
-    let supportAbility = {
+    let supportAbility: ActiveAbilityDefinition = {
       Id = 2<AbilityId>
       Name = "Heal"
       Intent = AbilityIntent.Support
