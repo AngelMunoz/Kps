@@ -30,6 +30,8 @@ module Scenario =
     Projectiles: VisualEffects.ActiveProjectile[]
     Aoes: VisualEffects.ActiveAoe[]
     Impacts: VisualEffects.ActiveImpact[]
+    Lines: VisualEffects.ActiveLine[]
+    ActiveZones: VisualEffects.ActiveZone[]
     GameTime: TimeSpan
     DerivedStats: HashMap<Guid<EntityId>, DerivedStats>
     WearableItems:
@@ -158,6 +160,7 @@ module DerivedStats =
       HP = baseStats.Charm * 10
       DP = baseStats.Charm + int(float baseStats.Charm * 1.25)
       HV = baseStats.Charm * 2
+      MovementSpeed = 100
       ElementAttributes = equipElemAttr
       ElementResistances = equipElemRes
     }
@@ -194,6 +197,7 @@ module DerivedStats =
           DP = applyAll addMap DP initial.DP
           AC = applyAll addMap AC initial.AC
           HV = applyAll addMap HV initial.HV
+          MovementSpeed = applyAll addMap MovementSpeed initial.MovementSpeed
     }
 
     final
@@ -271,15 +275,21 @@ module Projectile =
     (time: TimeSpan)
     (newTime: TimeSpan)
     =
-    scenario.projectiles
-    |> AMap.mapA(fun projId proj -> adaptive {
+    scenario.activeObjects
+    |> AMap.choose'(fun obj ->
+      match obj with
+      | ActiveObject.Projectile proj -> Some proj
+      | _ -> None)
+    |> AMap.mapA(fun objId proj -> adaptive {
       if newTime - proj.CreationTick > TimeSpan.FromSeconds 5.0 then
         // Timeout
         return {
           StateChange.empty with
               visualEffects = [|
-                RemoveProjectile projId
-                RemovePendingResolution proj.PendingResolutionId
+                RemoveObject objId
+                match proj.PendingResolutionId with
+                | ValueSome resId -> RemoveObject(UMX.untag resId)
+                | ValueNone -> ()
               |]
         }
       else
@@ -311,18 +321,24 @@ module Projectile =
                 state.services.audioStore.findByTrigger
                   Audio.AudioTrigger.MissedHit
 
+              let ftId = Guid.NewGuid()
+
+              let ft = {
+                Id = ftId |> UMX.tag
+                Text = "Miss"
+                Position = targetPos
+                Color = Evade
+                CreationTick = newTime
+              }
+
               return {
                 StateChange.empty with
                     visualEffects = [|
-                      RemoveProjectile projId
-                      RemovePendingResolution proj.PendingResolutionId
-                      AddFloatingText {
-                        Id = Guid.NewGuid() |> UMX.tag
-                        Text = "Miss"
-                        Position = targetPos
-                        Color = FloatingTextColor.Evade
-                        CreationTick = newTime
-                      }
+                      RemoveObject objId
+                      match proj.PendingResolutionId with
+                      | ValueSome resId -> RemoveObject(UMX.untag resId)
+                      | ValueNone -> ()
+                      AddObject(ftId, ActiveObject.FloatingText ft)
                     |]
                     audioChanges =
                       cues
@@ -342,47 +358,218 @@ module Projectile =
                         })
               }
             else
-              let! resolution =
-                scenario.pendingResolutions
-                |> AMap.find proj.PendingResolutionId
+              match proj.PendingResolutionId with
+              | ValueSome resolutionId ->
+                let! resolutionOpt =
+                  scenario.activeObjects
+                  |> AMap.tryFind(UMX.untag resolutionId)
 
-              let! actor = entities |> AMap.find resolution.ActorId
+                let! resolution =
+                  match resolutionOpt with
+                  | Some(PendingResolution res) -> AVal.constant res
+                  | _ -> AVal.constant Unchecked.defaultof<PendingResolution>
 
-              let actorStats =
-                actor
-                |> DerivedStats.byEntity
-                  state.services.effectStore
-                  state.services.formulaStore
-                  state.services.itemStore
+                let! actor = entities |> AMap.find resolution.ActorId
 
-              let ability =
-                state.services.abilityStore.find resolution.AbilityId
+                let actorStats =
+                  actor
+                  |> DerivedStats.byEntity
+                    state.services.effectStore
+                    state.services.formulaStore
+                    state.services.itemStore
 
-              match ability with
-              | Abilities.Active abilityDef ->
-                let visualEffects = ResizeArray()
-                let mutable updates = HashMap.empty
+                let ability =
+                  state.services.abilityStore.find resolution.AbilityId
 
-                visualEffects.Add(RemoveProjectile projId)
+                match ability with
+                | Abilities.Active abilityDef ->
+                  let visualEffects = ResizeArray()
+                  let mutable updates = HashMap.empty
 
-                visualEffects.Add(
-                  RemovePendingResolution proj.PendingResolutionId
-                )
+                  visualEffects.Add(RemoveObject objId)
 
-                let targetResults =
-                  entitiesInZone
-                  |> AMap.mapA(fun targetId target -> adaptive {
-                    let targetStats =
-                      target
-                      |> DerivedStats.byEntity
-                        state.services.effectStore
-                        state.services.formulaStore
-                        state.services.itemStore
+                  visualEffects.Add(RemoveObject(UMX.untag resolutionId))
 
+                  let targetResults =
+                    entitiesInZone
+                    |> AMap.mapA(fun targetId target -> adaptive {
+                      let targetStats =
+                        target
+                        |> DerivedStats.byEntity
+                          state.services.effectStore
+                          state.services.formulaStore
+                          state.services.itemStore
+
+                      let damageParams = {
+                        services = state.services
+                        attackerStats = actorStats
+                        defenderStats = targetStats
+                        attackerEffects = actor.Effects
+                      }
+
+                      let! damageResult =
+                        match abilityDef.FormulaId with
+                        | ValueSome formulaId ->
+                          Resolution.calculateDamage damageParams formulaId
+                        | ValueNone ->
+                          AVal.constant {
+                            Amount = 0
+                            IsCritical = false
+                            IsEvaded = false
+                          }
+
+                      let targetAfterDamage = {
+                        target with
+                            Resources =
+                              Resolution.applyDamage
+                                damageResult.Amount
+                                target
+                      }
+
+                      let! targetAfterEffects =
+                        Resolution.applyAbilityEffects
+                          state.services.effectStore
+                          resolution.ActorId
+                          abilityDef
+                          targetAfterDamage
+
+                      let floatingText =
+                        if damageResult.IsEvaded then
+                          ValueSome {
+                            Id = Guid.NewGuid() |> UMX.tag
+                            Text = "Miss"
+                            Position = target.Position
+                            Color = FloatingTextColor.Evade
+                            CreationTick = newTime
+                          }
+                        elif damageResult.Amount > 0 then
+                          ValueSome {
+                            Id = Guid.NewGuid() |> UMX.tag
+                            Text = string damageResult.Amount
+                            Position = target.Position
+                            Color =
+                              if damageResult.IsCritical then
+                                FloatingTextColor.Critical
+                              else
+                                FloatingTextColor.Damage
+                            CreationTick = newTime
+                          }
+                        else
+                          ValueNone
+
+                      return struct (targetAfterEffects, floatingText)
+                    })
+
+
+                  let! finalUpdates =
+                    targetResults
+                    |> AMap.fold
+                      (fun acc targetId struct (updatedTarget, floatingText) ->
+                        floatingText
+                        |> ValueOption.iter(fun ft ->
+                          let ftId = UMX.untag ft.Id
+
+                          visualEffects.Add(
+                            AddObject(ftId, ActiveObject.FloatingText ft)
+                          ))
+
+                        HashMap.add targetId updatedTarget acc)
+                      HashMap.empty
+
+                  updates <- finalUpdates
+
+                  return {
+                    StateChange.empty with
+                        updates = updates
+                        visualEffects = visualEffects.ToArray()
+                  }
+                | _ -> return StateChange.empty
+              | ValueNone -> return StateChange.empty
+          else
+            let dirX = dx / dist
+            let dirY = dy / dist
+            let moveDist = def.Speed * float32 time.TotalSeconds
+
+            let newPos = {
+              X = proj.CurrentPosition.X + dirX * moveDist
+              Y = proj.CurrentPosition.Y + dirY * moveDist
+            }
+
+            let projRadius = def.Size * 0.5f
+
+            let! actorIdOpt =
+              match proj.PendingResolutionId with
+              | ValueSome resolutionId ->
+                scenario.activeObjects
+                |> AMap.tryFind(UMX.untag resolutionId)
+                |> AVal.map(fun resOpt ->
+                  match resOpt with
+                  | Some(PendingResolution res) -> ValueSome res.ActorId
+                  | _ -> ValueNone)
+              | ValueNone -> AVal.constant ValueNone
+
+            let! collidedEntity =
+              entities
+              |> AMap.filter(fun entityId _ ->
+                match actorIdOpt with
+                | ValueSome actorId -> entityId <> actorId
+                | ValueNone -> true)
+              |> AMap.fold
+                (fun (acc: _ voption) entityId entity ->
+                  if acc.IsValueSome then
+                    acc
+                  else
+                    let entityRadius =
+                      Movement.Utils.radiusOfStage entity.Identity.Stage
+
+                    let dx = entity.Position.X - newPos.X
+                    let dy = entity.Position.Y - newPos.Y
+                    let distSq = dx * dx + dy * dy
+                    let collisionDist = projRadius + entityRadius
+
+                    if distSq <= collisionDist * collisionDist then
+                      ValueSome(entityId, entity)
+                    else
+                      ValueNone)
+                ValueNone
+
+            match collidedEntity with
+            | ValueSome(entityId, _) ->
+              match proj.PendingResolutionId with
+              | ValueSome resolutionId ->
+                let! resolutionOpt =
+                  scenario.activeObjects
+                  |> AMap.tryFind(UMX.untag resolutionId)
+
+                match resolutionOpt with
+                | Some(PendingResolution res) ->
+                  let! resolution = AVal.constant res
+                  let! actor = entities |> AMap.find resolution.ActorId
+                  let! entity = entities |> AMap.find entityId
+
+                  let actorStats =
+                    actor
+                    |> DerivedStats.byEntity
+                      state.services.effectStore
+                      state.services.formulaStore
+                      state.services.itemStore
+
+                  let entityStats =
+                    entity
+                    |> DerivedStats.byEntity
+                      state.services.effectStore
+                      state.services.formulaStore
+                      state.services.itemStore
+
+                  let ability =
+                    state.services.abilityStore.find resolution.AbilityId
+
+                  match ability with
+                  | Abilities.Active abilityDef ->
                     let damageParams = {
                       services = state.services
                       attackerStats = actorStats
-                      defenderStats = targetStats
+                      defenderStats = entityStats
                       attackerEffects = actor.Effects
                     }
 
@@ -397,75 +584,85 @@ module Projectile =
                           IsEvaded = false
                         }
 
-                    let targetAfterDamage = {
-                      target with
+                    let entityAfterDamage = {
+                      entity with
                           Resources =
-                            Resolution.applyDamage damageResult.Amount target
+                            Resolution.applyDamage damageResult.Amount entity
                     }
 
-                    let! targetAfterEffects =
+                    let! entityAfterEffects =
                       Resolution.applyAbilityEffects
                         state.services.effectStore
                         resolution.ActorId
                         abilityDef
-                        targetAfterDamage
+                        entityAfterDamage
 
                     let floatingText =
                       if damageResult.IsEvaded then
-                        ValueSome {
-                          Id = Guid.NewGuid() |> UMX.tag
-                          Text = "Miss"
-                          Position = target.Position
-                          Color = FloatingTextColor.Evade
-                          CreationTick = newTime
-                        }
+                        let ftId = Guid.NewGuid()
+
+                        Some(
+                          AddObject(
+                            ftId,
+                            ActiveObject.FloatingText {
+                              Id = ftId |> UMX.tag
+                              Text = "Miss"
+                              Position = entity.Position
+                              Color = FloatingTextColor.Evade
+                              CreationTick = newTime
+                            }
+                          )
+                        )
                       elif damageResult.Amount > 0 then
-                        ValueSome {
-                          Id = Guid.NewGuid() |> UMX.tag
-                          Text = string damageResult.Amount
-                          Position = target.Position
-                          Color =
-                            if damageResult.IsCritical then
-                              FloatingTextColor.Critical
-                            else
-                              FloatingTextColor.Damage
-                          CreationTick = newTime
-                        }
+                        let ftId = Guid.NewGuid()
+
+                        Some(
+                          AddObject(
+                            ftId,
+                            ActiveObject.FloatingText {
+                              Id = ftId |> UMX.tag
+                              Text = string damageResult.Amount
+                              Position = entity.Position
+                              Color =
+                                if damageResult.IsCritical then
+                                  FloatingTextColor.Critical
+                                else
+                                  FloatingTextColor.Damage
+                              CreationTick = newTime
+                            }
+                          )
+                        )
                       else
-                        ValueNone
+                        None
 
-                    return struct (targetAfterEffects, floatingText)
-                  })
-
-
-                let! finalUpdates =
-                  targetResults
-                  |> AMap.fold
-                    (fun acc targetId struct (updatedTarget, floatingText) ->
-                      floatingText
-                      |> ValueOption.iter(fun ft ->
-                        visualEffects.Add(AddFloatingText ft))
-
-                      HashMap.add targetId updatedTarget acc)
-                    HashMap.empty
-
-                updates <- finalUpdates
-
+                    return {
+                      StateChange.empty with
+                          updates = HashMap.single entityId entityAfterEffects
+                          visualEffects = [|
+                            RemoveObject objId
+                            RemoveObject(UMX.untag resolutionId)
+                            yield! floatingText |> Option.toArray
+                          |]
+                    }
+                  | _ ->
+                    return {
+                      StateChange.empty with
+                          visualEffects = [|
+                            RemoveObject objId
+                            RemoveObject(UMX.untag resolutionId)
+                          |]
+                    }
+                | _ ->
+                  return {
+                    StateChange.empty with
+                        visualEffects = [| RemoveObject objId |]
+                  }
+              | ValueNone ->
                 return {
                   StateChange.empty with
-                      updates = updates
-                      visualEffects = visualEffects.ToArray()
+                      visualEffects = [| RemoveObject objId |]
                 }
-              | _ -> return StateChange.empty
-          else
-            let dirX = dx / dist
-            let dirY = dy / dist
-            let moveDist = def.Speed * float32 time.TotalSeconds
-
-            let newPos = {
-              X = proj.CurrentPosition.X + dirX * moveDist
-              Y = proj.CurrentPosition.Y + dirY * moveDist
-            }
+            | ValueNone ->
 
             match def.CollisionMode with
             | Visuals.CollisionMode.BlockedByTerrain ->
@@ -476,22 +673,31 @@ module Projectile =
                 return {
                   StateChange.empty with
                       visualEffects = [|
-                        RemoveProjectile projId
-                        RemovePendingResolution proj.PendingResolutionId
+                        RemoveObject objId
+                        match proj.PendingResolutionId with
+                        | ValueSome resId -> RemoveObject(UMX.untag resId)
+                        | ValueNone -> ()
                       |]
                 }
               else
+                let updatedProj = { proj with CurrentPosition = newPos }
+
                 return {
                   StateChange.empty with
                       visualEffects = [|
-                        UpdateProjectile { proj with CurrentPosition = newPos }
+                        UpdateObject(
+                          objId,
+                          ActiveObject.Projectile updatedProj
+                        )
                       |]
                 }
             | Visuals.CollisionMode.IgnoreTerrain ->
+              let updatedProj = { proj with CurrentPosition = newPos }
+
               return {
                 StateChange.empty with
                     visualEffects = [|
-                      UpdateProjectile { proj with CurrentPosition = newPos }
+                      UpdateObject(objId, ActiveObject.Projectile updatedProj)
                     |]
               }
         | EntityTarget targetId ->
@@ -510,155 +716,167 @@ module Projectile =
 
           if dist < targetRadius then
             // Collision
-            let! resolution =
-              scenario.pendingResolutions |> AMap.find proj.PendingResolutionId
+            match proj.PendingResolutionId with
+            | ValueSome resolutionId ->
+              let! resolutionOpt =
+                scenario.activeObjects |> AMap.tryFind(UMX.untag resolutionId)
 
-            let! actor = entities |> AMap.find resolution.ActorId
+              let! resolution =
+                match resolutionOpt with
+                | Some(PendingResolution res) -> AVal.constant res
+                | _ -> AVal.constant Unchecked.defaultof<PendingResolution>
 
-            let actorStats =
-              actor
-              |> DerivedStats.byEntity
-                state.services.effectStore
-                state.services.formulaStore
-                state.services.itemStore
+              let! actor = entities |> AMap.find resolution.ActorId
 
-            let targetStats =
-              target
-              |> DerivedStats.byEntity
-                state.services.effectStore
-                state.services.formulaStore
-                state.services.itemStore
-
-            let ability = state.services.abilityStore.find resolution.AbilityId
-
-            match ability with
-            | Abilities.Active abilityDef ->
-              let damageParams = {
-                services = state.services
-                attackerStats = actorStats
-                defenderStats = targetStats
-                attackerEffects = actor.Effects
-              }
-
-              let! damageResult =
-                match abilityDef.FormulaId with
-                | ValueSome formulaId ->
-                  Resolution.calculateDamage damageParams formulaId
-                | ValueNone ->
-                  AVal.constant {
-                    Amount = 0
-                    IsCritical = false
-                    IsEvaded = false
-                  }
-
-              let targetAfterDamage = {
-                target with
-                    Resources =
-                      Resolution.applyDamage damageResult.Amount target
-              }
-
-              let! targetAfterEffects =
-                Resolution.applyAbilityEffects
+              let actorStats =
+                actor
+                |> DerivedStats.byEntity
                   state.services.effectStore
-                  resolution.ActorId
-                  abilityDef
-                  targetAfterDamage
+                  state.services.formulaStore
+                  state.services.itemStore
 
-              let visualEffects = ResizeArray()
-              let audioChanges = ResizeArray()
+              let targetStats =
+                target
+                |> DerivedStats.byEntity
+                  state.services.effectStore
+                  state.services.formulaStore
+                  state.services.itemStore
 
-              visualEffects.Add(RemoveProjectile projId)
+              let ability =
+                state.services.abilityStore.find resolution.AbilityId
 
-              visualEffects.Add(
-                RemovePendingResolution proj.PendingResolutionId
-              )
+              match ability with
+              | Abilities.Active abilityDef ->
+                let damageParams = {
+                  services = state.services
+                  attackerStats = actorStats
+                  defenderStats = targetStats
+                  attackerEffects = actor.Effects
+                }
 
-              let impactCues =
-                Audio.Cues.createAbilityImpactCue
-                  state.services.audioStore
-                  resolution.AbilityId
-                  targetId
-                  target.Position
-                  newTime
+                let! damageResult =
+                  match abilityDef.FormulaId with
+                  | ValueSome formulaId ->
+                    Resolution.calculateDamage damageParams formulaId
+                  | ValueNone ->
+                    AVal.constant {
+                      Amount = 0
+                      IsCritical = false
+                      IsEvaded = false
+                    }
 
-              audioChanges.AddRange(impactCues)
+                let targetAfterDamage = {
+                  target with
+                      Resources =
+                        Resolution.applyDamage damageResult.Amount target
+                }
 
-              if damageResult.IsEvaded then
-                visualEffects.Add(
-                  AddFloatingText {
-                    Id = Guid.NewGuid() |> UMX.tag
+                let! targetAfterEffects =
+                  Resolution.applyAbilityEffects
+                    state.services.effectStore
+                    resolution.ActorId
+                    abilityDef
+                    targetAfterDamage
+
+                let visualEffects = ResizeArray()
+                let audioChanges = ResizeArray()
+
+                visualEffects.Add(RemoveObject objId)
+
+                visualEffects.Add(RemoveObject(UMX.untag resolutionId))
+
+                let impactCues =
+                  Audio.Cues.createAbilityImpactCue
+                    state.services.audioStore
+                    resolution.AbilityId
+                    targetId
+                    target.Position
+                    newTime
+
+                audioChanges.AddRange impactCues
+
+                if damageResult.IsEvaded then
+                  let ftId = Guid.NewGuid()
+
+                  let ft = {
+                    Id = ftId |> UMX.tag
                     Text = "Miss"
                     Position = target.Position
-                    Color = FloatingTextColor.Evade
+                    Color = Evade
                     CreationTick = newTime
                   }
-                )
 
-                let cues =
-                  state.services.audioStore.findByTrigger
-                    Audio.AudioTrigger.MissedHit
+                  visualEffects.Add(
+                    AddObject(ftId, ActiveObject.FloatingText ft)
+                  )
 
-                cues
-                |> Array.map(fun clipId ->
-                  Audio.PlayAudio {
-                    Id = %Guid.NewGuid()
-                    ClipId = clipId
-                    Trigger = Audio.AudioTrigger.MissedHit
-                    SpatialInfo =
-                      ValueSome {
-                        Position = target.Position
-                        MaxDistance = 500f
-                        Rolloff = 1f
-                      }
-                    CreationTick = newTime
-                    EntityId = ValueSome targetId
-                  })
-                |> audioChanges.AddRange
+                  let cues =
+                    state.services.audioStore.findByTrigger
+                      Audio.AudioTrigger.MissedHit
 
-              elif damageResult.Amount > 0 then
-                visualEffects.Add(
-                  AddFloatingText {
-                    Id = Guid.NewGuid() |> UMX.tag
+                  cues
+                  |> Array.map(fun clipId ->
+                    Audio.PlayAudio {
+                      Id = %Guid.NewGuid()
+                      ClipId = clipId
+                      Trigger = Audio.AudioTrigger.MissedHit
+                      SpatialInfo =
+                        ValueSome {
+                          Position = target.Position
+                          MaxDistance = 500f
+                          Rolloff = 1f
+                        }
+                      CreationTick = newTime
+                      EntityId = ValueSome targetId
+                    })
+                  |> audioChanges.AddRange
+
+                elif damageResult.Amount > 0 then
+                  let ftId = Guid.NewGuid()
+
+                  let ft = {
+                    Id = ftId |> UMX.tag
                     Text = string damageResult.Amount
                     Position = target.Position
                     Color =
-                      if damageResult.IsCritical then
-                        FloatingTextColor.Critical
-                      else
-                        FloatingTextColor.Damage
+                      if damageResult.IsCritical then Critical else Damage
                     CreationTick = newTime
                   }
-                )
 
-                let damageCue =
-                  Audio.AudioTrigger.DamageTaken damageResult.IsCritical
+                  visualEffects.Add(
+                    AddObject(ftId, ActiveObject.FloatingText ft)
+                  )
 
-                let cues = state.services.audioStore.findByTrigger damageCue
+                  let damageCue =
+                    Audio.AudioTrigger.DamageTaken damageResult.IsCritical
 
-                cues
-                |> Array.map(fun clipId ->
-                  Audio.PlayAudio {
-                    Id = %Guid.NewGuid()
-                    ClipId = clipId
-                    Trigger = damageCue
-                    SpatialInfo =
-                      ValueSome {
-                        Position = target.Position
-                        MaxDistance = 500f
-                        Rolloff = 1f
-                      }
-                    CreationTick = newTime
-                    EntityId = ValueSome targetId
-                  })
-                |> audioChanges.AddRange
+                  let cues = state.services.audioStore.findByTrigger damageCue
 
-              return {
-                StateChange.empty with
-                    updates = HashMap.single targetId targetAfterEffects
-                    visualEffects = visualEffects.ToArray()
-                    audioChanges = audioChanges.ToArray()
-              }
-            | _ -> return StateChange.empty
+                  cues
+                  |> Array.map(fun clipId ->
+                    Audio.PlayAudio {
+                      Id = %Guid.NewGuid()
+                      ClipId = clipId
+                      Trigger = damageCue
+                      SpatialInfo =
+                        ValueSome {
+                          Position = target.Position
+                          MaxDistance = 500f
+                          Rolloff = 1f
+                        }
+                      CreationTick = newTime
+                      EntityId = ValueSome targetId
+                    })
+                  |> audioChanges.AddRange
+
+                return {
+                  StateChange.empty with
+                      updates = HashMap.single targetId targetAfterEffects
+                      visualEffects = visualEffects.ToArray()
+                      audioChanges = audioChanges.ToArray()
+                }
+              | _ -> return StateChange.empty
+            | ValueNone -> return StateChange.empty
           else
             // No collision, update position
             let dirX = dx / dist
@@ -674,15 +892,22 @@ module Projectile =
 
             return {
               StateChange.empty with
-                  visualEffects = [| UpdateProjectile updatedProjectile |]
+                  visualEffects = [|
+                    UpdateObject(
+                      objId,
+                      ActiveObject.Projectile updatedProjectile
+                    )
+                  |]
             }
 
         | None -> // Target disappeared
           return {
             StateChange.empty with
                 visualEffects = [|
-                  RemoveProjectile projId
-                  RemovePendingResolution proj.PendingResolutionId
+                  RemoveObject objId
+                  match proj.PendingResolutionId with
+                  | ValueSome resId -> RemoveObject(UMX.untag resId)
+                  | ValueNone -> ()
                 |]
           }
     })
@@ -693,15 +918,27 @@ module Projectile =
     (entities: amap<Guid<EntityId>, EntityComponents>)
     newTime
     =
-    scenario.pendingResolutions
-    |> AMap.filterA(fun _ res -> adaptive {
-      let! isProjectile =
-        scenario.projectiles
-        |> AMap.exists(fun _ p -> p.PendingResolutionId = res.Id)
+    scenario.activeObjects
+    |> AMap.chooseA(fun objId obj -> adaptive {
+      match obj with
+      | PendingResolution res ->
+        let! isAttachedToProjectile =
+          scenario.activeObjects
+          |> AMap.exists(fun _ o ->
+            match o with
+            | ActiveObject.Projectile p ->
+              match p.PendingResolutionId with
+              | ValueSome resId -> UMX.untag resId = objId
+              | ValueNone -> false
+            | _ -> false)
 
-      return not isProjectile && newTime >= res.TriggerTick
+        if not isAttachedToProjectile && newTime >= res.TriggerTick then
+          return Some(objId, res)
+        else
+          return None
+      | _ -> return None
     })
-    |> AMap.mapA(fun _ res -> adaptive {
+    |> AMap.mapA(fun objId (_, res) -> adaptive {
       // Handle AoE/Impact resolutions here as before
       let! actor = entities |> AMap.find res.ActorId
 
@@ -760,32 +997,33 @@ module Projectile =
             targetAfterDamage
 
         let visualEffects = ResizeArray()
-        visualEffects.Add(RemovePendingResolution res.Id)
+        visualEffects.Add(RemoveObject objId)
 
         if damageResult.IsEvaded then
-          visualEffects.Add(
-            AddFloatingText {
-              Id = Guid.NewGuid() |> UMX.tag
-              Text = "Miss"
-              Position = target.Position
-              Color = FloatingTextColor.Evade
-              CreationTick = newTime
-            }
-          )
+          let ftId = Guid.NewGuid()
+
+          let ft = {
+            Id = ftId |> UMX.tag
+            Text = "Miss"
+            Position = target.Position
+            Color = Evade
+            CreationTick = newTime
+          }
+
+          visualEffects.Add(AddObject(ftId, ActiveObject.FloatingText ft))
         else
-          visualEffects.Add(
-            AddFloatingText {
-              Id = Guid.NewGuid() |> UMX.tag
-              Text = string damageResult.Amount
-              Position = target.Position
-              Color =
-                if damageResult.IsCritical then
-                  FloatingTextColor.Critical
-                else
-                  FloatingTextColor.Damage
-              CreationTick = newTime
-            }
-          )
+          let ftId = Guid.NewGuid()
+
+          let ft = {
+            Id = ftId |> UMX.tag
+            Text = string damageResult.Amount
+            Position = target.Position
+            Color = if damageResult.IsCritical then Critical else Damage
+            CreationTick = newTime
+          }
+
+          visualEffects.Add(AddObject(ftId, ActiveObject.FloatingText ft))
+
 
         return {
           StateChange.empty with
@@ -794,6 +1032,168 @@ module Projectile =
         }
       | _ -> return StateChange.empty
     })
+
+module ZoneEffects =
+
+  let isEntityInZone (position: Position) (zone: VisualEffects.ActiveZone) =
+    let dx = position.X - zone.Position.X
+    let dy = position.Y - zone.Position.Y
+    let dist2 = dx * dx + dy * dy
+    dist2 <= zone.Radius * zone.Radius
+
+  let applyEffectStacking
+    (effectStore: Services.IEffectStore)
+    (zoneId: Guid<ActiveZoneId>)
+    (effectId: int<EffectId>)
+    (existing: HashMap<int<EffectId>, ActiveEffect>)
+    : HashMap<int<EffectId>, ActiveEffect> =
+
+    let effDef = effectStore.find effectId
+
+    match existing.TryFindV effectId with
+    | ValueSome existingEffect ->
+      match effDef.Stacking with
+      | NoStack -> existing
+      | RefreshDuration ->
+        HashMap.add
+          effectId
+          {
+            existingEffect with
+                RemainingTicks =
+                  effDef.Duration.Ticks
+                  |> ValueOption.defaultValue TimeSpan.Zero
+                NextTickIn =
+                  effDef.Duration.Interval
+                  |> ValueOption.defaultValue TimeSpan.Zero
+          }
+          existing
+      | AddStack maxStacks ->
+        HashMap.add
+          effectId
+          {
+            existingEffect with
+                Stacks = min maxStacks (existingEffect.Stacks + 1)
+                RemainingTicks =
+                  effDef.Duration.Ticks
+                  |> ValueOption.defaultValue TimeSpan.Zero
+                NextTickIn =
+                  effDef.Duration.Interval
+                  |> ValueOption.defaultValue TimeSpan.Zero
+          }
+          existing
+    | ValueNone ->
+      HashMap.add
+        effectId
+        {
+          EffectId = effectId
+          SourceId = UMX.cast zoneId
+          RemainingTicks =
+            effDef.Duration.Ticks |> ValueOption.defaultValue TimeSpan.Zero
+          NextTickIn =
+            effDef.Duration.Interval |> ValueOption.defaultValue TimeSpan.Zero
+          Stacks = 1
+          Definition = effDef
+        }
+        existing
+
+  let applyZoneEffectsToEntity
+    (effectStore: Services.IEffectStore)
+    (zoneId: Guid<ActiveZoneId>)
+    (effectsToApply: int<EffectId> array)
+    (components: Components.EntityComponents)
+    : Components.EntityComponents =
+
+    let newEffects =
+      effectsToApply
+      |> Array.fold
+        (fun effects effectId ->
+          applyEffectStacking effectStore zoneId effectId effects)
+        components.Effects
+
+    { components with Effects = newEffects }
+
+  let computeZoneEntrants
+    (newTime: TimeSpan)
+    (zoneId: Guid<ActiveZoneId>)
+    (zone: VisualEffects.ActiveZone)
+    (effectStore: Services.IEffectStore)
+    (entities: amap<Guid<EntityId>, Components.EntityComponents>)
+    : amap<Guid<EntityId>, Components.EntityComponents> =
+
+    if newTime >= zone.EndTime then
+      AMap.empty
+    else
+      entities
+      |> AMap.choose(fun entId comps ->
+        let isNewEntrant =
+          isEntityInZone comps.Position zone
+          && not(zone.EntitiesInside.Contains entId)
+
+        if isNewEntrant then
+          Some(
+            applyZoneEffectsToEntity
+              effectStore
+              zoneId
+              zone.EffectsToApply
+              comps
+          )
+        else
+          None)
+
+  let computeZoneUpdate
+    (newTime: TimeSpan)
+    (zone: VisualEffects.ActiveZone)
+    (entrantsMap: amap<Guid<EntityId>, Components.EntityComponents>)
+    =
+
+    adaptive {
+      let! entrantIds = entrantsMap |> AMap.keys |> ASet.toAVal
+
+      if HashSet.isEmpty entrantIds then
+        return None
+      else
+        let updatedZone = {
+          zone with
+              EntitiesInside = HashSet.union zone.EntitiesInside entrantIds
+        }
+
+        return Some(UpdateActiveZone updatedZone)
+    }
+
+  let processAllZones
+    (state: GameState)
+    (newTime: TimeSpan)
+    (entities: amap<Guid<EntityId>, Components.EntityComponents>)
+    (activeZones: amap<Guid<ActiveZoneId>, VisualEffects.ActiveZone>)
+    =
+    adaptive {
+      let allEntrantsPerZone =
+        activeZones
+        |> AMap.map(fun zoneId zone ->
+          computeZoneEntrants
+            newTime
+            zoneId
+            zone
+            state.services.effectStore
+            entities)
+
+      let! mergedEntrants =
+        allEntrantsPerZone
+        |> AMap.reduce(
+          AdaptiveReduction.fold AMap.empty (fun acc entMap ->
+            AMap.union acc entMap)
+        )
+
+      let scenarioChanges =
+        activeZones
+        |> AMap.chooseA(fun zoneId zone -> adaptive {
+          let! entrantsForZone = allEntrantsPerZone |> AMap.find zoneId
+          return! computeZoneUpdate newTime zone entrantsForZone
+        })
+
+      return struct (mergedEntrants, scenarioChanges)
+    }
+
 
 module GameState =
 
@@ -808,9 +1208,10 @@ module GameState =
 
   let runTickEffects
     (args: TickEffectsMappingArgs)
+    (gameTime: TimeSpan)
     currentEntityId
     currentEntity
-    : aval<EntityComponents> =
+    : aval<struct (EntityComponents * State.VisualEffectChange[])> =
     adaptive {
       let {
             time = time
@@ -824,19 +1225,25 @@ module GameState =
       let struct (updatedEffects, tickResult) =
         StatusEffects.tickEffects effectStore currentEntity.Effects time
 
-      let movedComponents =
-        {
-          Width = scenario.BoundsWidth
-          Height = scenario.BoundsHeight
-          CenterX = scenario.BoundsWidth * 0.5f
-          CenterY = scenario.BoundsHeight * 0.5f
-        }
-        |> Movement.Update.withPath time scenario currentEntityId currentEntity
-
       let derivedStatsForEntity =
-        movedComponents
+        currentEntity
         |> DerivedStats.byEntity effectStore formulaStore itemStore
 
+      let movementSpeed = float32 derivedStatsForEntity.MovementSpeed
+
+      let movedComponents =
+        Movement.Update.withPath
+          time
+          scenario
+          currentEntityId
+          currentEntity
+          {
+            Width = scenario.BoundsWidth
+            Height = scenario.BoundsHeight
+            CenterX = scenario.BoundsWidth * 0.5f
+            CenterY = scenario.BoundsHeight * 0.5f
+          }
+          movementSpeed
 
       let maxHp = derivedStatsForEntity.HP
       let currentHp = movedComponents.Resources.HP
@@ -853,11 +1260,71 @@ module GameState =
             MP = newMp
       }
 
-      return {
+      let visualEffects = ResizeArray()
+
+      do
+        if tickResult.Damage > 0 then
+          let ftId = Guid.NewGuid()
+
+          let ft = {
+            Id = ftId |> UMX.tag
+            Text = string tickResult.Damage
+            Position = movedComponents.Position
+            Color = VisualEffects.FloatingTextColor.Damage
+            CreationTick = gameTime
+          }
+
+          visualEffects.Add(
+            State.AddObject(ftId, VisualEffects.ActiveObject.FloatingText ft)
+          )
+
+      do
+        if tickResult.Resources.HP > 0 then
+          let ftId = Guid.NewGuid()
+
+          let ft = {
+            Id = ftId |> UMX.tag
+            Text = $"+{tickResult.Resources.HP}"
+            Position = movedComponents.Position
+            Color = VisualEffects.FloatingTextColor.Heal
+            CreationTick = gameTime
+          }
+
+          visualEffects.Add(
+            State.AddObject(ftId, VisualEffects.ActiveObject.FloatingText ft)
+          )
+
+      do
+        if tickResult.Resources.MP <> 0 then
+          let ftId = Guid.NewGuid()
+
+          let ft = {
+            Id = ftId |> UMX.tag
+            Text =
+              if tickResult.Resources.MP > 0 then
+                $"+{tickResult.Resources.MP} MP"
+              else
+                $"{tickResult.Resources.MP} MP"
+            Position = movedComponents.Position
+            Color =
+              if tickResult.Resources.MP > 0 then
+                VisualEffects.FloatingTextColor.Heal
+              else
+                VisualEffects.FloatingTextColor.Damage
+            CreationTick = gameTime
+          }
+
+          visualEffects.Add(
+            State.AddObject(ftId, VisualEffects.ActiveObject.FloatingText ft)
+          )
+
+      let updatedEntity = {
         movedComponents with
             Effects = updatedEffects
             Resources = updatedResources
       }
+
+      return struct (updatedEntity, visualEffects.ToArray())
     }
 
   let tick (state: GameState) (time: TimeSpan) : aval<StateChange> = adaptive {
@@ -867,17 +1334,32 @@ module GameState =
 
     let newTime = currentTime + time
 
-    let entities =
+    let entitiesWithVisuals =
       scenario.entities
       |> AMap.mapA(
-        runTickEffects {
-          time = time
-          scenario = scenario.scenario
-          effectStore = state.services.effectStore
-          formulaStore = state.services.formulaStore
-          itemStore = state.services.itemStore
-        }
+        runTickEffects
+          {
+            time = time
+            scenario = scenario.scenario
+            effectStore = state.services.effectStore
+            formulaStore = state.services.formulaStore
+            itemStore = state.services.itemStore
+          }
+          newTime
       )
+
+    let! struct (entities, effectTickVisuals) =
+      entitiesWithVisuals
+      |> AMap.fold
+        (fun
+             struct (entities, visualEffects)
+             (entityId: Guid<EntityId>)
+             struct (entity, visuals) ->
+          struct (HashMap.add entityId entity entities,
+                  ResizeArray.addRange visuals visualEffects))
+        (HashMap.empty, ResizeArray.empty())
+
+    let entities = AMap.ofHashMap entities
 
     let! projectileStateChanges =
       Projectile.resolve state scenario entities time newTime
@@ -903,41 +1385,32 @@ module GameState =
         })
       )
 
+
     // Generate removal changes for expired visual effects
-    let! floatingTextRemovals =
-      scenario.floatingTexts
-      |> AMap.choose(fun id ft ->
-        if newTime - ft.CreationTick > TimeSpan.FromSeconds(2.5) then
-          Some(RemoveFloatingText id)
-        else
-          None)
-      |> AMap.reduce(
-        AdaptiveReduction.fold IndexList.empty (fun acc change ->
-          IndexList.add change acc)
-      )
+    let! expiredObjectRemovals =
+      scenario.activeObjects
+      |> AMap.choose(fun id obj ->
+        match obj with
+        | ActiveObject.FloatingText ft ->
+          if newTime - ft.CreationTick > TimeSpan.FromSeconds 2.5 then
+            Some(RemoveObject id)
+          else
+            None
+        | ActiveObject.Impact impact ->
+          let def = state.services.impactStore.find impact.DefinitionId
+          let age = newTime - impact.CreationTick
+          if age > def.Duration then Some(RemoveObject id) else None
+        | ActiveObject.Aoe aoe ->
+          let age = newTime - aoe.CreationTick
 
-    let! impactRemovals =
-      scenario.impacts
-      |> AMap.choose(fun id (impact: ActiveImpact) ->
-        let def = state.services.impactStore.find impact.DefinitionId
-
-        let age = newTime - impact.CreationTick
-
-        if age > def.Duration then Some(RemoveImpact id) else None)
-      |> AMap.reduce(
-        AdaptiveReduction.fold IndexList.empty (fun acc change ->
-          IndexList.add change acc)
-      )
-
-    let! aoeRemovals =
-      scenario.aoes
-      |> AMap.choose(fun id (aoe: ActiveAoe) ->
-        let age = newTime - aoe.CreationTick
-
-        if age > TimeSpan.FromSeconds(1.0) then
-          Some(RemoveAoe id)
-        else
-          None)
+          if age > TimeSpan.FromSeconds 1.0 then
+            Some(RemoveObject id)
+          else
+            None
+        | ActiveObject.Line line ->
+          let age = newTime - line.CreationTick
+          if age > line.Duration then Some(RemoveObject id) else None
+        | _ -> None)
       |> AMap.reduce(
         AdaptiveReduction.fold IndexList.empty (fun acc change ->
           IndexList.add change acc)
@@ -945,20 +1418,38 @@ module GameState =
 
     let visualEffectChanges =
       Array.concat [|
+        effectTickVisuals |> ResizeArray.toArray
         projectileStateChanges.visualEffects
         nonProjectileResolutionChanges.visualEffects
-        floatingTextRemovals.AsArray
-        impactRemovals.AsArray
-        aoeRemovals.AsArray
+        expiredObjectRemovals.AsArray
       |]
 
     let updates =
       projectileStateChanges.updates
       |> HashMap.union nonProjectileResolutionChanges.updates
 
+    let! zoneRemovals =
+      scenario.activeZones
+      |> AMap.fold
+        (fun acc id (zone: VisualEffects.ActiveZone) ->
+          if newTime >= zone.EndTime then
+            IndexList.add (RemoveActiveZone id) acc
+          else
+            acc)
+        (IndexList.empty<State.ScenarioChange>)
+
+    let! struct (zoneEntityUpdates, zoneScenarioChanges) =
+      ZoneEffects.processAllZones state newTime entities scenario.activeZones
+
+    let! zoneScenarioChanges =
+      zoneScenarioChanges |> AMap.toAVal |> AVal.map HashMap.toValueArray
+
+    let zoneScenarioChangesArray =
+      Array.append zoneRemovals.AsArray zoneScenarioChanges
+
     let keyedEntities = entities |> AMap.map(fun id comp -> struct (id, comp))
 
-    let! finalUpdates =
+    let! finalUpdatesBase =
       keyedEntities
       |> AMap.reduce(
         AdaptiveReduction.fold updates (fun acc struct (id, comp) ->
@@ -976,6 +1467,8 @@ module GameState =
             acc)
       )
 
+    let! zoneEntityUpdates = zoneEntityUpdates |> AMap.toAVal
+    let finalUpdates = HashMap.union finalUpdatesBase zoneEntityUpdates
 
     let audioChanges =
       Array.concat [|
@@ -988,6 +1481,7 @@ module GameState =
           updates = finalUpdates
           visualEffects = visualEffectChanges
           audioChanges = audioChanges
+          scenarioChanges = zoneScenarioChangesArray
           gameTime = ValueSome newTime
     }
   }
@@ -1003,20 +1497,9 @@ module GameState =
 
       for effect in change.visualEffects do
         match effect with
-        | AddFloatingText ft -> scenario.floatingTexts.Add(ft.Id, ft) |> ignore
-        | RemoveFloatingText ftId ->
-          scenario.floatingTexts.Remove ftId |> ignore
-        | AddProjectile p -> scenario.projectiles.Add(p.Id, p) |> ignore
-        | UpdateProjectile p -> scenario.projectiles.[p.Id] <- p
-        | RemoveProjectile pId -> scenario.projectiles.Remove pId |> ignore
-        | AddAoe a -> scenario.aoes.Add(a.Id, a) |> ignore
-        | RemoveAoe aId -> scenario.aoes.Remove aId |> ignore
-        | AddImpact i -> scenario.impacts.Add(i.Id, i) |> ignore
-        | RemoveImpact iId -> scenario.impacts.Remove iId |> ignore
-        | AddPendingResolution res ->
-          scenario.pendingResolutions.Add(res.Id, res) |> ignore
-        | RemovePendingResolution resId ->
-          scenario.pendingResolutions.Remove resId |> ignore
+        | AddObject(id, obj) -> scenario.activeObjects.Add(id, obj) |> ignore
+        | UpdateObject(id, obj) -> scenario.activeObjects[id] <- obj
+        | RemoveObject id -> scenario.activeObjects.Remove id |> ignore
 
       for sc in change.scenarioChanges do
         match sc with
@@ -1033,6 +1516,11 @@ module GameState =
           scenario.pendingPartyDuels.Add(requester, target) |> ignore
         | RemovePendingPartyDuel requester ->
           scenario.pendingPartyDuels.Remove requester |> ignore
+        | AddActiveZone zone ->
+          scenario.activeZones.Add(zone.Id, zone) |> ignore
+        | UpdateActiveZone zone -> scenario.activeZones[zone.Id] <- zone
+        | RemoveActiveZone zoneId ->
+          scenario.activeZones.Remove zoneId |> ignore
 
       for entityId, updatedComponents in change.updates do
         scenario.entities[entityId] <- updatedComponents
@@ -1047,9 +1535,7 @@ module GameState =
       for entityId, controller in change.aiControllers do
         scenario.aiControllers[entityId] <- controller
 
-      let currentEntities = scenario.entities
-
-      EnemyAI.AILifecycle.cleanupDeadControllers
+      AILifecycle.cleanupDeadControllers
         scenario.entities
         scenario.aiControllers
 
@@ -1082,10 +1568,43 @@ module GameState =
       let! scenarioState = scenarioState
       let! gameTime = scenarioState.gameTime
       and! entities = scenarioState.entities |> AMap.toAVal
-      and! floatingTexts = scenarioState.floatingTexts |> AMap.toAVal
-      and! projectiles = scenarioState.projectiles |> AMap.toAVal
-      and! aoes = scenarioState.aoes |> AMap.toAVal
-      and! impacts = scenarioState.impacts |> AMap.toAVal
+      and! activeObjects = scenarioState.activeObjects |> AMap.toAVal
+      and! activeZones = scenarioState.activeZones |> AMap.toAVal
+
+      let floatingTexts =
+        activeObjects
+        |> HashMap.chooseV(fun _ obj ->
+          match obj with
+          | ActiveObject.FloatingText ft -> ValueSome ft
+          | _ -> ValueNone)
+
+      let projectiles =
+        activeObjects
+        |> HashMap.chooseV(fun _ obj ->
+          match obj with
+          | ActiveObject.Projectile p -> ValueSome p
+          | _ -> ValueNone)
+
+      let aoes =
+        activeObjects
+        |> HashMap.chooseV(fun _ obj ->
+          match obj with
+          | ActiveObject.Aoe a -> ValueSome a
+          | _ -> ValueNone)
+
+      let impacts =
+        activeObjects
+        |> HashMap.chooseV(fun _ obj ->
+          match obj with
+          | ActiveObject.Impact i -> ValueSome i
+          | _ -> ValueNone)
+
+      let lines =
+        activeObjects
+        |> HashMap.chooseV(fun _ obj ->
+          match obj with
+          | ActiveObject.Line l -> ValueSome l
+          | _ -> ValueNone)
 
       let! derivedStats =
         DerivedStats.byScenario services scenarioState |> AMap.toAVal
@@ -1105,6 +1624,8 @@ module GameState =
         Projectiles = projectiles |> HashMap.toValueArray
         Aoes = aoes |> HashMap.toValueArray
         Impacts = impacts |> HashMap.toValueArray
+        Lines = lines |> HashMap.toValueArray
+        ActiveZones = activeZones |> HashMap.toValueArray
         GameTime = gameTime
         DerivedStats = derivedStats
         WearableItems = wearableItems

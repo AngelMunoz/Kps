@@ -51,10 +51,6 @@ module TerrainMovement =
         | _ -> 1.0f
       | None -> 1.0f
 
-  let applyDexterityModifier (baseSpeed: float32) (dexterity: int) : float32 =
-    let dexModifier = 1.0f + (float32 dexterity - 10f) * 0.05f
-    baseSpeed * max 0.1f dexModifier
-
 module PathMovement =
   let calculatePath
     (scenario: Scenario)
@@ -281,6 +277,7 @@ module Update =
     (entityId: Guid<EntityId>)
     (components: EntityComponents)
     (bounds: ScenarioBounds)
+    (movementSpeed: float32)
     =
     let entityRadius = Utils.radiusOfStage components.Identity.Stage
     let elapsedSeconds = time / TimeSpan.FromSeconds 1.0 |> float32
@@ -291,14 +288,11 @@ module Update =
       // No path - handle direct movement to destination (fallback)
       match components.Movement.Destination with
       | ValueSome dest ->
-        let adjustedSpeed =
-          TerrainMovement.applyDexterityModifier components.Movement.Speed 10
-
         let struct (proposedPos, arrived) =
           moveTowards {
             Position = components.Position
             Destination = dest
-            Speed = adjustedSpeed
+            Speed = movementSpeed
             Elapsed = elapsedSeconds
             Scenario = scenario
             EntityRadius = entityRadius
@@ -341,14 +335,11 @@ module Update =
 
       match nextWaypoint with
       | ValueSome waypoint ->
-        let adjustedSpeed =
-          TerrainMovement.applyDexterityModifier components.Movement.Speed 10
-
         let struct (proposedPos, arrived) =
           moveTowards {
             Position = components.Position
             Destination = waypoint
-            Speed = adjustedSpeed
+            Speed = movementSpeed
             Elapsed = elapsedSeconds
             Scenario = scenario
             EntityRadius = entityRadius

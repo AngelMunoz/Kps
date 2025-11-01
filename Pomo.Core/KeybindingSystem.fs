@@ -77,9 +77,16 @@ module KeybindingSystem =
         match def.Targeting with
         | Abilities.SingleEnemy -> ValueSome EntityTargeting
         | Abilities.SingleAlly -> ValueSome EntityTargeting
-        | Abilities.GroundTarget radius -> ValueSome(GroundTargeting radius)
+        | Abilities.GroundArea radius -> ValueSome(GroundTargeting radius)
+        | Abilities.GroundPoint -> ValueSome(GroundTargeting 8.0f)
+        | Abilities.AreaRandomTargets(radius, _) ->
+          ValueSome(GroundTargeting radius)
+        | Abilities.AreaRandomPoints(radius, _) ->
+          ValueSome(GroundTargeting radius)
+        | Abilities.ChainTargets _ -> ValueSome EntityTargeting
+        | Abilities.ConeTargets _ -> ValueSome EntityTargeting
+        | Abilities.StraightLine _ -> ValueSome(GroundTargeting 8f)
         | Abilities.Self -> ValueNone
-        | Abilities.MultiTarget _ -> ValueNone
       | Abilities.Passive _ -> ValueNone
 
   let processSlotAction

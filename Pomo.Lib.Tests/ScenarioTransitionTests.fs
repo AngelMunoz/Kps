@@ -37,7 +37,6 @@ type ``Scenario Transition Tests``() =
     }
     Position = pos
     Movement = {
-      Speed = 100f
       Destination = ValueNone
       Path = []
     }
@@ -121,7 +120,6 @@ type ``Scenario Transition Tests``() =
     let entity = {
       createTestEntity({ X = 100f; Y = 100f }) with
           Movement = {
-            Speed = 100f
             Destination = ValueSome { X = 200f; Y = 200f }
             Path = [ { X = 150f; Y = 150f }; { X = 200f; Y = 200f } ]
           }
@@ -133,7 +131,6 @@ type ``Scenario Transition Tests``() =
     Assert.Equal(100f, preserved.Position.X)
     Assert.Equal(100f, preserved.Position.Y)
     Assert.Equal(100, preserved.Resources.HP)
-    Assert.Equal(100f, preserved.Movement.Speed)
 
     // Check that movement state is reset
     Assert.Equal(ValueNone, preserved.Movement.Destination)

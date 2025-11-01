@@ -33,12 +33,9 @@ module ScenarioState =
       pendingDuels = cmap()
       pendingPartyDuels = cmap()
       parties = cmap()
-      floatingTexts = cmap()
-      projectiles = cmap()
-      aoes = cmap()
-      impacts = cmap()
-      pendingResolutions = cmap()
+      activeObjects = cmap()
       aiControllers = cmap()
+      activeZones = cmap()
     }
 
     configure baseScenario
@@ -59,12 +56,9 @@ module ScenarioManager =
       pendingDuels = cmap()
       pendingPartyDuels = cmap()
       parties = cmap()
-      floatingTexts = cmap()
-      projectiles = cmap()
-      aoes = cmap()
-      impacts = cmap()
-      pendingResolutions = cmap()
+      activeObjects = cmap()
       aiControllers = cmap()
+      activeZones = cmap()
     }
 
   let getScenarioState

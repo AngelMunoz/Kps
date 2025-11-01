@@ -48,6 +48,8 @@ module RenderSystem =
     Projectiles: ActiveProjectile[]
     Aoes: ActiveAoe[]
     Impacts: ActiveImpact[]
+    Lines: ActiveLine[]
+    ActiveZones: Pomo.Lib.Domain.VisualEffects.ActiveZone[]
     GameTime: TimeSpan
     Services: EngineServices
     Hud: SpriteFont voption
@@ -430,6 +432,60 @@ module RenderSystem =
         let y = int(impact.Position.Y - size * 0.5f)
         sb.Draw(pixel, Rectangle(x, y, int size, int size), color)
 
+  let private drawLines
+    (sb: SpriteBatch)
+    (pixel: Texture2D)
+    (lines: ActiveLine[])
+    (gameTime: TimeSpan)
+    =
+    for line in lines do
+      let age = gameTime - line.CreationTick
+
+      if age < line.Duration then
+        let color = Color.toMonoGameColor line.Color
+        let dx = line.End.X - line.Start.X
+        let dy = line.End.Y - line.Start.Y
+        let length = sqrt(dx * dx + dy * dy)
+        let angle = atan2 dy dx
+
+        let position = Vector2(line.Start.X, line.Start.Y)
+        let origin = Vector2(0f, 0.5f)
+        let scale = Vector2(length, line.Width)
+
+        sb.Draw(
+          pixel,
+          position,
+          Nullable(Rectangle(0, 0, 1, 1)),
+          color,
+          angle,
+          origin,
+          scale,
+          SpriteEffects.None,
+          0.0f
+        )
+
+  let private drawZones
+    (sb: SpriteBatch)
+    (pixel: Texture2D)
+    (zones: Pomo.Lib.Domain.VisualEffects.ActiveZone[])
+    (gameTime: TimeSpan)
+    =
+    for zone in zones do
+      if gameTime < zone.EndTime then
+        let color = Color.Green * 0.3f
+
+        match zone.Shape with
+        | Visuals.Shape.Circle radius ->
+          let x = int(zone.Position.X - radius)
+          let y = int(zone.Position.Y - radius)
+          let diameter = int(radius * 2.0f)
+          sb.Draw(pixel, Rectangle(x, y, diameter, diameter), color)
+        | Visuals.Shape.Square size ->
+          let halfSize = size * 0.5f
+          let x = int(zone.Position.X - halfSize)
+          let y = int(zone.Position.Y - halfSize)
+          sb.Draw(pixel, Rectangle(x, y, int size, int size), color)
+
   let private drawTargetingIndicator
     (sb: SpriteBatch)
     (pixel: Texture2D)
@@ -466,7 +522,7 @@ module RenderSystem =
 
         if not(isNull mediumCircle) then
           sb.Draw(mediumCircle, Vector2(x, y), indicatorColor)
-    | InputMode.AbilityTargeting(_, TargetingMode.GroundTargeting radius) ->
+    | InputMode.AbilityTargeting(abilityId, TargetingMode.GroundTargeting radius) ->
       if not(Platform.IsMobile()) then
         let indicatorColor = Color(255, 165, 0, 80)
 
@@ -533,10 +589,12 @@ module RenderSystem =
       drawEntity sb pixel ctx.Derived id comp
 
   let drawEffectsPhase sb pixel (ctx: EffectsContext) =
+    drawZones sb pixel ctx.ActiveZones ctx.GameTime
     drawFloatingTexts sb pixel ctx.Hud ctx.FloatingTexts ctx.GameTime
     drawProjectiles sb pixel ctx.Projectiles ctx.Services ctx.GameTime
     drawAoes sb pixel ctx.Aoes ctx.Services
     drawImpacts sb pixel ctx.Impacts ctx.Services ctx.GameTime
+    drawLines sb pixel ctx.Lines ctx.GameTime
 
   let drawInputPhase sb pixel (ctx: InputContext) (entityCtx: EntityContext) =
     drawTargetingIndicator sb pixel ctx.InputMode ctx.MouseWorldPos entityCtx

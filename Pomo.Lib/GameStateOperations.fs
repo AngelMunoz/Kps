@@ -111,7 +111,6 @@ module GameState =
       }
       Position = { X = 0f; Y = 0f }
       Movement = {
-        Speed = 100f
         Destination = ValueNone
         Path = []
       }
@@ -219,10 +218,7 @@ module ScenarioState =
     pendingDuels = cmap()
     pendingPartyDuels = cmap()
     parties = cmap()
-    floatingTexts = cmap()
-    projectiles = cmap()
-    aoes = cmap()
-    impacts = cmap()
-    pendingResolutions = cmap()
+    activeObjects = cmap()
     aiControllers = cmap()
+    activeZones = cmap()
   }

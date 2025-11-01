@@ -399,14 +399,14 @@ module Resolution =
     (actorComponents: EntityComponents)
     abilityId
     gameTime
-    abilityDef
+    cooldown
     =
     {
       actorComponents with
           AbilityCooldowns =
             actorComponents.AbilityCooldowns
             |> HashMap.alterV abilityId (fun _ ->
-              ValueSome(gameTime + abilityDef.Cooldown))
+              ValueSome(gameTime + cooldown))
     }
 
   let applyDamage (damage: int) (targetComponents: EntityComponents) =

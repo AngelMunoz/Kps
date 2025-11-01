@@ -226,6 +226,9 @@ type PomoGame() as this =
       // User input is processed based on the state after AI controller updates.
 
       // Virtual Input processing (generates commands)
+      let derivedStats =
+        DerivedStats.byGameState state |> AVal.force |> AMap.force
+
       let virtualInputCtx: VirtualInputSystem.VirtualInputContext = {
         VirtualInputState = virtualInputState
         PrevVirtualInputState = prevVirtualInputState
@@ -236,6 +239,7 @@ type PomoGame() as this =
         KeybindingConfig = keybindingConfig
         State = state
         InputMode = inputMode
+        DerivedStats = derivedStats
       }
 
       let virtualInputResult = VirtualInputSystem.processInput virtualInputCtx
@@ -370,6 +374,8 @@ type PomoGame() as this =
         Projectiles = drawCtx.Projectiles
         Aoes = drawCtx.Aoes
         Impacts = drawCtx.Impacts
+        Lines = drawCtx.Lines
+        ActiveZones = drawCtx.ActiveZones
         GameTime = drawCtx.GameTime
         Services = state.services
         Hud = hudOpt

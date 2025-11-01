@@ -42,6 +42,9 @@ type FloatingTextId
 type PendingResolutionId
 
 [<Measure>]
+type ActiveZoneId
+
+[<Measure>]
 type AudioClipId
 
 [<Measure>]
@@ -133,7 +136,6 @@ type ResourceType =
 
 [<Struct>]
 type Movement = {
-  Speed: float32 // units per second
   Destination: Position voption
   Path: Position list
 }
@@ -218,6 +220,7 @@ type Stat =
   | HP // Health Pool
   | DP // Defense Points
   | HV // Evasion
+  | MovementSpeed // Movement Speed
 
 [<Struct>]
 type AbilityRequirement =
@@ -347,6 +350,8 @@ module Attributes =
     HP: int
     DP: int
     HV: int
+    // Movement
+    MovementSpeed: int
 
     // Element % of attributes and resistances
     ElementAttributes: HashMap<Element, float>
@@ -521,8 +526,22 @@ module Abilities =
     | Self
     | SingleAlly
     | SingleEnemy
-    | MultiTarget of int
-    | GroundTarget of radius: float32
+    | GroundArea of radius: float32
+    | GroundPoint
+    | AreaRandomTargets of radius: float32 * maxTargets: int
+    | ChainTargets of maxChains: int * chainRange: float32
+    | ConeTargets of angle: float32 * range: float32 * maxTargets: int
+    | AreaRandomPoints of radius: float32 * numPoints: int
+    | StraightLine of
+      range: float32 *
+      width: float32 *
+      maxTargets: int *
+      collision: Visuals.CollisionMode
+
+  [<Struct>]
+  type ProjectileOrigin =
+    | FromCaster
+    | FromTargetPoint of offset: Position
 
   [<Struct>]
   type PassiveAbilityDefinition = {
@@ -542,12 +561,15 @@ module Abilities =
     Cost: ResourceCost voption
     Targeting: TargetType
     Range: float32
+    CastingTime: TimeSpan voption
+    PreActivationVisualEffectIds: int<ImpactId>[]
     FormulaId: int<FormulaId> voption
     Effects: int<EffectId>[]
     Requirements: AbilityRequirement[]
-    ProjectileId: int<ProjectileId> voption
-    AoeId: int<AoeId> voption
-    ImpactId: int<ImpactId> voption
+    ProjectileIds: int<ProjectileId>[]
+    ProjectileOrigin: ProjectileOrigin voption
+    AoeIds: int<AoeId>[]
+    ImpactIds: int<ImpactId>[]
   }
 
   [<Struct>]
@@ -722,6 +744,11 @@ module Rules =
     | PositionTarget of position: Position
 
   [<Struct>]
+  type ResolvedTarget =
+    | Entity of entityId: Guid<EntityId>
+    | Position of position: Position
+
+  [<Struct>]
   type UseAbilityAction = {
     actor: Guid<EntityId>
     target: AbilityTarget
@@ -894,7 +921,7 @@ module VisualEffects =
     CurrentPosition: Position
     Target: ProjectileTarget
     CreationTick: TimeSpan
-    PendingResolutionId: Guid<PendingResolutionId>
+    PendingResolutionId: Guid<PendingResolutionId> voption
   }
 
   [<Struct>]
@@ -903,7 +930,7 @@ module VisualEffects =
     DefinitionId: int<AoeId>
     Position: Position
     CreationTick: TimeSpan
-    PendingResolutionId: Guid<PendingResolutionId>
+    PendingResolutionId: Guid<PendingResolutionId> voption
   }
 
   [<Struct>]
@@ -912,8 +939,39 @@ module VisualEffects =
     DefinitionId: int<ImpactId>
     Position: Position
     CreationTick: TimeSpan
-    PendingResolutionId: Guid<PendingResolutionId>
+    PendingResolutionId: Guid<PendingResolutionId> voption
   }
+
+  [<Struct>]
+  type ActiveZone = {
+    Id: Guid<ActiveZoneId>
+    Position: Position
+    Shape: Visuals.Shape
+    Radius: float32
+    EndTime: TimeSpan
+    EffectsToApply: int<EffectId>[]
+    EntitiesInside: HashSet<Guid<EntityId>>
+  }
+
+  [<Struct>]
+  type ActiveLine = {
+    Id: Guid
+    Start: Position
+    End: Position
+    Width: float32
+    Color: VisualColor
+    Duration: TimeSpan
+    CreationTick: TimeSpan
+  }
+
+  [<Struct>]
+  type ActiveObject =
+    | Projectile of projectile: ActiveProjectile
+    | Aoe of aoe: ActiveAoe
+    | Impact of impact: ActiveImpact
+    | FloatingText of floatingTxt: FloatingText
+    | PendingResolution of pendingResolution: PendingResolution
+    | Line of line: ActiveLine
 
   [<Struct>]
   type VisualEffect =
@@ -954,12 +1012,9 @@ module Scenario =
     pendingDuels: cmap<Guid<EntityId>, Guid<EntityId>>
     pendingPartyDuels: cmap<Guid<PartyId>, Guid<PartyId>>
     parties: cmap<Guid<PartyId>, Party>
-    floatingTexts: cmap<Guid<FloatingTextId>, VisualEffects.FloatingText>
-    projectiles: cmap<Guid<ProjectileId>, VisualEffects.ActiveProjectile>
-    aoes: cmap<Guid<AoeId>, VisualEffects.ActiveAoe>
-    impacts: cmap<Guid<ImpactId>, VisualEffects.ActiveImpact>
-    pendingResolutions: cmap<Guid<PendingResolutionId>, PendingResolution>
+    activeObjects: cmap<Guid, VisualEffects.ActiveObject>
     aiControllers: cmap<Guid<EntityId>, AI.AIController>
+    activeZones: cmap<Guid<ActiveZoneId>, VisualEffects.ActiveZone>
   }
 
   type GameStateScenarios = {
@@ -1056,25 +1111,20 @@ module State =
     | RemovePendingDuel of requester: Guid<EntityId>
     | AddPendingPartyDuel of requester: Guid<PartyId> * target: Guid<PartyId>
     | RemovePendingPartyDuel of requester: Guid<PartyId>
+    | AddActiveZone of zone: ActiveZone
+    | UpdateActiveZone of zone: ActiveZone
+    | RemoveActiveZone of zoneId: Guid<ActiveZoneId>
 
   [<Struct>]
   type VisualEffectChange =
-    | AddFloatingText of addText: FloatingText
-    | RemoveFloatingText of floatingTextId: Guid<FloatingTextId>
-    | AddProjectile of addProjectile: ActiveProjectile
-    | UpdateProjectile of updatedProjectile: ActiveProjectile
-    | RemoveProjectile of projectileId: Guid<ProjectileId>
-    | AddAoe of addAoe: ActiveAoe
-    | RemoveAoe of aoeId: Guid<AoeId>
-    | AddImpact of addImpact: ActiveImpact
-    | RemoveImpact of impactId: Guid<ImpactId>
-    | AddPendingResolution of addResolution: PendingResolution
-    | RemovePendingResolution of resolutionId: Guid<PendingResolutionId>
+    | AddObject of id: Guid * obj: ActiveObject
+    | UpdateObject of id: Guid * obj: ActiveObject
+    | RemoveObject of id: Guid
 
   [<Struct>]
   type StateChange = {
-    updates: HashMap<Guid<EntityId>, EntityComponents>
-    additions: HashMap<Guid<EntityId>, EntityComponents>
+    updates: HashMap<Guid<EntityId>, Components.EntityComponents>
+    additions: HashMap<Guid<EntityId>, Components.EntityComponents>
     removals: Guid<EntityId>[]
     gameTime: TimeSpan voption
     scenarioChanges: ScenarioChange[]
